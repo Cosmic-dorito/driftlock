@@ -32,29 +32,83 @@ main reason our own generator is required.
 
 ---
 
-## 2. Headline result
+## 2. Headline result — validated on held-out data
 
-| Metric | Sponsor baseline | **DriftLock** | Change |
+Configuration: sub-pixel DFT + blind drift correction. No GPU, no learned weights, four
+dependencies, ~50 ms per pair.
+
+**Every number below is reported on three splits, only one of which was used for tuning.**
+
+| Split | | Mis-lock | Median (px) | pass@1px | pass@0.5px | Runtime p50 |
+|---|---|---|---|---|---|---|
+| **verify** (tuned) | baseline | 25.0% | 1.102 | 40% | 18% | 29.9 ms |
+| | **DriftLock** | 25.0% | **0.238** | **75%** | **72%** | 50.5 ms |
+| **held-out dram seed** | baseline | 20.0% | 0.757* | 50% | 23% | — |
+| | **DriftLock** | 20.0% | **0.301** | **80%** | **67%** | 47.8 ms |
+| **held-out FinFET** | baseline | 30.0% | 0.943* | 43% | 13% | — |
+| | **DriftLock** | 30.0% | **0.422** | **70%** | **60%** | 48.1 ms |
+
+\* median among correctly-located pairs.
+
+**What generalises and what does not.** Precision improves by a similar factor on all three splits,
+including an architecture (FinFET) the pipeline was never tuned on. Sub-pixel pass rate roughly
+**triples to quadruples** everywhere: 18%→72%, 23%→67%, 13%→60%.
+
+**The mis-lock rate is unchanged from baseline on every split — deliberately.** Neither enabled
+stage touches candidate selection; both are pure refinement applied after a location is chosen.
+That makes them *strictly additive*: they cannot turn a correct pick into a wrong one, which is why
+they transfer across architectures without retuning.
+
+**The honest reading.** We have solved precision and **not** solved selection. Every pass rate is
+capped by the mis-lock rate (25% / 20% / 30%), and that number is currently no better than the
+sponsor's baseline. That is the whole of the remaining work on the localization score.
+
+---
+
+## 2b. Generalisation test — PADM removed ⚠️
+
+**The most important negative result in the project**, and the reason the headline above looks
+different from earlier drafts.
+
+All parameters (PADM weight and bandwidth, drift gap) were tuned on one split: `dram_1x`, seed
+20260811. Rule R5 requires checking that tuning transfers. It did not.
+
+| Configuration | verify (tuned) | held-out dram | held-out FinFET |
 |---|---|---|---|
-| Mis-lock rate (>5 px) | 25.0% | **20.0%** | −5 pts |
-| Median error | 1.102 px | **0.220 px** | **5.0× better** |
-| Median error, located pairs only | 0.900 px | **0.143 px** | **6.3× better** |
-| pass@5 px | 75% | **80%** | +5 pts |
-| pass@4 px | 75% | **80%** | +5 pts |
-| pass@2 px | 75% | **80%** | +5 pts |
-| pass@1 px | 40% | **80%** | **2.0×** |
-| pass@0.5 px (sub-pixel) | 18% | **78%** | **4.3×** |
-| Worst-case error | 271.71 px | 629.59 px | ⚠️ worse |
-| Runtime p50 | 29.9 ms | 224.1 ms | ⚠️ 7.5× slower |
-| Runtime p95 | 33.1 ms | 235.0 ms | within the 300 ms budget |
+| baseline mis-lock | 25.0% | 20.0% | 30.0% |
+| **+ top-K + PADM + centre rule** | **20.0%** ✅ | **26.7%** ❌ | **43.3%** ❌ |
+| + sub-pixel + drift | 25.0% | 20.0% | 30.0% |
 
-Configuration: `top_k=20`, PADM (weight 0.4, bandwidth 0.010), closest-to-centre rule, sub-pixel
-DFT, blind drift correction. No GPU, no learned weights, four dependencies.
+PADM improved the split it was tuned on by 5 points and made **both** held-out splits worse — by 6.7
+points on dram and **13.3 points** on FinFET. Its blend weight and spectral bandwidth were fitted to
+one lattice geometry and did not survive a change of pitch or architecture.
 
-**Reading it honestly.** Every pass rate is pinned at 80% by the same thing: the 20% mis-lock rate.
-Once a pair is located, precision is excellent (median 0.143 px, 78% inside half a pixel). The
-remaining work is almost entirely about *not picking the wrong lattice repeat*, and precision
-improvements can no longer move the headline numbers.
+**It has been disabled by default.** It remains in the codebase and in the ablation table as a
+measured negative result rather than being deleted.
+
+**Two things this cost, and one it saved.** The earlier headline of "20% mis-lock" was an
+overfitting artefact and has been withdrawn. But removing PADM also removed its 185 ms of FFT work,
+so runtime dropped from 224 ms to **50 ms** — a 4.5× speedup that directly helps the runtime half of
+the localization score.
+
+**Why it was caught.** Only because held-out splits were generated and tested before the result was
+believed. A single-split evaluation would have reported 20% mis-lock and 78% sub-pixel, and the
+evaluation set would have quietly disagreed.
+
+---
+
+## 2c. A property of the sponsor's generator worth knowing
+
+While building the held-out splits, `dram_dense`, `dram_loose` and `dram_legacy` produced
+**byte-identical images** (verified by md5).
+
+Cause: `generate_fine_canvas_zoned` passes only `preset["kind"]` to `generate_zone_canvas`, so in
+the zoned code path — which is the default — **every DRAM preset collapses to the same generator**,
+and the pitch values in `presets.py` are ignored. Only `dram` vs `finfet` actually changes anything.
+
+**Consequence for us:** the sponsor's generator offers far less diversity than its twelve preset
+names suggest. Genuine variation in pitch, feature size and CD must come from **our own generator**,
+which raises the value of P0 further.
 
 ---
 

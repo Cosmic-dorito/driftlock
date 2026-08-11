@@ -49,25 +49,33 @@ def log(message: str, verbose: bool = True) -> None:
 def build_config(args: argparse.Namespace) -> PipelineConfig:
     """Assemble the pipeline configuration from CLI flags.
 
-    Only stages that have EARNED their place by moving a measured number are enabled here (R9).
-    As of the last measurement on 40 sponsor pairs:
+    A stage is enabled here only if it improves results on data it was NOT tuned on (rules R5, R9).
+    Validated across three splits: the tuned split, a held-out dram seed, and held-out FinFET.
 
-      * top-K + PADM residual re-scoring: mis-lock 25.0% -> 20.0%
-      * sub-pixel DFT refinement:         median 1.102 -> 1.085 px, pass@1px 40% -> 45%
-      * blind raster-drift correction:    median 0.975 -> 0.220 px, pass@0.5px 20% -> 78%
+    Enabled - generalises on every split:
+      * sub-pixel DFT + blind drift correction
+            median error among located pairs   0.900 -> 0.162 px (tuned)
+                                               0.757 -> 0.252 px (held-out dram)
+                                               0.943 -> 0.228 px (held-out FinFET)
+            pass@0.5px                         18% -> 72%, 23% -> 67%, 13% -> 60%
+        Neither stage touches candidate selection, so the mis-lock rate is identical to baseline
+        on all three splits. They are strictly additive refinement and cannot make things worse.
 
-    Deliberately NOT enabled, with reasons in docs/FINDINGS.md:
-      * row destriping   - actively harmful here (removes horizontal word lines along with streaks)
-      * phase congruency - implementation is broken (100% mis-lock)
-      * ECC affine       - never converges; silently inert
-      * median filter    - no impulse noise in this data; harmless but useless
-      * Anscombe         - cannot move an integer argmax; re-test once refinement is stronger
+    NOT enabled - PADM re-scoring, because it does not generalise:
+            tuned split        mis-lock 25.0% -> 20.0%   (helps)
+            held-out dram      mis-lock 20.0% -> 26.7%   (HURTS)
+            held-out FinFET    mis-lock 30.0% -> 43.3%   (HURTS BADLY)
+        Its weight and bandwidth were tuned on one preset and one seed and did not transfer. Also
+        costs 185 ms of the runtime budget. Kept in the codebase and in the ablation as a measured
+        negative result, off by default.
+
+    Also not enabled, with reasons in docs/FINDINGS.md: row destriping (removes horizontal word
+    lines along with charging streaks), phase congruency (implementation broken), ECC affine (never
+    converges), median filter (no impulse noise in this data), Anscombe (cannot move an integer
+    argmax; re-test if a continuous re-ranker lands).
     """
     return PipelineConfig(
-        label="tier-a",
-        top_k=20,
-        padm=True,
-        centre_rule=True,
+        label="driftlock",
         subpixel=True,
         drift_correction=True,
     )
