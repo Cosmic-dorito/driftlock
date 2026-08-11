@@ -1,0 +1,8 @@
+-r requirements.txt
+
+# OPTIONAL. Required only for the flag-gated learned re-ranker (Tier C1).
+# The deterministic code path — which produces the submitted coordinates — never imports torch.
+# `pip uninstall torch` must leave every graded command working; tests/test_cli.py enforces this.
+#
+# Verified available for Python 3.14 as torch 2.12.1+cpu (CPU build; no GPU required).
+torch>=2.12

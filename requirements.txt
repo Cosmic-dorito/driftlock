@@ -1,0 +1,29 @@
+# DriftLock runtime dependencies — exact pins, verified working on Python 3.14.3 (Windows).
+# Install:  pip install -r requirements.txt
+#
+# Deliberately small. Every one of these is used by the default (deterministic) code path.
+# torch is NOT here: it is an OPTIONAL dependency, lazily imported inside a try/except, used only
+# by the flag-gated re-ranker. `pip uninstall torch` must leave everything working.
+# See requirements-optional.txt.
+
+# --- core numerics ---
+numpy==2.5.2
+scipy==1.18.0
+
+# --- imaging ---
+# headless, never opencv-python: the evaluator's machine may have no display libraries.
+# Pinned to the 5.x line. API surface verified by tests/test_deps_api.py (ADR-0003).
+opencv-python-headless==5.0.0.93
+scikit-image==0.26.0
+pillow==12.3.0
+
+# --- data / config / reporting ---
+pandas==3.0.5
+PyYAML==6.0.3
+matplotlib==3.11.1
+
+# --- transitive, pinned for reproducibility ---
+ImageIO==2.37.4
+lazy-loader==0.5
+networkx==3.6.1
+tifffile==2026.7.31

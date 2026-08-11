@@ -1,0 +1,33 @@
+# Cross-platform safety. Without this, Windows CRLF conversion silently corrupts
+# committed PNGs and breaks the byte-identical reproducibility claim across machines.
+
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.csv   text eol=lf
+*.json  text eol=lf
+*.txt   text eol=lf
+*.sh    text eol=lf
+*.ps1   text eol=crlf
+
+# Binary — never touch these.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.tif   binary
+*.tiff  binary
+*.bmp   binary
+*.pdf   binary
+*.pptx  binary
+*.potx  binary
+*.xlsx  binary
+*.pt    binary
+*.pth   binary
+*.npy   binary
+*.npz   binary
+*.zip   binary
+*.mp4   binary
+*.gif   binary

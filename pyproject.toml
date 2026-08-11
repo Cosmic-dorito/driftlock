@@ -1,0 +1,41 @@
+[project]
+name = "driftlock"
+version = "0.1.0"
+description = "Cross-magnification navigation-error recovery for wafer inspection tools (Applied Materials Drift-Sense, SEMICON India Hackathon 2026)"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+
+# Runtime dependencies are pinned in requirements.txt, which is the file the
+# graded README tells the evaluator to install. Keep the two in sync.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["src", "src.synth", "src.driftlock"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: takes more than a few seconds",
+    "needs_torch: requires the optional torch dependency",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PTH"]
+# PTH is deliberately on: it flags os.path usage and pushes everything to
+# pathlib, which is what keeps the repo portable across Windows and Linux.
+ignore = [
+    "E501",  # line length is handled by the formatter
+    "B905",  # zip strict= is noisy for this codebase
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]

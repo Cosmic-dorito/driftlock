@@ -1,0 +1,62 @@
+# Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib60/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing / tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Generated data.
+# POLICY: data/bench/ IS committed - it is the required >=30-pair validation evidence.
+# Every other split is regenerated from seeds via `make data` and never committed.
+data/*
+!data/bench/
+!data/bench/**
+data/_sponsor/
+
+# Third-party reference generator, fetched not vendored.
+# See scripts/fetch_reference_generator.sh and README attribution.
+third_party/
+
+# Packaging output
+dist/
+*.zip
+
+# Large or transient results. Committed results live in results/ as CSV/MD/PNG;
+# scratch runs go to results/_scratch/.
+results/_scratch/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
