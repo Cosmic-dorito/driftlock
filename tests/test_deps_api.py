@@ -12,7 +12,9 @@ import numpy as np
 import pytest
 
 cv2 = pytest.importorskip("cv2")
-from skimage.registration import phase_cross_correlation  # noqa: E402
+# Import order is deliberate: this must follow importorskip so a missing OpenCV skips the module
+# with a clear message rather than erroring at collection time.
+from skimage.registration import phase_cross_correlation  # noqa: E402, I001
 
 
 # Symbols the localization pipeline calls. If OpenCV moves one, fail here, not at 2 a.m. on Day 3.
