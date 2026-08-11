@@ -454,6 +454,64 @@ once further stages are added.
 
 ---
 
+## 12f. Blind drift estimation — SOLVED ✅✅ (supersedes §12b)
+
+§12b abandoned this as infeasible. That was **wrong**, and the distinction matters: the two failed
+approaches failed for *fixable* reasons, not fundamental ones. "This approach failed" is not the
+same claim as "this is impossible", and conflating them nearly cost the largest win in the project.
+
+**The insight.** Rows **close together** contain the same content. Vertical bit-lines run
+continuously down the image, so two rows a modest distance apart show the same structure displaced
+only by the drift accumulated between them. Correlating them recovers that displacement directly.
+The earlier attempts used *distant* bands — which sit in different, independently randomised mats,
+so there was no common signal to correlate.
+
+**But adjacent rows alone are not enough.** Correlating neighbours and integrating the differentials
+also fails: summing noisy per-row estimates random-walks, accumulating √1000 × 0.05 ≈ **1.6 px** of
+integration noise against a **1.5 px** signal. Measured directly, it tracked truth but with ±0.7–1.7
+scatter — the right trend, unusable precision.
+
+**The working method avoids both traps.** Correlate rows separated by a fixed **gap** (still inside
+one mat, which spans ~260 search px) and fit the displacement **directly**. Nothing is integrated,
+so no random walk accumulates. The lag window is kept well below the lattice pitch, or the
+periodicity aliases the correlation onto the wrong repeat — exactly how the first attempt failed.
+
+**Validation against known shear** (gap=100, 10 pairs each):
+
+| true shear | estimated | std dev |
+|---|---|---|
+| 0.0 | 0.009 | 0.202 |
+| 1.5 | 1.445 | 0.344 |
+| 3.0 | 2.804 | 0.321 |
+| 5.0 | 5.184 | 0.245 |
+
+Essentially unbiased, with scatter well below the ~0.84 px bias being removed. Larger gaps are
+better (25 → ±0.70, 50 → ±0.40, 100 → ±0.34) because the drift signal grows relative to per-row
+noise, bounded by the requirement to stay within one mat.
+
+**End-to-end effect, 40 sponsor pairs, fully blind:**
+
+| | mis-lock | median | median (located) | pass@1px | pass@0.5px |
+|---|---|---|---|---|---|
+| sponsor baseline | 25.0% | 1.102 | 0.900 | 40% | 18% |
+| Tier A | 20.0% | 0.975 | 0.715 | 52% | 20% |
+| **+ blind drift correction** | 20.0% | **0.220** | **0.143** | **80%** | **78%** |
+
+Median error **5× better**, median among located pairs **6.3× better**, sub-pixel pass rate
+**4.3× better**. Against the oracle ceiling of 0.062 px, the blind estimate reaches 0.143 px — most
+of the theoretically available correction, with the remainder being the price of estimating rather
+than knowing.
+
+**Safety property.** The estimator returns `None` when too few row pairs survive the correlation
+gate (a featureless or heavily zoned image). The caller then skips the correction rather than
+applying a guess, so an unreliable estimate can never make results worse than not correcting.
+
+**Why this is the strongest evidence for the thesis.** The largest single improvement in the project
+came from **inverting a known acquisition distortion**, not from a better matcher, better features,
+or a bigger model. "We don't match images, we invert the microscope" is now a measured claim.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken
