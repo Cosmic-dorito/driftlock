@@ -49,6 +49,7 @@ class PipelineConfig:
     top_k: int = 1                   # 1 == argmax == baseline. A6 keeps many.
     nms_radius_px: float = 6.0
     padm: bool = False               # A7: score the aperiodic residual
+    padm_weight: float = 0.5         # blend: raw score carries lattice, residual carries identity
     centre_rule: bool = False        # A8: closest-to-centre among tied candidates
 
     # --- A9: refinement -------------------------------------------------------------------
@@ -205,11 +206,50 @@ def localize(
             "than the search image"
         )
 
+    pitch_px = None
+
+    # A7: re-score on the aperiodic residual. The raw score is dominated by the lattice, which
+    # carries no information about WHICH repeat we are on; the residual is where identity lives.
+    if config.padm and len(candidates) > 1:
+        from src.driftlock.padm import (
+            decompose,
+            estimate_lattice,
+            rescore_on_residual,
+        )
+
+        lattice = estimate_lattice(search_proc)
+        pitch_px = lattice.dominant_pitch_px
+        _, search_residual = decompose(search_proc, lattice)
+        best_scale = max(candidates, key=lambda c: c.score).scale
+        template = build_template(ref_proc, best_scale)
+        _, template_residual = decompose(template)
+        candidates = rescore_on_residual(
+            search_residual, template_residual, candidates, config.padm_weight
+        )
+
     chosen = (select_by_centre_rule(candidates, search_proc.shape)
               if config.centre_rule else max(candidates, key=lambda c: c.score))
 
+    # A8: report how dangerous the ambiguity was, so the caller can decide whether to trust it.
+    pai = None
+    if len(candidates) > 1:
+        from src.driftlock.padm import periodic_ambiguity_index
+        pai = periodic_ambiguity_index(candidates, pitch_px)
+
+    # A9: sub-pixel refinement.
+    if config.subpixel or config.ecc_affine:
+        from src.driftlock.subpixel import refine
+        chosen = refine(
+            search_proc, ref_proc, chosen,
+            use_dft=config.subpixel, use_ecc=config.ecc_affine,
+        )
+
     elapsed_ms = (time.perf_counter() - started) * 1000.0
-    return Match(x=chosen.x, y=chosen.y, score=chosen.score, runtime_ms=elapsed_ms)
+    return Match(
+        x=chosen.x, y=chosen.y, score=chosen.score,
+        confidence_radius_px=None if pai is None else float(pai),
+        runtime_ms=elapsed_ms,
+    )
 
 
 def _preprocess(

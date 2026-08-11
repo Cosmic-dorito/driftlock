@@ -174,6 +174,65 @@ committed PNGs and silently breaks the byte-identical reproducibility claim.
 
 ---
 
+## ADR-0010 · 2026-08-11 · accepted · The residual error is a drift-frame offset, not a matching error
+
+**Finding.** After correlation finds the right lattice repeat, the remaining ~0.87 px error is
+**not** imprecision in the match. The raster drift physically displaces the search image's content
+(`apply_raster_drift` remaps row *r* by `shear·(r/999)` in x), while the ground truth is defined in
+the **undrifted** frame. So the matcher is finding exactly where the content *is*, and the ground
+truth records where it *would have been* without drift. That gap is unreachable by any improvement
+to the similarity measure.
+
+**Evidence.** Inverting the shear analytically, `x_corrected = x_found + shear·(y_found/999)`, over
+40 sponsor pairs:
+
+| | median (located) | mean | pass@1px | pass@0.5px |
+|---|---|---|---|---|
+| as found | 0.866 px | 0.827 | 45% | 18% |
+| shear-corrected | **0.062 px** | 0.069 | **75%** | **75%** |
+
+A 14× reduction, landing near the noise floor.
+
+**⚠️ This used the TRUE shear from the manifest — an oracle. It is NOT a usable result yet.** At
+inference we do not get the shear. Recorded here so the number is never quoted as an achievement
+(R6); it is an upper bound that tells us what blind estimation is worth.
+
+**Why it matters anyway.** It is the strongest confirmation yet of the project's thesis: the win
+came from *inverting a known acquisition distortion*, not from a better matcher. It also explains
+the baseline's pass-rate shape — flat 75% from 5 px down to 2 px, then collapsing to 40% at 1 px —
+because nearly every correctly-located pair sits in a narrow band set by this one systematic offset.
+
+**Next step (blocks Gate 4).** Estimate the shear blind. The reference is shear-free
+(`image_reference` passes `shear_amplitude_px=0.0`) while the search is sheared, so the distortion
+shows up as a difference in lattice basis vectors between the two — a shear tilts the vertical
+bit-line direction by `atan(shear/1000)`. That is exactly step A5, "lattice as a ruler," and it is
+now the highest-value remaining work.
+
+**Caveat on feasibility.** For shear=1.5 px over 1000 rows the tilt is only 0.086°, against an FFT
+angular resolution of roughly 0.057° at this image size. Measurable, but not comfortably — so this
+needs a real measurement, not an assumption, and a fallback if the estimate is unreliable.
+
+---
+
+## ADR-0011 · 2026-08-11 · accepted · Negative results: stages that did not earn their place
+
+Recorded per R9. Each was implemented, measured on 16–40 sponsor pairs, and kept out of the default
+path. Reported in the ablation rather than quietly deleted.
+
+| Stage | Effect | Why |
+|---|---|---|
+| Row destriping | mis-lock **18.8% → 31.2%** — actively harmful | Intended to remove charging streaks, which are constant along a row. But DRAM **word lines are horizontal**, so real signal is row-constant too, and subtracting the row median deletes it. Charging streaks are also disabled in this data, so it removes signal and buys nothing. **Keep, but only enable when streaks are actually present.** |
+| Median filter | no measurable effect | `salt_pepper_prob=0` in this data — nothing to remove. Harmless; retain for robustness when impulse noise is present. |
+| Generalized Anscombe (A1) | no change to the argmax | The transform is monotone, so it rescales scores without moving an integer peak. Its value should appear in *sub-pixel* refinement and in low-dose regimes, not in argmax accuracy. Needs re-testing after refinement works, on genuinely low-dose data. |
+| Phase congruency (A2) | **100% mis-lock, median 324 px** — catastrophic | The implementation is wrong, not the idea. Disabled pending a fix or removal. Cited as broken rather than presented as an evaluated alternative. |
+| PADM re-scoring (A7) | mis-lock 18.8% → 25% — currently harmful | The idea is sound and H7 confirms the fingerprint exists, but the current blend weight and residual bandwidth are untuned. Needs work before it can be claimed. |
+
+**The honest summary at this point:** of the stages built so far, only sub-pixel refinement improved
+anything (median 1.102 → 1.085, pass@1 40% → 45%), and the single largest effect came from a source
+none of the planned stages addressed — the drift-frame offset in ADR-0010.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,
