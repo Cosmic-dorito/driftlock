@@ -54,6 +54,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
 
       * top-K + PADM residual re-scoring: mis-lock 25.0% -> 20.0%
       * sub-pixel DFT refinement:         median 1.102 -> 1.085 px, pass@1px 40% -> 45%
+      * blind raster-drift correction:    median 0.975 -> 0.220 px, pass@0.5px 20% -> 78%
 
     Deliberately NOT enabled, with reasons in docs/FINDINGS.md:
       * row destriping   - actively harmful here (removes horizontal word lines along with streaks)
@@ -68,6 +69,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         padm=True,
         centre_rule=True,
         subpixel=True,
+        drift_correction=True,
     )
 
 

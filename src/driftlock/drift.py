@@ -1,0 +1,144 @@
+"""Blind estimation of raster-scan drift, and correction of the reported coordinate.
+
+Why this module exists
+----------------------
+After correlation finds the correct lattice repeat, the largest remaining error is **not** a
+matching error. The SEM's raster scan drifts during acquisition, so the search image's content is
+physically displaced - row *r* is shifted horizontally by ``shear*(r/(H-1))`` plus per-row vibration
+jitter. Ground truth, however, is defined in the **undrifted** frame. The matcher therefore reports
+correctly where the pattern *is*, while ground truth records where it *would have been*.
+
+No improvement to the similarity measure can close that gap; only modelling the distortion and
+inverting it can. Measured on 40 sponsor pairs, removing it takes the median error among
+correctly-located pairs from 0.866 px to 0.062 px - a 14x reduction (docs/FINDINGS.md section 12).
+
+This is the project's thesis in miniature: the win comes from inverting a known acquisition
+physics, not from a better matcher.
+
+How it works
+------------
+The estimator exploits a fact that is easy to state and easy to get wrong: **rows close together
+contain the same content**. Vertical bit-lines run continuously down the image, so two rows a
+modest distance apart show the same structure displaced only by the drift accumulated between them.
+Correlating them recovers that displacement directly.
+
+Two earlier approaches failed, and their failures shaped this one:
+
+1. *Correlating distant horizontal bands.* The canvas is zoned in both directions and each mat's
+   line positions are drawn independently, so distant bands are not the same pattern displaced -
+   they are different patterns. No common signal to correlate.
+2. *Correlating adjacent rows and integrating.* Adjacent rows do share content, but summing noisy
+   per-row differentials random-walks: sqrt(1000) x 0.05 px is about 1.6 px of accumulated
+   integration noise, which swamps the 1.5 px signal being measured.
+
+The working method avoids both traps: correlate rows separated by a fixed **gap** (still well
+inside one mat, which spans ~260 search px), and fit the displacement directly. Nothing is
+integrated, so no random walk accumulates.
+
+Validated against data generated at known shear values:
+
+===========  ==========================
+true shear    estimated (gap=100)
+===========  ==========================
+0.0           0.009 +/- 0.202
+1.5           1.445 +/- 0.344
+3.0           2.804 +/- 0.321
+5.0           5.184 +/- 0.245
+===========  ==========================
+
+Essentially unbiased across the range, with a scatter well below the ~0.84 px bias being removed.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+from scipy.ndimage import uniform_filter1d
+
+# Rows this far apart still sit within a single mat (~260 search px), so they share content.
+# Larger gaps give a bigger drift signal relative to measurement noise, hence better precision -
+# gap=100 measured best of {25, 50, 100}.
+DEFAULT_GAP = 100
+
+# Expected drift is a few pixels, so a narrow lag window suffices - and it must stay well below the
+# lattice pitch (~6.4-9.6 search px) or the periodicity aliases the correlation onto the wrong
+# repeat. That is precisely how the first version of this estimator failed.
+DEFAULT_MAX_LAG = 3
+
+# Row pairs whose correlation falls below this are assumed to straddle a mat/strip boundary, where
+# the content genuinely differs, and are discarded rather than allowed to bias the fit.
+MIN_ROW_CORRELATION = 0.3
+
+
+def _parabolic_subpixel(values: np.ndarray, index: int) -> float:
+    """Sub-sample peak offset by a 3-point parabolic fit."""
+    if index <= 0 or index >= len(values) - 1:
+        return 0.0
+    a, b, c = values[index - 1], values[index], values[index + 1]
+    denominator = a - 2.0 * b + c
+    if abs(denominator) < 1e-12:
+        return 0.0
+    return float(np.clip(0.5 * (a - c) / denominator, -1.0, 1.0))
+
+
+def estimate_shear(
+    search: np.ndarray, gap: int = DEFAULT_GAP, band: int = 7,
+    max_lag: int = DEFAULT_MAX_LAG, step: int = 5,
+) -> float | None:
+    """Estimate total horizontal drift across the full image height, in pixels.
+
+    Returns ``None`` when too few usable row pairs survive - a featureless or heavily zoned image
+    where the estimate would be unreliable. The caller then skips the correction rather than
+    applying a guess, so an uncertain estimate can never make results worse.
+    """
+    work = search.astype(np.float64)
+    height, width = work.shape
+    if height < gap + 2 or width < 4 * max_lag + 8:
+        return None
+
+    # Average a few rows together: raises per-row SNR at dose 200 without mixing distant content.
+    work = uniform_filter1d(work, band, axis=0, mode="nearest")
+    work = work - work.mean(axis=1, keepdims=True)
+    work = work / (np.linalg.norm(work, axis=1, keepdims=True) + 1e-9)
+
+    lags = np.arange(-max_lag, max_lag + 1)
+    lo, hi = max_lag, width - max_lag
+    shifts: list[float] = []
+
+    for row in range(0, height - gap, step):
+        a, b = work[row], work[row + gap]
+        scores = np.array([float(np.dot(a[lo:hi], b[lo + lag:hi + lag])) for lag in lags])
+        peak = int(np.argmax(scores))
+        if scores[peak] < MIN_ROW_CORRELATION:
+            continue  # rows straddle a zone boundary; their content differs genuinely
+        shifts.append(float(lags[peak]) + _parabolic_subpixel(scores, peak))
+
+    if len(shifts) < 20:
+        return None
+
+    # Median rather than mean: robust to the row pairs that cross a mat boundary despite the
+    # correlation gate.
+    per_gap_shift = float(np.median(shifts))
+    return -per_gap_shift * (height - 1) / gap
+
+
+def correct_for_drift(x: float, y: float, shear: float, height: int) -> float:
+    """Map a coordinate from the drifted (as-imaged) frame back to the undrifted frame.
+
+    The scan displaces content at row *y* by ``-shear*(y/(H-1))``, so recovering the ground-truth
+    frame means adding that displacement back.
+    """
+    return float(x + shear * (y / max(height - 1, 1)))
+
+
+def estimate_and_correct(
+    search: np.ndarray, x: float, y: float, gap: int = DEFAULT_GAP,
+) -> tuple[float, float | None]:
+    """Convenience wrapper: estimate the drift and apply it to one coordinate.
+
+    Returns ``(corrected_x, estimated_shear)``; the shear is ``None`` when estimation was
+    abandoned, in which case the coordinate is returned unchanged.
+    """
+    shear = estimate_shear(search, gap=gap)
+    if shear is None:
+        return float(x), None
+    return correct_for_drift(x, y, shear, search.shape[0]), shear

@@ -60,6 +60,11 @@ class PipelineConfig:
     subpixel: bool = False           # upsampled-DFT cross-correlation
     ecc_affine: bool = False         # ECC refinement; affine because the drift is a shear (H10)
 
+    # Blind raster-drift correction. The scan physically displaces the search image's content while
+    # ground truth is defined in the undrifted frame, so this is not a matching improvement - it
+    # inverts a known acquisition distortion. See src/driftlock/drift.py and FINDINGS section 12.
+    drift_correction: bool = False
+
     label: str = "baseline"
 
 
@@ -248,9 +253,18 @@ def localize(
             use_dft=config.subpixel, use_ecc=config.ecc_affine,
         )
 
+    # Invert the raster drift. Deliberately LAST: it is a coordinate-frame correction, not a
+    # refinement, so it must be applied to the final sub-pixel position. Uses the ORIGINAL search
+    # image rather than the preprocessed one, since preprocessing can alter row statistics that the
+    # estimator depends on.
+    final_x, final_y = chosen.x, chosen.y
+    if config.drift_correction:
+        from src.driftlock.drift import estimate_and_correct
+        final_x, _ = estimate_and_correct(search, final_x, final_y)
+
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     return Match(
-        x=chosen.x, y=chosen.y, score=chosen.score,
+        x=final_x, y=final_y, score=chosen.score,
         confidence_radius_px=None if pai is None else float(pai),
         runtime_ms=elapsed_ms,
     )
