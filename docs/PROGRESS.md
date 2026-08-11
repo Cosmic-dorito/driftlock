@@ -24,7 +24,8 @@ Owner assignment (fill in on Day 0): A = ____ · B = ____ · C = ____
 | 0.10 | Push to a private GitHub repo; all three clone and run `make setup` successfully | all | ⬜ **next** |
 | 0.11 | Everyone fetches the sponsor generator and produces ~50 pairs locally | all | ⬜ |
 | 0.12 | Assign A / B / C and record above | all | ⬜ |
-| 0.13 | `scripts/verify_submission.py`, `smoke_test.*`, `package_submission.py`, `fetch_reference_generator.sh` | C | ⬜ |
+| 0.13 | `scripts/verify_submission.py`, `smoke_test.*`, `package_submission.py`, `fetch_reference_generator.sh` | C | ✅ done |
+| 0.14 | `tests/test_deps_api.py` — API contract locked (8 tests, ruff clean) | C | ✅ done |
 
 **Exit criterion:** three people on three machines can each run `make setup` and `make test` green.
 
