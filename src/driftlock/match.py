@@ -49,7 +49,11 @@ class PipelineConfig:
     top_k: int = 1                   # 1 == argmax == baseline. A6 keeps many.
     nms_radius_px: float = 6.0
     padm: bool = False               # A7: score the aperiodic residual
-    padm_weight: float = 0.5         # blend: raw score carries lattice, residual carries identity
+    # Blend weight and bandwidth chosen by a 5x5 sweep on 40 sponsor pairs (docs/FINDINGS.md §8b).
+    # Wider bandwidth wins because the random-walk line placement broadens the true spectral peaks;
+    # a narrow band leaves lattice energy in the residual and defeats the purpose.
+    padm_weight: float = 0.4
+    padm_bandwidth: float = 0.010
     centre_rule: bool = False        # A8: closest-to-centre among tied candidates
 
     # --- A9: refinement -------------------------------------------------------------------
@@ -219,10 +223,10 @@ def localize(
 
         lattice = estimate_lattice(search_proc)
         pitch_px = lattice.dominant_pitch_px
-        _, search_residual = decompose(search_proc, lattice)
+        _, search_residual = decompose(search_proc, lattice, config.padm_bandwidth)
         best_scale = max(candidates, key=lambda c: c.score).scale
         template = build_template(ref_proc, best_scale)
-        _, template_residual = decompose(template)
+        _, template_residual = decompose(template, None, config.padm_bandwidth)
         candidates = rescore_on_residual(
             search_residual, template_residual, candidates, config.padm_weight
         )

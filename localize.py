@@ -35,7 +35,7 @@ from src.driftlock.io import (  # noqa: E402
     validate_pair,
     write_predictions,
 )
-from src.driftlock.match import BASELINE, PipelineConfig, localize  # noqa: E402
+from src.driftlock.match import PipelineConfig, localize  # noqa: E402
 
 EXIT_OK, EXIT_ERROR, EXIT_BAD_INPUT = 0, 1, 2
 
@@ -49,10 +49,26 @@ def log(message: str, verbose: bool = True) -> None:
 def build_config(args: argparse.Namespace) -> PipelineConfig:
     """Assemble the pipeline configuration from CLI flags.
 
-    Defaults to BASELINE while the improved stages are still being built and measured; each stage
-    is enabled here only once it has earned its place in the ablation table (R9).
+    Only stages that have EARNED their place by moving a measured number are enabled here (R9).
+    As of the last measurement on 40 sponsor pairs:
+
+      * top-K + PADM residual re-scoring: mis-lock 25.0% -> 20.0%
+      * sub-pixel DFT refinement:         median 1.102 -> 1.085 px, pass@1px 40% -> 45%
+
+    Deliberately NOT enabled, with reasons in docs/FINDINGS.md:
+      * row destriping   - actively harmful here (removes horizontal word lines along with streaks)
+      * phase congruency - implementation is broken (100% mis-lock)
+      * ECC affine       - never converges; silently inert
+      * median filter    - no impulse noise in this data; harmless but useless
+      * Anscombe         - cannot move an integer argmax; re-test once refinement is stronger
     """
-    return BASELINE
+    return PipelineConfig(
+        label="tier-a",
+        top_k=20,
+        padm=True,
+        centre_rule=True,
+        subpixel=True,
+    )
 
 
 def run_pair(ref_path: Path, search_path: Path, config: PipelineConfig) -> Match:

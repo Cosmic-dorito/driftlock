@@ -327,6 +327,133 @@ measurement rather than asserted in a slide.
 
 ---
 
+## 12b. Blind shear estimation — attempted, failed, abandoned ❌
+
+Following §12, the obvious next step was to estimate the shear without an oracle. Two approaches
+were tried on data generated at shear ∈ {0.0, 1.5, 3.0, 5.0} (the sponsor's generator exposes
+`--shear-amplitude-px`, so the estimator could be validated against known truth rather than against
+a single constant).
+
+**Attempt 1 — horizontal band correlation.** Split the search image into horizontal bands, collapse
+each to a 1D column profile, and cross-correlate each band against the first. The x-displacement
+should grow linearly with band centre row, with slope `shear/(H−1)`.
+
+*Result:* per-band shifts of 291, 431, −289 px — nonsense. **The lattice's own periodicity aliased
+the estimator onto a different repeat.** The same ambiguity that defeats the matcher defeated the
+tool built to help it.
+
+**Attempt 2 — the same, with the lag search constrained to ±4 px** (unambiguous, since the expected
+shift is <5 px while the lattice pitch is ~9.6 px).
+
+*Result:* estimates of −0.90, −1.12, +0.26, −2.26 px for true shears of 0.0, 1.5, 3.0, 5.0. **No
+correlation with truth**, and per-pair scatter (±3–6 px) larger than the quantity being measured.
+
+**Why it cannot work this way.** The canvas is zoned in **both** directions: horizontal strips
+separate mats vertically, and each mat's line positions are drawn independently. So two horizontal
+bands do not contain the same pattern displaced by the shear — they contain *genuinely different
+patterns*. There is no common signal to correlate. The method is unsound for this data, not merely
+imprecise.
+
+**Not pursued further, and that is a deliberate scope call.** The remaining candidate — comparing
+reciprocal-lattice angles between the shear-free reference and the sheared search — needs to resolve
+a **0.086°** tilt against roughly **0.057°** of FFT angular resolution. That is a marginal
+measurement at best, and the payoff is bounded: correcting the drift offset is worth ~0.8 px on
+pairs that are *already correct*, whereas **25% of pairs are currently wrong by tens to hundreds of
+pixels**. Mis-lock is worth roughly an order of magnitude more, and it is the failure mode the
+problem statement is actually about.
+
+**A tempting shortcut, explicitly rejected.** The sponsor's default shear is a fixed 1.5 px, so a
+hard-coded correction would improve our score on their default data. It is rejected: it is
+calibration to one generator setting rather than a method, it would make results *worse* than no
+correction if the evaluator sets shear near zero, and it is precisely the overfitting that rules R5
+and R6 exist to prevent.
+
+**Recorded as an honest limitation.** The drift-frame offset is a real, understood, quantified error
+source that we can bound (0.87 px → 0.062 px if known) but cannot currently remove blind. That is a
+stronger statement than most teams will be able to make about their residual error, and it belongs
+in the limitations section rather than being hidden.
+
+---
+
+## 12c. Candidate recall — the single most useful measurement so far ✅
+
+**The question that should have been asked first.** When the pipeline mis-locks, is the true
+location *in the candidate set at all*? That determines whether the problem is candidate
+**generation** or candidate **ranking** — and those need completely different fixes.
+
+**Method.** For each pair, extract the top-K correlation peaks and check whether any lands within
+5 px of ground truth.
+
+| K | Truth present in candidate set | Median rank of truth |
+|---|---|---|
+| 1 | 75.0% | 1 |
+| 5 | 87.5% | 1 |
+| 20 | **92.5%** | 1 |
+| 50 | 92.5% | 1 |
+| 100 | **97.5%** | 1 |
+
+**What this establishes.** Candidate generation is *not* the bottleneck. At K=20 the correct answer
+is available 92.5% of the time and we select it only 75% of the time, so **a perfect re-ranker would
+cut the mis-lock rate from 25% to 7.5%** — and to 2.5% at K=100. The problem is ranking, and there
+is a 3–10× improvement sitting there.
+
+This retroactively justifies the "keep top-K, never commit to the argmax" decision with a number
+rather than an argument, and it says precisely where further effort belongs.
+
+---
+
+## 12d. PADM parameter sweep — real but modest ✅
+
+A 5×5 sweep of blend weight × spectral bandwidth over 40 pairs (baseline argmax = 25.0% mis-lock):
+
+| weight ↓ / bandwidth → | 0.002 | 0.004 | 0.006 | 0.010 | 0.020 |
+|---|---|---|---|---|---|
+| 0.2 | 27.5% | 27.5% | 25.0% | 22.5% | 25.0% |
+| **0.4** | 32.5% | 32.5% | 25.0% | **20.0%** | 22.5% |
+| 0.6 | 37.5% | 32.5% | 27.5% | 20.0% | 22.5% |
+| 0.8 | 40.0% | 37.5% | 30.0% | 30.0% | 22.5% |
+| 1.0 | 42.5% | 42.5% | 30.0% | 32.5% | 20.0% |
+
+**Best: 20.0% at weight 0.4, bandwidth 0.010** — the value now used by default.
+
+**The bandwidth trend is the informative part.** Narrow bands (0.002–0.004) are consistently *worse
+than doing nothing*. The reason is the random-walk line placement: it **broadens** the true spectral
+peaks, so a narrow mask leaves lattice energy behind in the "residual", which then carries exactly
+the periodic signal PADM exists to remove. The very property that makes disambiguation possible
+(H7) is what forces a wider band.
+
+**Raising K does not help PADM.** At K=50 and K=100 it plateaus at 22.5–30%: more candidates simply
+add distractors it cannot discriminate. Against the 7.5% ceiling from §12c, hand-designed residual
+scoring is capturing roughly a fifth of what is available.
+
+**Conclusion, and it is a clear signal for the plan.** The gap between the 7.5% ceiling and the 20%
+achieved is the strongest justification yet for the **learned re-ranker** (Tier C1). The negatives
+are exactly definable (lattice-equivalent positions), the correct answer is in the candidate set,
+and hand-designed scoring has demonstrably plateaued well short of the ceiling.
+
+---
+
+## 12e. Current best configuration
+
+Enabled: top-K=20, PADM (w=0.4, bw=0.010), closest-to-centre rule, sub-pixel DFT.
+
+| Metric | Baseline | Tier A | Change |
+|---|---|---|---|
+| Mis-lock rate | 25.0% | **20.0%** | −5 pts |
+| Median error | 1.102 px | **0.975 px** | −12% |
+| pass@5px | 75% | **80%** | +5 pts |
+| pass@1px | 40% | **52%** | +12 pts |
+| Worst error | 271.71 px | **628.58 px** | ⚠️ worse |
+| Runtime p50 | 29.9 ms | **218.1 ms** | ⚠️ 7× slower |
+
+**Two regressions, reported rather than buried.** The worst-case error more than doubled: when PADM
+re-ranks incorrectly it can promote a *more distant* candidate than the argmax would have chosen, so
+the failures get worse even as they get less frequent. And runtime rose 7× from the FFT
+decompositions — still inside the 300 ms budget, but the margin is much thinner and it will matter
+once further stages are added.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken
