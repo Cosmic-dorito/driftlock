@@ -32,7 +32,7 @@ from src.driftlock.io import (  # noqa: E402
     read_manifest,
     resolve_manifest_path,
 )
-from src.driftlock.match import BASELINE, PipelineConfig, localize  # noqa: E402
+from src.driftlock.match import PipelineConfig, localize  # noqa: E402
 
 MISLOCK_PX = 5.0
 
