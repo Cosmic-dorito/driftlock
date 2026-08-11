@@ -79,15 +79,30 @@ ambiguity_level, seed
 Paths in the manifest are **relative to the repo root**, always forward-slashed.
 `predictions.csv` is `id, pred_x, pred_y, score, confidence_radius_px, runtime_ms`.
 
-### Directory ownership — this is why parallel work is possible
+### Execution model — sequential, single track
 
-| Owner | Owns | Do not edit outside this without saying so |
-|---|---|---|
-| **A** — Data/Physics | `src/synth/`, `generate_dataset.py` | |
-| **B** — Algorithm | `src/driftlock/`, `localize.py` | |
-| **C** — Eval/Packaging | `evaluate.py`, `results/`, `docs/`, `scripts/`, the deck | |
+We build **one thing at a time, in dependency order**, rather than splitting the work three ways.
+The module boundaries below still hold as *structure*; they are no longer ownership assignments.
 
-Shared and edited by anyone: `CLAUDE.md`, `configs/`, `tests/`. Announce changes to contracts.
+```
+src/synth/        + generate_dataset.py    data generation
+src/driftlock/    + localize.py            localization
+                    evaluate.py            metrics, ablations, figures
+```
+
+**Order matters.** Each stage is gated on the one before it, so a wrong assumption cannot silently
+propagate:
+
+1. **Verify H1–H9** on real pairs from the sponsor's generator (below). Nothing is built until the
+   ground rules are confirmed.
+2. **Baseline + evaluation harness.** Reproduce the sponsor's baseline and measure it. That number
+   is our floor and the ablation's first row — we cannot claim an improvement without it.
+3. **Our generator**, so we control rotation, scale and continuous ground truth.
+4. **Tier A matcher**, one stage at a time, each measured against the previous.
+5. **Tier B** (analysis-by-synthesis, CRLB, conformal), then **Tier C** stretch work.
+
+Because there is no parallelism to protect, the rule that replaces directory ownership is simply:
+**do not start a stage until the previous one has a measured number in `results/`.**
 
 ---
 

@@ -180,14 +180,57 @@ The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading
 not by running it. Each is a hypothesis until confirmed on real generated pairs. **B owns this, Day 1,
 before any algorithm work.** If one is refuted, say so immediately — the plan changes.
 
-| ID | Hypothesis | Status | Verified by / date | Evidence |
-|---|---|---|---|---|
-| H1 | Reference footprint in search image is exactly 100×100 px | unverified | | |
-| H2 | `gt = (x0/10 + 50, y0/10 + 50)`, GT on a 0.1 px grid | unverified | | |
-| H3 | Noise is Poisson (shot) then Gaussian (detector), in that order | unverified | | |
-| H4 | Same PSF on both images before ↓10, so `INTER_AREA` is the exact forward operator | unverified | | |
-| H5 | Search additionally gets gamma, vignette, shear+jitter, barrel, speckle, S&P, streaks | unverified | | |
-| H6 | Mats 2600 nm separated by 320 nm strips, independently randomised, `boundary_bias=0.35` | unverified | | |
-| H7 | Line positions are a random walk → every cell has a unique fingerprint | unverified | | |
-| H8 | Contacts on `(i+j)%2` checkerboard → dangerous confusion is the parity-preserving diagonal shift | unverified | | |
-| H9 | Their generator has no rotation and no scale variation | unverified | | |
+**Verified 2026-08-11** against **40 real pairs** from the sponsor's generator
+(`dram_1x`, seed 20260811) by `scripts/verify_hypotheses.py`. Full evidence in
+`results/hypotheses.md`.
+
+| ID | Hypothesis | Status | Key evidence |
+|---|---|---|---|
+| H1 | Reference footprint in search image is exactly 100×100 px | ✅ CONFIRMED | `gt_box` is 100×100 for every pair; both images 1000×1000 |
+| H2 | `gt = (x0/10 + 50, y0/10 + 50)`, GT on a 0.1 px grid | ✅ CONFIRMED | centre == box origin + 50 exactly; origin×10 integral to 1e-16 |
+| H3 | Noise is Poisson (shot) then Gaussian (detector) | ✅ CONFIRMED | Var = 1.75·mean + 426 over flat windows — signal-dependent variance is the Poisson signature |
+| H4a | `INTER_AREA` downscale is the correct forward operator | ✅ CONFIRMED | ZNCC at truth: mean 0.835, min 0.580; a local peak sits within 0.0 px of truth |
+| H4b | Plain ZNCC argmax is defeated by periodic ambiguity | ✅ CONFIRMED | **10/40 (25%) mis-locate >5 px**; worst 271.7 px |
+| H5 | Search is noisier / more degraded than the reference | ✅ CONFIRMED | dose 2000 vs 200; noise σ 10× higher |
+| H6 | Mats/strips zoning with `boundary_bias=0.35` | ⚠️ NOT INDEPENDENTLY TESTED | asserted from source reading only; not load-bearing for the algorithm |
+| H7 | Random-walk line placement → unique per-cell fingerprint | ✅ CONFIRMED | self-correlation margin to the best impostor: median 0.057, **min 0.0086** — positive, so disambiguation is possible |
+| H8 | A mis-lock is a hard failure, not a near miss | ✅ CONFIRMED | 100% of rival peaks are >5 px away (median 45.5 px), yet the score margin is only 0.016 |
+| H9 | Their generator has no rotation and no scale variation | ✅ CONFIRMED | no such manifest columns; ratio fixed at 10 by pixel sizes |
+| H10 | Raster shear produces a systematic, correctable x bias | ✅ CONFIRMED (new) | dx mean −0.837 vs dy +0.073; dx vs gt_y **r = −0.861**, slope −0.00165 vs predicted −0.00150 |
+
+### What this changes
+
+**Nothing in the plan is refuted.** Three findings sharpen it:
+
+1. **H4 was two claims, and separating them mattered.** The first version of the check asked "does
+   `INTER_AREA` + argmax land within 5 px" and reported REFUTED — but that conflated *is the forward
+   model right* (yes, emphatically) with *does argmax suffice* (no, and that is the entire point of
+   the project). A test that bundles the thing you are validating with the thing you are trying to
+   beat cannot distinguish them. Split into H4a and H4b.
+
+2. **H10 is new and immediately actionable.** The baseline's ~1 px median error is dominated by a
+   *systematic, physically-explained* bias, not by noise: the raster shear displaces each row
+   horizontally by `shear·(r/999)`, so dx is biased while dy is not, and dx correlates with the
+   template's y position at r = −0.861. This independently justifies **`MOTION_AFFINE` rather than
+   `MOTION_EUCLIDEAN`** in step A9 — a Euclidean model cannot represent shear.
+
+3. **The margins are now measured, not guessed.** The true location beats its best impostor by a
+   median of 0.057 and a minimum of **0.0086** in self-correlation, and on the real ZNCC surface the
+   winner-versus-rival margin is a median 0.016. Disambiguation is possible but the signal is thin —
+   which is the quantitative case for scoring the aperiodic residual explicitly (A7) and for
+   emitting a confidence rather than a bare coordinate (A8).
+
+### The baseline floor (ablation row 1)
+
+Measured on 40 sponsor pairs, `INTER_AREA` + `matchTemplate` argmax:
+
+| Metric | Value |
+|---|---|
+| Mis-lock rate (>5 px) | **25%** (10/40) |
+| Median error | 1.10 px |
+| Max error | 271.71 px |
+| Mean ZNCC at truth | 0.835 |
+
+Note the median (1.10 px) is *not* the story — a quarter of the pairs are catastrophically wrong.
+Any headline metric that averages over both regimes hides the failure mode the problem is about, so
+report the mis-lock rate separately (R9).

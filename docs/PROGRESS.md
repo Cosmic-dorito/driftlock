@@ -1,122 +1,156 @@
-# PROGRESS — live gate tracker
+# PROGRESS — live tracker
 
 **Deadline 16 Aug 2026.** Update this when you clear a gate, not retroactively.
-Put your initials and the date. If a gate slips, say so here rather than quietly carrying it.
+If a gate slips, say so here rather than quietly carrying it.
 
-Roles: **A** = Data/Physics · **B** = Algorithm · **C** = Eval/Packaging/Deck.
-Owner assignment (fill in on Day 0): A = ____ · B = ____ · C = ____
+**Execution model: sequential.** One stage at a time, in dependency order. The governing rule:
+**do not start a stage until the previous one has a measured number in `results/`.**
 
 ---
 
-## Day 0 — scaffolding (11 Aug, evening) — IN PROGRESS
+## Stage 0 — Scaffolding ✅ COMPLETE (11 Aug)
 
-| # | Item | Owner | Status |
-|---|---|---|---|
-| 0.1 | `git init`, folder layout, `.gitignore`, `.gitattributes`, `LICENSE`, `pyproject.toml`, `.editorconfig` | all | ✅ done |
-| 0.2 | `CLAUDE.md` written **before** any code | all | ✅ done |
-| 0.3 | `docs/SPEC.md` extracted from the AMAT PDF; PDF moved to `reference/` | all | ✅ done |
-| 0.4 | `docs/DECISIONS.md` seeded with ADR-0001…0008 | all | ✅ done |
-| 0.5 | `docs/PLAN.md` = the approved plan | all | ✅ done |
-| 0.6 | Manifest schema + CLI signatures frozen in `CLAUDE.md` | all | ✅ done |
-| 0.7 | `.venv` + pinned `requirements.txt`; OpenCV 5 API surface verified (ADR-0003) | all | ✅ done |
-| 0.8 | `Makefile` + `make.ps1` with matching task names | all | ✅ done |
-| 0.9 | README skeleton | C | ✅ done |
-| 0.10 | Push to a private GitHub repo; all three clone and run `make setup` successfully | all | ⬜ **next** |
-| 0.11 | Everyone fetches the sponsor generator and produces ~50 pairs locally | all | ⬜ |
-| 0.12 | Assign A / B / C and record above | all | ⬜ |
-| 0.13 | `scripts/verify_submission.py`, `smoke_test.*`, `package_submission.py`, `fetch_reference_generator.sh` | C | ✅ done |
-| 0.14 | `tests/test_deps_api.py` — API contract locked (8 tests, ruff clean) | C | ✅ done |
+| # | Item | Status |
+|---|---|---|
+| 0.1 | `git init`, folder layout, `.gitignore`, `.gitattributes`, `LICENSE`, `pyproject.toml`, `.editorconfig` | ✅ |
+| 0.2 | `CLAUDE.md` written **before** any code | ✅ |
+| 0.3 | `docs/SPEC.md` extracted from the AMAT PDF; PDF moved to `reference/` | ✅ |
+| 0.4 | `docs/DECISIONS.md` seeded with ADR-0001…0009 | ✅ |
+| 0.5 | `docs/PLAN.md` = the approved plan | ✅ |
+| 0.6 | Manifest schema + CLI signatures frozen in `CLAUDE.md` | ✅ |
+| 0.7 | `.venv` + pinned `requirements.txt`; OpenCV 5 API surface verified | ✅ |
+| 0.8 | `Makefile` + `make.ps1` | ✅ |
+| 0.9 | README skeleton | ✅ |
+| 0.13 | `verify_submission.py`, `smoke_test.*`, `package_submission.py`, `fetch_reference_generator.sh` | ✅ |
+| 0.14 | `tests/test_deps_api.py` — API contract locked (8 tests, ruff clean) | ✅ |
+| 0.10 | Push to a GitHub remote | ⬜ **user action** — no remote configured yet |
 
-**Exit criterion:** three people on three machines can each run `make setup` and `make test` green.
+### Findings from Stage 0 — read before writing code
 
-### Day 0 findings worth knowing before you write code
+Settled empirically (rule R7 — test, don't trust memory). Both would have cost hours later:
 
-Two things were settled empirically tonight (rule R7 — test, don't trust memory), and both would
-have cost hours if discovered later:
+1. **Python 3.14 is fine.** The plan originally said downgrade to 3.11. Wrong: `cp314` wheels exist
+   across the stack and torch 2.12.1+cpu was already installed. (ADR-0002)
+2. **`phase_cross_correlation` must use `normalization=None`.** The scikit-image default `'phase'`
+   silently returns ~zero shift on blurred images — 2.8 px error on a true 2.86 px displacement at
+   blur σ=3. Our search images *are* blurred by the beam PSF. (ADR-0009)
 
-1. **Python 3.14 is fine.** The plan originally recommended downgrading to 3.11 out of caution about
-   wheel availability. That was wrong: `cp314` wheels exist for the whole stack, and torch 2.12.1+cpu
-   is already installed. No downgrade. (ADR-0002)
-2. **`phase_cross_correlation` must be called with `normalization=None`.** The scikit-image default
-   `'phase'` silently returns ~zero shift on blurred images — 2.8 px error on a true 2.86 px
-   displacement at blur σ=3. Our search images *are* blurred by the beam PSF. (ADR-0009)
-
-Also: `findTransformECC` recovers sub-pixel translation to **0.037 px** (MOTION_AFFINE) on
-band-limited data, which validates plan step A9. And benchmark sub-pixel methods on **band-limited**
+Also: `findTransformECC` recovers sub-pixel translation to **0.037 px** (`MOTION_AFFINE`) on
+band-limited data, validating plan step A9. And benchmark sub-pixel methods on **band-limited**
 images only — white-noise test signals alias under interpolation and understate accuracy ~7×.
 
 ---
 
-## Day 1 — foundations (12 Aug)
+## Stage 1 — Verify the foundations (R3) 🔄 IN PROGRESS
 
-| # | Item | Owner | Status |
-|---|---|---|---|
-| 1.1 | **R3: verify H1–H9 empirically on real pairs**, log outcomes in `DECISIONS.md` | B | ⬜ |
-| 1.2 | `tests/test_geometry.py` with an **asymmetric** hand-derived case, written *before* the matcher | B | ⬜ |
-| 1.3 | Reproduce the sponsor baseline; record its numbers as our floor | B | ⬜ |
-| 1.4 | Tier A steps A1–A3, A6, A8 | B | ⬜ |
-| 1.5 | DRAM layout at 1 nm/px, zoning, SE edge brightening, PSF, Poisson + detector noise | A | ⬜ |
-| 1.6 | First 50 pairs + manifest from our generator | A | ⬜ |
-| 1.7 | `evaluate.py` with all spec-required metrics; manifest loader; plots | C | ⬜ |
-| 1.8 | `smoke_test.sh` + `smoke_test.ps1`; `requirements.txt` finalized | C | ⬜ |
-| 1.9 | Deck skeleton on the sponsor's 12-slide structure | C | ⬜ |
+Everything downstream rests on facts read from the sponsor's *source code*, not from running it.
+Confirm each on real generated pairs before building on it.
 
-**🚦 GATE 1 (end of Day 1): ≥90% pass@5px on sponsor-generated data.**
-If this fails, everything downstream is premature — stop and fix.
+| # | Item | Status |
+|---|---|---|
+| 1.1 | Clone the sponsor generator into `third_party/` | 🔄 |
+| 1.2 | Generate ~50 pairs from it | ⬜ |
+| 1.3 | Confirm or refute **H1–H9**; record in `docs/DECISIONS.md` | ⬜ |
+| 1.4 | Write `tests/test_geometry.py` with an **asymmetric** hand-derived case | ⬜ |
+
+**🚦 GATE 1: every hypothesis marked confirmed or refuted, with evidence.**
+If one is refuted, the plan changes — say so immediately rather than building on it.
 
 ---
 
-## Day 2 — the real algorithm (13 Aug)
+## Stage 2 — Baseline and measurement harness
 
-| # | Item | Owner | Status |
-|---|---|---|---|
-| 2.1 | A4 per-pair blind self-calibration | B | ⬜ |
-| 2.2 | A5 lattice-as-a-ruler pose estimation + fallback chain | B | ⬜ |
-| 2.3 | A7 periodic–aperiodic decomposition | B | ⬜ |
-| 2.4 | A9 sub-pixel (upsampled DFT) + ECC affine | B | ⬜ |
-| 2.5 | Rotation + scale in the generator; FinFET; fractional origins; aperiodic content | A | ⬜ |
-| 2.6 | Full 200-pair set with complete metadata and seeds | A | ⬜ |
-| 2.7 | Ablation infrastructure | C | ⬜ |
-| 2.8 | **Cross-generator run** (ours + sponsor's), stratified tables, figures | C | ⬜ |
+Reproduce the floor before claiming to beat it. Without a measured baseline, the ablation table has
+no first row and no improvement can be substantiated (R6).
 
-**🚦 GATE 2 (end of Day 2): median Euclidean error < 0.5 px.**
-Also: decide by EOD whether GAT and phase congruency actually beat plain ZNCC. Keep whichever wins
-on data (R9 — a negative result goes in the ablation table with its number).
+| # | Item | Status |
+|---|---|---|
+| 2.1 | `src/driftlock/io.py` — image loading, the single `(row,col)↔(x,y)` conversion site (ADR-0007) | ⬜ |
+| 2.2 | `evaluate.py` — Euclidean error; pass@5/4/2/1 px; sub-pixel; mean/median/p95/worst; runtime with hardware + timing method | ⬜ |
+| 2.3 | Reproduce the sponsor baseline (`INTER_AREA` + `matchTemplate` argmax over 5 scales) | ⬜ |
+| 2.4 | Record baseline numbers into `results/` as ablation row 1 | ⬜ |
+
+**🚦 GATE 2: baseline measured and written to `results/metrics.csv`.**
 
 ---
 
-## Day 3 — provably good, then FREEZE (14 Aug)
+## Stage 3 — Our generator (30% of the score)
 
-| # | Item | Owner | Status |
-|---|---|---|---|
-| 3.1 | B1 differentiable analysis-by-synthesis | B | ⬜ |
-| 3.2 | B2 Cramér–Rao bound + achieved-vs-CRLB plot | B | ⬜ |
-| 3.3 | B3 conformal prediction confidence + coverage check | B | ⬜ |
-| 3.4 | Failure case visualized with root cause; runtime profiling; determinism check | B | ⬜ |
-| 3.5 | `REFERENCES.md` complete — all five columns, every row verified (R1) | A | ⬜ |
-| 3.6 | Per-parameter physical justification for the generator | A | ⬜ |
-| 3.7 | Full 300-pair run; all tables and plots final | C | ⬜ |
-| 3.8 | README with exact commands; `pip freeze`; **clean-machine dry run** | C | ⬜ |
-| 3.9 | Deck complete, every number traceable to `results/` | C | ⬜ |
-| 3.10 | **R8 red-team pass** — C re-derives B's headline numbers blind; A re-checks physics claims | all | ⬜ |
+| # | Item | Status |
+|---|---|---|
+| 3.1 | DRAM 6F² layout at 1 nm/px; mat/strip zoning | ⬜ |
+| 3.2 | SE edge brightening; charging shading; beam PSF (the physics the starter omits) | ⬜ |
+| 3.3 | Poisson shot + Gaussian detector noise, independent RNG streams per acquisition | ⬜ |
+| 3.4 | **Rotation (0–2°) and scale (9:1–11:1)** — the starter can produce neither | ⬜ |
+| 3.5 | **Fractional crop origins** → continuous GT, so sub-pixel claims are honest | ⬜ |
+| 3.6 | FinFET layout | ⬜ |
+| 3.7 | Full metadata + seeds; manifest per the frozen schema; `ambiguity_level` | ⬜ |
+| 3.8 | Determinism test: same seed → byte-identical images | ⬜ |
 
-**🚦 GATE 3 — CORE FREEZE, 14 Aug 18:00.**
-From this moment a submittable package exists. Everything after is additive and behind flags.
+**🚦 GATE 3: 30+ committed bench pairs; `verify_submission.py` clears the dataset checks.**
 
 ---
 
-## Day 4 — stretch only, all flag-gated (15 Aug)
+## Stage 4 — Tier A matcher (the ML-optimal core)
 
-Priority order. Stop wherever time runs out; each is independently shippable.
+Add one stage at a time and measure each against the previous. Anything that does not help goes in
+the ablation table as a negative result with its number (R9).
 
-| # | Item | Owner | Status |
-|---|---|---|---|
-| 4.1 | C1 lattice-aware transformer re-ranker (`--no-rerank` must still work) | B | ⬜ |
-| 4.2 | C2 SOTA comparison: RoMa v2 / EfficientLoFTR / XFeat on our pairs | B/C | ⬜ |
-| 4.3 | C3 robustness sweep beyond spec (8:1–12:1, ±5°, 2× noise) | A/C | ⬜ |
-| 4.4 | C4 interactive drift demo + 60–90 s video | C | ⬜ |
-| 4.5 | C5 RGB optical extension (the scored bonus) | A | ⬜ |
-| 4.6 | Final fresh-clone dry run; `make verify` green; every PPT number re-checked | all | ⬜ |
+| # | Item | Status |
+|---|---|---|
+| 4.1 | A1 Generalized Anscombe Transform | ⬜ |
+| 4.2 | A2 phase congruency + median + row destriping | ⬜ |
+| 4.3 | A3 exact forward operator (`INTER_AREA`) | ⬜ |
+| 4.4 | A6 top-K candidates, NMS at lattice pitch | ⬜ |
+| 4.5 | A8 ambiguity index + literal closest-to-centre rule | ⬜ |
+| 4.6 | A4 per-pair blind self-calibration | ⬜ |
+| 4.7 | A5 lattice-as-a-ruler pose estimation + fallback chain | ⬜ |
+| 4.8 | A7 periodic–aperiodic decomposition | ⬜ |
+| 4.9 | A9 sub-pixel (upsampled DFT, `normalization=None`) + ECC affine | ⬜ |
+
+**🚦 GATE 4: median Euclidean error < 0.5 px, beating the Stage-2 baseline on the same data.**
+
+---
+
+## Stage 5 — Provably good (Tier B)
+
+| # | Item | Status |
+|---|---|---|
+| 5.1 | B1 differentiable analysis-by-synthesis | ⬜ |
+| 5.2 | B2 Cramér–Rao bound + achieved-vs-CRLB plot | ⬜ |
+| 5.3 | B3 conformal prediction confidence + empirical coverage check | ⬜ |
+| 5.4 | Cross-generator validation (ours **and** the sponsor's) | ⬜ |
+| 5.5 | Failure case visualized with root cause; runtime profiling | ⬜ |
+| 5.6 | Full ablation table | ⬜ |
+
+**🚦 GATE 5 — CORE FREEZE.** A submittable package exists from this moment.
+Everything after is additive and behind flags.
+
+---
+
+## Stage 6 — Deliverables
+
+| # | Item | Status |
+|---|---|---|
+| 6.1 | `REFERENCES.md` complete — all five columns, every row VERIFIED (R1) | ⬜ |
+| 6.2 | README with exact commands, results, assumptions, limitations | ⬜ |
+| 6.3 | **Solution PPT** on the sponsor's 12-slide structure | ⬜ |
+| 6.4 | `verify_submission.py --strict` clean | ⬜ |
+| 6.5 | Clean-machine dry run: unzip `dist/` somewhere fresh, identical numbers | ⬜ |
+
+---
+
+## Stage 7 — Stretch, all flag-gated
+
+Stop wherever time runs out; each is independently shippable.
+
+| # | Item | Status |
+|---|---|---|
+| 7.1 | Lattice-aware transformer re-ranker (`--no-rerank` must still work) | ⬜ |
+| 7.2 | SOTA comparison: RoMa v2 / EfficientLoFTR / XFeat | ⬜ |
+| 7.3 | Robustness sweep beyond spec (8:1–12:1, ±5°, 2× noise) | ⬜ |
+| 7.4 | Interactive drift demo + 60–90 s video | ⬜ |
+| 7.5 | RGB optical extension (the scored bonus) | ⬜ |
 
 **Submit on the morning of 16 Aug with the buffer intact — not at the deadline.**
 
@@ -124,8 +158,7 @@ Priority order. Stop wherever time runs out; each is independently shippable.
 
 ## Blockers / open questions
 
-| Raised | By | Item | Status |
-|---|---|---|---|
-| 11 Aug | — | OpenCV resolves to 5.x on Py3.14; API surface needs verification (ADR-0003) | 🔄 checking |
-| 11 Aug | — | Team roles A/B/C not yet assigned | ⬜ open |
-| 11 Aug | — | GitHub remote not yet created | ⬜ open |
+| Raised | Item | Status |
+|---|---|---|
+| 11 Aug | No GitHub remote configured — user action | ⬜ open |
+| 11 Aug | Git identity set repo-local as "DriftLock Team" / user email; change if real names wanted | ⬜ open |
