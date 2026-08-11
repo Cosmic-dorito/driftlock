@@ -512,6 +512,79 @@ or a bigger model. "We don't match images, we invert the microscope" is now a me
 
 ---
 
+## 12g. Generalisation test — PADM was overfit ❌❌ (supersedes §12d, §12e)
+
+**The most consequential experiment so far, and it invalidated a headline result.**
+
+**Why it was run.** Every parameter in the pipeline — PADM blend weight, PADM spectral bandwidth,
+drift gap — was tuned on a single split: `dram_1x`, seed 20260811, 40 pairs. Rule R5 requires
+checking that tuning transfers before the numbers are believed. It had not been checked.
+
+**Method.** Generate held-out splits with a *different seed* (999333) and a *different architecture*
+(FinFET), then re-run every configuration on all three.
+
+**Result.**
+
+| Configuration | verify (tuned) | held-out dram | held-out FinFET |
+|---|---|---|---|
+| baseline mis-lock | 25.0% | 20.0% | 30.0% |
+| + top-K + PADM + centre rule | **20.0%** ✅ | **26.7%** ❌ | **43.3%** ❌ |
+| + sub-pixel + drift correction | 25.0% | 20.0% | 30.0% |
+
+PADM improved the split it was tuned on by 5 points and made **both** held-out splits worse — by 6.7
+points on dram and **13.3 points on FinFET**. Its blend weight and spectral bandwidth were fitted to
+one lattice geometry and did not survive a change of pitch or architecture.
+
+**Consequences.**
+
+1. **The "20% mis-lock, 78% sub-pixel" headline is withdrawn.** It was an overfitting artefact. The
+   honest mis-lock rate is baseline-level: 25% / 20% / 30% across the three splits.
+2. **PADM is disabled by default.** It stays in the codebase and the ablation table as a measured
+   negative result rather than being deleted (R9).
+3. **Runtime improved as a side effect:** removing PADM's FFT decompositions took the pipeline from
+   224 ms to **50 ms**, a 4.5× speedup that directly helps the runtime component of the 50% bucket.
+4. **The mis-lock problem is completely unsolved**, and is now the only thing capping the score.
+
+**Why the surviving stages transfer, and PADM did not.** This is the structural point worth
+carrying forward. Sub-pixel refinement and drift correction **never touch candidate selection** —
+they adjust a coordinate after a location has been chosen. They are therefore *strictly additive*:
+they cannot convert a correct pick into a wrong one, and the mis-lock rate is identical to baseline
+on all three splits. PADM, by contrast, **re-ranks**, so a mistuned scoring function actively
+destroys correct answers. Refinement fails gracefully; re-ranking fails destructively.
+
+**What this means for the planned learned re-ranker.** It cuts both ways. Hand-designed re-ranking
+demonstrably failed, which strengthens the case for learning it. But PADM's failure is a warning
+about exactly this class of component: **any re-ranker must be validated on held-out architectures
+before it is believed**, and it should be gated so that low confidence falls back to the argmax
+rather than overriding it.
+
+**The process lesson.** This was caught only because held-out splits were generated *before* the
+result was trusted. Single-split evaluation would have reported 20% mis-lock and 78% sub-pixel into
+the deck, and the sponsor's evaluation set would have quietly disagreed.
+
+---
+
+## 12h. The sponsor's DRAM presets are not actually distinct
+
+Found incidentally while building the held-out splits: `dram_dense`, `dram_loose` and `dram_legacy`
+produce **byte-identical images** (verified by md5 of the reference PNGs).
+
+**Cause.** `generate_fine_canvas_zoned` passes only `preset["kind"]` into `generate_zone_canvas`.
+In that zoned path — which is the default — every DRAM preset collapses to the same generator, and
+the carefully specified pitch, width and contact-diameter values in `presets.py` are never used.
+Only `dram` versus `finfet` changes anything.
+
+**Consequences.**
+
+1. The sponsor's generator offers far less diversity than its twelve preset names suggest. Our
+   "held-out dram" split differs from the tuned split only by seed, not by geometry.
+2. Genuine variation in pitch, feature size and CD has to come from **our own generator**, which
+   raises its value further.
+3. Any robustness claim based on "tested across six DRAM presets" would be false. Worth knowing
+   before writing it in a slide.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken

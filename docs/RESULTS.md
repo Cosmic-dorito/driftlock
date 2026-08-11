@@ -112,6 +112,31 @@ which raises the value of P0 further.
 
 ---
 
+## 2d. Sub-pixel and drift correction are synergistic, not independent
+
+Median error (px), all three splits:
+
+| Split | baseline | + sub-pixel only | + drift only | **+ both** |
+|---|---|---|---|---|
+| verify (tuned) | 1.102 | 1.085 | 0.427 | **0.238** |
+| held-out dram | 0.952 | **1.032** ❌ | 0.503 | **0.301** |
+| held-out FinFET | 1.091 | **1.161** ❌ | 0.664 | **0.422** |
+
+**Sub-pixel refinement on its own is slightly harmful on two of three splits.** The reason is
+physical: it refines toward where the drifted content *actually sits*, and that is displaced away
+from ground truth by the raster drift. Sharpening the estimate of a systematically wrong position
+makes it more precisely wrong.
+
+Once the drift frame is corrected, the refinement points in the right direction and the two together
+beat drift correction alone by a further **~40%** (0.427→0.238, 0.503→0.301, 0.664→0.422).
+
+**This is why the ablation is not a cumulative ladder.** A pure chain would have shown sub-pixel as
+"+0.017 px improvement" on the tuned split and hidden both the harm it does alone and the
+interaction that makes it valuable. Each row here is *baseline plus the named stage*, so every
+number is attributable.
+
+---
+
 ## 3. Ablation — what each stage bought
 
 Cumulative, 40 pairs. Each row enables one more stage than the row above.

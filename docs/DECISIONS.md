@@ -233,6 +233,64 @@ none of the planned stages addressed — the drift-frame offset in ADR-0010.
 
 ---
 
+## ADR-0012 · 2026-08-12 · accepted · Only strictly-additive stages ship by default
+
+**Decision.** A stage is enabled in the default pipeline only if it (a) improves results on splits
+it was **not** tuned on, and (b) cannot make a correct result worse. PADM re-scoring fails both and
+is disabled. Sub-pixel refinement and blind drift correction pass both and ship.
+
+**Evidence.** Validated across three splits — the tuned split, a held-out seed, and a held-out
+architecture:
+
+| Configuration | verify (tuned) | held-out dram | held-out FinFET |
+|---|---|---|---|
+| baseline mis-lock | 25.0% | 20.0% | 30.0% |
+| + top-K + PADM + centre | **20.0%** ✅ | **26.7%** ❌ | **43.3%** ❌ |
+| + sub-pixel + drift | 25.0% | 20.0% | 30.0% |
+
+**The structural principle, which is the durable part of this decision.** Sub-pixel refinement and
+drift correction adjust a coordinate *after* a location has been chosen; they never touch candidate
+selection. That makes them **strictly additive** — they cannot turn a correct pick into a wrong one,
+and the mis-lock rate is provably identical to baseline on every split. PADM **re-ranks**, so a
+mistuned scoring function actively destroys correct answers.
+
+> **Refinement fails gracefully. Re-ranking fails destructively.**
+
+That asymmetry is why refinement transfers across architectures without retuning and re-ranking did
+not, and it is the rule we now apply to every future stage.
+
+**What it cost and what it saved.** The earlier "20% mis-lock / 78% sub-pixel" headline was an
+overfitting artefact and has been withdrawn; the honest mis-lock rate is baseline-level. But
+removing PADM's FFT decompositions took runtime from 224 ms to **50 ms**, a 4.5× speedup that
+directly helps the runtime half of the localization score.
+
+**What would change our mind.** A re-ranker that demonstrates improvement on held-out architectures,
+and that is gated to fall back to the argmax when confidence is low — so that its failure mode is
+inaction rather than damage. That is now a hard requirement on the planned learned re-ranker, not a
+nice-to-have.
+
+**Process note.** This was caught only because held-out splits were generated *before* the result
+was trusted. Single-split evaluation would have put 20% mis-lock and 78% sub-pixel into the deck,
+and the sponsor's evaluation set would have quietly disagreed.
+
+---
+
+## ADR-0013 · 2026-08-12 · accepted · Treat the sponsor's DRAM presets as one architecture, not six
+
+**Decision.** Report the sponsor's generator as providing **two** distinct architectures (dram,
+finfet), not twelve presets. Do not claim robustness across DRAM presets.
+
+**Why.** `dram_dense`, `dram_loose` and `dram_legacy` produce byte-identical images (md5-verified).
+`generate_fine_canvas_zoned` passes only `preset["kind"]` to `generate_zone_canvas`, so in the
+default zoned path every DRAM preset collapses to the same generator and the pitch, width and
+contact-diameter values in `presets.py` are never read.
+
+**Consequence.** Genuine variation in pitch, feature size and CD must come from our own generator.
+A slide claiming "validated across six DRAM presets" would be false, and is now impossible to write
+by accident.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

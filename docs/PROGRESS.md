@@ -91,6 +91,26 @@ no first row and no improvement can be substantiated (R6).
 
 ---
 
+## Stage 4 STATUS (12 Aug) — precision solved, selection unsolved
+
+**Shipped and validated on held-out data:** sub-pixel DFT + blind drift correction.
+
+| Split | mis-lock | median | pass@1px | pass@0.5px | runtime |
+|---|---|---|---|---|---|
+| verify (tuned) | 25.0% | 1.102 → **0.238** | 40% → **75%** | 18% → **72%** | 50 ms |
+| held-out dram | 20.0% | 0.952 → **0.301** | 50% → **80%** | 23% → **67%** | 48 ms |
+| held-out FinFET | 30.0% | 1.091 → **0.422** | 43% → **70%** | 13% → **60%** | 48 ms |
+
+**Removed as overfit:** PADM re-scoring (helped the tuned split by 5 pts, hurt held-out dram by 6.7
+and FinFET by 13.3). See ADR-0012. Its removal also cut runtime from 224 ms to 50 ms.
+
+**The mis-lock rate is unchanged from baseline and is now the only thing capping the score.**
+Candidate recall says the answer is in the top-20 92.5% of the time, so the ceiling is ~7.5% — but
+any re-ranker must be validated on held-out architectures before it is believed, and gated to fall
+back to the argmax when unsure. Refinement fails gracefully; re-ranking fails destructively.
+
+---
+
 ## Stage 4 — Tier A matcher (the ML-optimal core)
 
 Add one stage at a time and measure each against the previous. Anything that does not help goes in
