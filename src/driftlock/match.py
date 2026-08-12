@@ -99,6 +99,16 @@ class PipelineConfig:
     # by ZNCC. Needs top_k > 1. See src/driftlock/likelihood.py.
     ml_rescore: bool = False
 
+    # A11: re-score each candidate at its OWN best pose rather than at one pose shared by all of
+    # them. The limiting noise on the ranking is model mismatch, not photon noise, and the locally
+    # best pose differs across the field because drift accumulates over the scan. Needs top_k > 1.
+    # See src/driftlock/refit.py.
+    candidate_refit: bool = False
+    refit_scale_span: float = 0.006      # +/-0.6% of scale
+    refit_rotation_span: float = 0.30    # +/-0.3 degrees
+    refit_steps: int = 3                 # per axis, so 9 correlations per candidate
+    refit_margin_px: int = 7
+
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation
     ecc_affine: bool = False         # ECC refinement; affine because the drift is a shear (H10)
@@ -401,6 +411,14 @@ def localize(
     # estimator only for additive constant-variance noise; ours is Poisson-then-Gaussian (H3), so
     # ZNCC systematically over-trusts bright pixels - which on a DRAM array are the contacts and
     # line edges, i.e. the most PERIODIC and therefore least identifying part of the image.
+    # A11: give every candidate its own best pose before comparing them. Runs BEFORE any selection
+    # rule, because it changes the scores those rules read.
+    if config.candidate_refit and len(candidates) > 1:
+        from src.driftlock.refit import refit_candidates
+        candidates = refit_candidates(
+            search_proc, ref_proc, candidates, build_template, correlation_surface, config
+        )
+
     if config.ml_rescore and len(candidates) > 1:
         from src.driftlock.likelihood import rescore_by_likelihood
         candidates = rescore_by_likelihood(search_proc, ref_proc, candidates, config)

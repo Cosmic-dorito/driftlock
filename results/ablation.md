@@ -15,7 +15,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + blind drift correction | 25.0% | 76.7% | 90.0% |
 | + sub-pixel + drift | 25.0% | 76.7% | 90.0% |
 | + pose: spectral lattice  [LESS ACCURATE] | 22.5% | 50.0% | 60.0% |
-| ** + pose: pyramid  [DEFAULT] ** | 27.5% | 33.3% | 33.3% |
+| + pose: pyramid | 27.5% | 33.3% | 33.3% |
+| ** + per-candidate pose refit  [DEFAULT] ** | 25.0% | 30.0% | 16.7% |
 | + top-K=20 alone (no re-rank) | 25.0% | 76.7% | 90.0% |
 | + top-K + PADM + centre rule  [OVERFIT] | 20.0% | 70.0% | 80.0% |
 | + coarse-level consensus re-rank  [HARMFUL] | 62.5% | 76.7% | 36.7% |
@@ -34,7 +35,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + blind drift correction | 0.431 | 326.944 | 360.113 |
 | + sub-pixel + drift | 0.234 | 326.944 | 360.113 |
 | + pose: spectral lattice  [LESS ACCURATE] | 0.246 | 4.177 | 89.280 |
-| ** + pose: pyramid  [DEFAULT] ** | 0.297 | 0.556 | 0.706 |
+| + pose: pyramid | 0.297 | 0.556 | 0.706 |
+| ** + per-candidate pose refit  [DEFAULT] ** | 0.297 | 0.509 | 0.587 |
 | + top-K=20 alone (no re-rank) | 1.102 | 326.905 | 359.893 |
 | + top-K + PADM + centre rule  [OVERFIT] | 1.012 | 262.813 | 312.113 |
 | + coarse-level consensus re-rank  [HARMFUL] | 15.893 | 121.003 | 0.696 |
@@ -53,7 +55,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + blind drift correction | 72.5% | 16.7% | 6.7% |
 | + sub-pixel + drift | 75.0% | 16.7% | 6.7% |
 | + pose: spectral lattice  [LESS ACCURATE] | 77.5% | 43.3% | 30.0% |
-| ** + pose: pyramid  [DEFAULT] ** | 70.0% | 60.0% | 66.7% |
+| + pose: pyramid | 70.0% | 60.0% | 66.7% |
+| ** + per-candidate pose refit  [DEFAULT] ** | 72.5% | 60.0% | 80.0% |
 | + top-K=20 alone (no re-rank) | 40.0% | 10.0% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 47.5% | 16.7% | 6.7% |
 | + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 23.3% | 60.0% |
@@ -72,7 +75,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + blind drift correction | 62.5% | 13.3% | 6.7% |
 | + sub-pixel + drift | 72.5% | 16.7% | 6.7% |
 | + pose: spectral lattice  [LESS ACCURATE] | 72.5% | 23.3% | 13.3% |
-| ** + pose: pyramid  [DEFAULT] ** | 67.5% | 46.7% | 33.3% |
+| + pose: pyramid | 67.5% | 46.7% | 33.3% |
+| ** + per-candidate pose refit  [DEFAULT] ** | 67.5% | 50.0% | 40.0% |
 | + top-K=20 alone (no re-rank) | 17.5% | 3.3% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 22.5% | 6.7% | 3.3% |
 | + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 13.3% | 43.3% |
@@ -86,20 +90,21 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 
 | Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 20 | 20 |
-| + sub-pixel DFT (A9) | 42 | 40 | 48 |
-| + blind drift correction | 59 | 57 | 59 |
-| + sub-pixel + drift | 87 | 88 | 86 |
-| + pose: spectral lattice  [LESS ACCURATE] | 388 | 390 | 389 |
-| ** + pose: pyramid  [DEFAULT] ** | 220 | 219 | 223 |
-| + top-K=20 alone (no re-rank) | 22 | 22 | 24 |
-| + top-K + PADM + centre rule  [OVERFIT] | 216 | 215 | 220 |
-| + coarse-level consensus re-rank  [HARMFUL] | 237 | 238 | 236 |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 338 | 338 | 346 |
-| + row destripe  [HARMFUL] | 32 | 31 | 31 |
-| + median filter  [no effect here] | 24 | 25 | 24 |
-| + Anscombe A1  [no effect on argmax] | 56 | 56 | 57 |
-| + ECC affine  [never converges] | 25 | 27 | 29 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 37 | 44 | 54 |
+| + sub-pixel DFT (A9) | 181 | 230 | 261 |
+| + blind drift correction | 105 | 122 | 170 |
+| + sub-pixel + drift | 420 | 425 | 412 |
+| + pose: spectral lattice  [LESS ACCURATE] | 1204 | 1156 | 1286 |
+| + pose: pyramid | 699 | 720 | 727 |
+| ** + per-candidate pose refit  [DEFAULT] ** | 806 | 924 | 1044 |
+| + top-K=20 alone (no re-rank) | 46 | 59 | 69 |
+| + top-K + PADM + centre rule  [OVERFIT] | 438 | 569 | 586 |
+| + coarse-level consensus re-rank  [HARMFUL] | 716 | 706 | 696 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 946 | 1031 | 1069 |
+| + row destripe  [HARMFUL] | 67 | 88 | 78 |
+| + median filter  [no effect here] | 53 | 78 | 64 |
+| + Anscombe A1  [no effect on argmax] | 115 | 147 | 144 |
+| + ECC affine  [never converges] | 52 | 67 | 70 |
 
 ## Reading this table
 

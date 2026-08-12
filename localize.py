@@ -82,11 +82,34 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         would have done without it. On the sponsor's fixed-10:1 data it costs runtime and nothing
         else.
 
+    Also enabled - per-candidate pose refit (A11), added 12 Aug on win-2:
+      * The limiting noise on candidate RANKING is model mismatch, not photon noise. The measured
+        margin between the true location and its best impostor is ~0.016, against a sampling noise
+        of ~0.002 on a 100x100 correlation - a signal-to-noise ratio near 8, which should have
+        meant almost no mis-locks. We measured 28%. The gap is mismatch: leftover pose error, the
+        drift's local gradient, apodisation. The maximum-likelihood re-ranker reached the same
+        conclusion from the other side (ADR-0018).
+      * So each candidate is re-scored at ITS OWN best pose instead of at one pose shared across
+        the field, which removes an unequal handicap rather than introducing a new criterion. That
+        is why it generalises where three re-rankers did not (ADR-0019): total mis-lock over the
+        three splits 28.0% -> 19.0%, improving EVERY split, most on held-out FinFET (33.3% ->
+        20.0%).
+      * refit_steps=2 rather than 3: identical total mis-lock (19/100 either way) at lower cost.
+      * COST, measured back-to-back on one machine in one sitting: p50 782 ms -> 1197 ms per pair,
+        about 1.5x. That is well above our own 300 ms aspiration and it is a deliberate trade - we
+        took 9 points of mis-lock for 400 ms. `top_k` is the dial if the balance needs changing
+        (K=4 costs ~1000 ms and gives back some of the accuracy).
+      * A caution about the runtime figures anywhere in this project: absolute timings drifted by
+        up to 3x across this machine over a long benchmarking session, for identical code, and did
+        not recover after an idle period. Only numbers measured back-to-back in one sitting are
+        comparable, and every quoted runtime here is from such a pairing.
+
     Also not enabled, with reasons in docs/FINDINGS.md: row destriping (removes horizontal word
     lines along with charging streaks), phase congruency (implementation broken), ECC affine (never
     converges), median filter (no impulse noise in this data), Anscombe (cannot move an integer
     argmax; re-test if a continuous re-ranker lands), spectral pose estimation (less accurate than
-    the pyramid on every split measured - ADR-0015).
+    the pyramid on every split measured - ADR-0015), candidate-consensus residual and refit-gain
+    ranking (both measured, both worse - FINDINGS section 15).
     """
     if getattr(args, "config", "driftlock") == "baseline":
         # The sponsor's published baseline, reproduced exactly: INTER_AREA template, ZNCC, argmax,
@@ -99,6 +122,9 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         subpixel=True,
         drift_correction=True,
         pose_search=True,
+        top_k=10,
+        candidate_refit=True,
+        refit_steps=2,
     )
 
 

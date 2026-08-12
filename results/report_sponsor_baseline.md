@@ -41,7 +41,8 @@ Pairs evaluated: **40**
 | platform | Windows 11 (AMD64) |
 | processor | Intel64 Family 6 Model 170 Stepping 4, GenuineIntel |
 | opencv version | 5.0.0 |
-| timing method | time.perf_counter() around load+localize, per pair, single-threaded |
+| cv2 threads | 22 |
+| timing method | time.perf_counter() around load+localize, per pair, OpenCV using 22 thread(s), no warm-up discarded |
 
 ## Stratified by `gt_x`
 

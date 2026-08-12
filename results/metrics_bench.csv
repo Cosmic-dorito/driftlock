@@ -1,23 +1,24 @@
 metric,value
 n_pairs,30
-error_mean_px,107.448
-error_median_px,0.555604
-error_p95_px,632.271
+error_mean_px,88.5679
+error_median_px,0.509331
+error_p95_px,508.394
 error_worst_px,893.895
-mislock_rate,0.333333
-n_mislocks,10
-pass@5px,0.666667
-pass@4px,0.666667
-pass@2px,0.666667
+mislock_rate,0.3
+n_mislocks,9
+pass@5px,0.7
+pass@4px,0.7
+pass@2px,0.7
 pass@1px,0.6
-pass@subpixel(0.5px),0.466667
-error_median_px_located_only,0.308653
-error_mean_px_located_only,0.4295
-runtime_p50_ms,231.15
-runtime_p95_ms,253.346
-runtime_mean_ms,239.057
+pass@subpixel(0.5px),0.5
+error_median_px_located_only,0.291442
+error_mean_px_located_only,0.419843
+runtime_p50_ms,1003.68
+runtime_p95_ms,1191.14
+runtime_mean_ms,1037.59
 python_version,3.14.3
 platform,Windows 11 (AMD64)
 processor,"Intel64 Family 6 Model 170 Stepping 4, GenuineIntel"
 opencv_version,5.0.0
-timing_method,"time.perf_counter() around load+localize, per pair, single-threaded"
+cv2_threads,22
+timing_method,"time.perf_counter() around load+localize, per pair, OpenCV using 22 thread(s), no warm-up discarded"

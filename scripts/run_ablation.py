@@ -61,8 +61,11 @@ def ladder() -> list[PipelineConfig]:
         PipelineConfig(label="+ pose: spectral lattice  [LESS ACCURATE]",
                        subpixel=True, drift_correction=True,
                        pose_search=True, pose_method="spectral"),
-        PipelineConfig(label="** + pose: pyramid  [DEFAULT] **",
+        PipelineConfig(label="+ pose: pyramid",
                        subpixel=True, drift_correction=True, pose_search=True),
+        PipelineConfig(label="** + per-candidate pose refit  [DEFAULT] **",
+                       subpixel=True, drift_correction=True, pose_search=True,
+                       top_k=10, candidate_refit=True, refit_steps=2),
 
         # --- measured negative results, kept per R9 ---
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),

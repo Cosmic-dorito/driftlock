@@ -20,4 +20,5 @@ python_version,3.14.3
 platform,Windows 11 (AMD64)
 processor,"Intel64 Family 6 Model 170 Stepping 4, GenuineIntel"
 opencv_version,5.0.0
-timing_method,"time.perf_counter() around load+localize, per pair, single-threaded"
+cv2_threads,22
+timing_method,"time.perf_counter() around load+localize, per pair, OpenCV using 22 thread(s), no warm-up discarded"

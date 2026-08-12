@@ -144,7 +144,13 @@ def environment() -> dict[str, str]:
         "platform": f"{platform.system()} {platform.release()} ({platform.machine()})",
         "processor": platform.processor() or "unknown",
         "opencv_version": cv_version,
-        "timing_method": "time.perf_counter() around load+localize, per pair, single-threaded",
+        # Report the thread count actually in force rather than asserting one. The string used to
+        # claim "single-threaded", but nothing in the production path calls cv2.setNumThreads(1) -
+        # the claim was inherited from a coding convention that was never implemented. A timing
+        # method that misdescribes itself is worse than no timing method (R6).
+        "cv2_threads": cv2.getNumThreads(),
+        "timing_method": (f"time.perf_counter() around load+localize, per pair, "
+                          f"OpenCV using {cv2.getNumThreads()} thread(s), no warm-up discarded"),
     }
 
 

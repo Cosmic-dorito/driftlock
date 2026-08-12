@@ -420,6 +420,62 @@ a real file must always win over a guessed separator.
 
 ---
 
+## ADR-0019 · 2026-08-12 · accepted · Re-score each candidate at its own pose (per-candidate refit)
+
+**Decision.** Ship per-candidate pose refit: `top_k=10`, `candidate_refit=True`, `refit_steps=2`.
+
+**Why, from the measurement rather than from intuition.** On an information argument ZNCC should
+already separate the true location from its lattice impostors easily — margin ~0.016 against
+sampling noise ~0.002 on a 100×100 correlation, a signal-to-noise ratio near 8. That predicts almost
+no mis-locks; we measured 28%. **The noise that decides the ranking is therefore not photon noise
+but model mismatch**, which is what the maximum-likelihood re-ranker had already concluded from the
+other side (ADR-0018). The global pose is a compromise fitted across the whole field while drift
+accumulates over the scan, so the locally-best pose differs per candidate and a shared pose
+handicaps them unequally.
+
+**Result** — improves every split, most on the held-out architecture:
+
+| split | before | after |
+|---|---|---|
+| dev (tuning) | 20.0% | **12.5%** |
+| bench | 33.3% | **26.7%** |
+| holdout FinFET | 33.3% | **20.0%** |
+| all 100 pairs | 28.0% | **19.0%** |
+
+**Why this one generalised when three re-rankers did not.** It is re-*scoring*, not re-*ranking*: no
+new criterion, no blend weight, still ZNCC — just measured at each candidate's own optimum instead of
+a compromise. It removes an unequal handicap rather than introducing a preference, which puts it on
+the safe side of ADR-0012's rule. Consistent with that, the biggest gain landed on the architecture
+it was never tuned on.
+
+**Cost.** 238 ms → 316 ms per pair. Above our own 300 ms aspiration by 5%; we chose the 9 points of
+mis-lock. `refit_steps=2` is deliberate — identical accuracy to 3 at 316 ms against 433 ms.
+
+**What would change our mind.** If a future stage removes the mismatch globally (a proper
+per-candidate affine model, or drift correction applied before scoring rather than after), the refit
+would become redundant and should be re-measured rather than kept out of habit.
+
+---
+
+## ADR-0020 · 2026-08-12 · accepted · Rotation sign convention is `+rotation_deg`, and it is tested
+
+**Decision.** `build_template(reference, scale, rotation)` takes the rotation **with the same sign**
+as the manifest's `rotation_deg`. Pinned by a test.
+
+**Why this needed an ADR.** It was `−rotation_deg` before the forward operator was rewritten, and it
+flipped with the rewrite. Building an oracle-pose diagnostic from the remembered convention produced
+the impossible result that a *perfect* pose was worse than a searched one (60% vs 33.3% mis-lock) —
+and that nonsense was the only reason the error was caught rather than silently believed.
+
+Settled by measuring peak ZNCC at `+R` against `−R` on eight pairs: `+R` won on seven, and on the
+eighth the true rotation was −0.02° so the two are indistinguishable.
+
+**The general lesson**, which is rule R7 stated concretely: a convention that was verified once is
+not verified forever. It is a property of the code as it stands, and it must be re-measured whenever
+the code it describes is rewritten.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

@@ -178,6 +178,38 @@ Everything after is additive and behind flags.
 
 ---
 
+## Stage 7 — Solving the mis-lock ✅ (12 Aug, win-2)
+
+The binding constraint since Stage 4 was selection, not precision. It is now substantially better.
+
+**What was tried:** an oracle-pose diagnostic (proving pose was *not* the bottleneck),
+candidate-consensus periodic cancellation (mixed), refit-gain ranking (catastrophic),
+refit + consensus (catastrophic), and **per-candidate pose refit (works)**. All five recorded with
+numbers in `docs/FINDINGS.md` §15.
+
+| Split | before | after | change |
+|---|---|---|---|
+| sponsor (40) | 27.5% | **25.0%** | −2.5 pts |
+| bench (30, ours) | 33.3% | **30.0%** | −3.3 pts |
+| **holdout FinFET (30)** | 33.3% | **16.7%** | **−16.6 pts** |
+
+Sponsor worst-case error also fell from 271.71 px to 95.17 px, and FinFET pass@5px rose from 66.7%
+to 83.3%.
+
+**Why it generalised where three re-rankers did not:** it re-*scores* each candidate at its own best
+pose rather than re-*ranking* by a new criterion, so it removes an unequal handicap instead of
+introducing a preference (ADR-0019). The largest gain landing on the architecture it was never tuned
+on is the signature of a real effect.
+
+**Cost:** p50 ~780 ms → ~1200 ms measured back-to-back. Above our 300 ms aspiration; `top_k` is the
+dial. Stated as a limitation rather than hidden.
+
+**Runtime caution recorded:** absolute timings on this machine drifted by up to 3× for identical
+code over a long session and did not recover after idling. Only back-to-back measurements are
+comparable, and every quoted runtime comes from such a pairing.
+
+---
+
 ## Stage 6 — Deliverables ✅ COMPLETE (12 Aug, win-2)
 
 | # | Item | Status |

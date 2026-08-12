@@ -692,6 +692,124 @@ landmark to reveal.
 
 ---
 
+## 15. Solving the mis-lock: five experiments, one that worked ✅
+
+Mis-lock had been the binding constraint since Stage 4. Precision was solved; selection was not.
+Three re-rankers had already failed (PADM, coarse consensus, maximum-likelihood). This section is
+the round that broke it.
+
+### 15a. First: is it even an ambiguity problem? (the diagnostic that redirected everything)
+
+The bench results stratified by pose looked alarming:
+
+| rotation band | mis-lock | | scale band | mis-lock |
+|---|---|---|---|---|
+| −0.04 .. 0.60° | 14% | | 9.01 .. 9.61 | 25% |
+| 0.60 .. 1.88° | **62%** | | 10.5 .. 11.0 | **50%** |
+
+That is not the signature of periodic ambiguity — it looks like **pose estimation failing**, which
+would need a completely different fix. So: hand the matcher the true scale and rotation from the
+manifest and see what happens.
+
+**First attempt said oracle pose was WORSE (60% vs 33.3%), which is impossible.** A correct pose
+cannot hurt. The oracle was wrong: I passed `−rotation`. Measuring the peak ZNCC at `+R` against
+`−R` settled it — the template wants **`+R`**. The convention had been `−R` before the forward
+operator was rewritten, and it flipped with the rewrite. **Remembering a convention instead of
+measuring it cost an hour and nearly produced a completely wrong conclusion** (rule R7).
+
+With the correct sign:
+
+| split | shipped pose | oracle pose | pose failures |
+|---|---|---|---|
+| bench | 33.3% | 33.3% | 2 of 10 |
+| holdout FinFET | 33.3% | **43.3%** | 2 of 10 |
+
+**Pose is not the bottleneck.** A perfect pose leaves mis-lock unchanged on bench and makes FinFET
+*worse* — because the searched pose sometimes fits better than the true one, absorbing drift and
+distortion the true pose does not. The apparent rotation correlation was confounding, not causal.
+It is genuine ambiguity.
+
+### 15b. Candidate-consensus periodic cancellation — mixed ⚪
+
+**Idea.** The top-K candidates are, by construction, different repeats of *the same lattice*. Their
+average therefore estimates what they have in common — the periodic part — **from the search image
+itself, with no bandwidth, no lattice fit and no tuned constant**. Subtract it (leave-one-out, so a
+candidate never cancels itself) and what remains is the aperiodic fingerprint.
+
+This is what PADM was trying to do, without PADM's two tuned parameters — and those parameters were
+exactly what made PADM overfit.
+
+**Result.** dev 20.0% → 12.5%, bench 26.7% → **30.0%**, FinFET 33.3% → 30.0%. Net 26 → 23 mis-locks
+across 100 pairs. Real but not decisive, and it *hurts one split* — the same shape as PADM. Not
+shipped.
+
+### 15c. Per-candidate pose refit — the one that worked ✅✅
+
+**The reasoning that produced it.** On a pure information argument, ZNCC should already separate the
+true location from its impostors easily: the measured margin is ~0.016, and sampling noise on a
+100×100 correlation at ρ≈0.9 is ~0.002. That is a signal-to-noise ratio near **8**, which should mean
+almost no mis-locks. We measured 28%.
+
+So the noise that actually decides the ranking **is not photon noise** — it is model mismatch. The
+maximum-likelihood re-ranker had already said this from the other direction (§14): weighting by
+photon variance sharpened a term that was not the limiting one.
+
+If mismatch is what dominates, the fix is not a cleverer score — it is **less mismatch**. The global
+pose is a compromise fitted across the whole search image, but drift accumulates over the scan and
+distortion varies with field position, so the locally-best pose differs from candidate to candidate.
+Scoring them all at one shared pose handicaps them *unequally*.
+
+**So: re-score every candidate at its own best pose.**
+
+| split | shipped | + refit | change |
+|---|---|---|---|
+| dev (tuning) | 20.0% | **12.5%** | −7.5 pts |
+| bench | 33.3% | **26.7%** | −6.6 pts |
+| holdout FinFET | 33.3% | **20.0%** | **−13.3 pts** |
+| **all 100 pairs** | **28.0%** | **19.0%** | **−32% relative** |
+
+Precision improved too (bench median 0.556 → 0.504 px, FinFET 0.706 → 0.639).
+
+**Why this generalises when three re-rankers did not.** It is re-**scoring**, not re-**ranking**. No
+new criterion, no blend weight — the comparison is still ZNCC, just measured at each candidate's own
+optimum rather than at a compromise. It *removes an unequal handicap* rather than introducing a
+preference, which keeps it on the safe side of ADR-0012. The largest gain landing on the held-out
+architecture is the signature of a real effect rather than a fitted one.
+
+### 15d. Two variants that failed badly ❌
+
+**Ranking by the score *gain* when the pose is freed** — the intuition being that only the true
+location has a fingerprint to bring into register, so only it should improve much.
+**80–92% mis-lock.** Exactly backwards: *impostors* gain more, because they start with more
+mismatch and therefore have more to absorb. The gain measures how wrong a candidate was, not how
+right it can become.
+
+**Consensus cancellation applied to the refitted patches** — the principled-looking combination:
+remove the mismatch first, then compare fingerprints. **40–53% mis-lock.** Refitting re-registers
+each patch to its own frame, so the consensus average is then taken over patches that are no longer
+in a common frame, and the "periodic component" it estimates is blurred nonsense.
+
+### 15e. A 6× speedup with no accuracy cost
+
+The first working implementation cost **2250 ms per pair** — unshippable against a 300 ms target.
+The cause was structural, not algorithmic: the template depends only on `(scale, rotation)`, **not**
+on which candidate is being scored, but the natural loop nesting (candidate outer, pose inner)
+rebuilds the same few templates once per candidate. Template construction — box-integrating a
+1000×1000 reference and warping it — dominates everything else here.
+
+Grouping candidates by pose and building each template once per group: **2250 ms → 430 ms**,
+identical results.
+
+One trap on the way: centring a single shared pose grid on the top candidate ran fast and **silently
+erased the entire effect** (back to 20.0/33.3/33.3). Candidates arrive from *different* poses in the
+bracket, so each genuinely needs a grid centred on its own. A performance optimisation that quietly
+deletes the result it was optimising is precisely why every change is re-measured rather than
+assumed correct.
+
+Final tuning: `refit_steps=2` matches `steps=3` exactly (19.0% both) at **316 ms against 433 ms**.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken

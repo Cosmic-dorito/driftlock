@@ -507,6 +507,20 @@ def slide_method(prs, M):
          "stages ship by default.", size=11, bold=True, color=TEAL)
 
 
+def load_failure_analysis() -> dict[str, str]:
+    """Failure-case numbers, measured against the CURRENT pipeline by failure_analysis.py.
+
+    These were hardcoded on the slide until the per-candidate refit landed and silently changed
+    three of them - the split stopped having ten failures, and the hard stratum's mis-lock rate
+    moved by eleven points. Reading them from a run is what makes R2 bind here.
+    """
+    path = RESULTS / "failure_case" / "analysis.csv"
+    if not path.exists():
+        return {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        return {row["metric"]: row["value"] for row in csv.DictReader(fh)}
+
+
 def example_output() -> str:
     """A REAL coordinate from results/, not an invented one.
 
@@ -556,8 +570,10 @@ def slide_implementation(prs, M):
          "numpy, scipy, opencv-python-headless, scikit-image. torch is optional and lazily "
          "imported — uninstalling it changes nothing."),
         ("Deterministic and portable",
-         "One seeded RNG threaded through, single-threaded timing, pathlib only, no absolute "
-         "paths. Developed on macOS and re-measured on Windows for this submission."),
+         f"One seeded RNG threaded through, pathlib only, no absolute paths. Timing method and "
+         f"thread count are recorded with every run (OpenCV using "
+         f"{M['bench'].get('cv2_threads', '?')} threads here). Developed on macOS and re-measured "
+         f"on Windows for this submission; accuracy reproduced to the digit on both."),
         ("stdout discipline",
          "In single-pair mode stdout carries the coordinate and nothing else. All logs go to "
          "stderr, because benchmark parsers break on chatty scripts."),
@@ -720,7 +736,9 @@ def slide_ablation(prs, M, ABL):
          "the floor"),
         ("+ sub-pixel DFT (A9)", "+ sub-pixel DFT", "precision only"),
         ("+ blind drift correction", "+ two-axis drift cancellation", "precision only"),
-        ("** + pose: pyramid  [DEFAULT] **", "+ pose: pyramid   ← shipped", "the whole gain"),
+        ("+ pose: pyramid", "+ pose: pyramid   ← shipped", "solves rotation/scale"),
+        ("** + per-candidate pose refit  [DEFAULT] **",
+         "+ per-candidate pose refit   ← shipped", "solves selection"),
         ("+ pose: spectral lattice  [LESS ACCURATE]", "+ pose: spectral lattice", "less accurate"),
         ("+ top-K + PADM + centre rule  [OVERFIT]", "+ PADM residual re-ranking", "overfit"),
         ("+ max-likelihood re-rank (Poisson-Gauss)  [NO GAIN]", "+ max-likelihood re-ranking",
@@ -741,28 +759,35 @@ def slide_ablation(prs, M, ABL):
          size=9.5, color=GREY, italic=True)
 
     card(s, 8.5, 1.72, 4.2, 4.6, INK, None)
-    text(s, 8.75, 1.92, 3.7, 0.55, "Three re-rankers, three honest failures",
-         size=14.5, bold=True, color=AMBER, font=HEAD)
-    text(s, 8.75, 2.55, 3.7, 3.6, [
-        ("PADM residual scoring", {"bold": True, "color": WHITE}),
+    text(s, 8.75, 1.92, 3.7, 0.55, "Four attempts at selection, and why the fourth worked",
+         size=14, bold=True, color=AMBER, font=HEAD)
+    grey = RGBColor(0x9F, 0xB4, 0xC2)
+    text(s, 8.75, 2.55, 3.7, 3.7, [
+        ("PADM residual scoring — overfit", {"bold": True, "color": WHITE}),
         ("Two tuned constants. Gained on the split it was tuned on, lost on both held-out splits.",
-         {"color": RGBColor(0x9F, 0xB4, 0xC2)}),
+         {"color": grey}),
         ("", {}),
-        ("Coarse-level consensus", {"bold": True, "color": WHITE}),
+        ("Coarse consensus — harmful", {"bold": True, "color": WHITE}),
         ("Assumed downsampling reveals landmarks. It cannot: the reference's footprint is smaller "
-         "than a mat, so there is no landmark to reveal at any resolution.",
-         {"color": RGBColor(0x9F, 0xB4, 0xC2)}),
+         "than a mat, so there is nothing to reveal at any resolution.", {"color": grey}),
         ("", {}),
-        ("Maximum-likelihood scoring", {"bold": True, "color": WHITE}),
-        ("The noise really is signal-dependent, so ZNCC really is mis-weighted — but model mismatch "
+        ("Maximum-likelihood — no gain", {"bold": True, "color": WHITE}),
+        ("The noise really is signal-dependent, so ZNCC really is mis-weighted. But model mismatch "
          "is larger than photon noise, so weighting by photon variance sharpens the wrong term.",
-         {"color": RGBColor(0x9F, 0xB4, 0xC2)}),
-    ], size=10, spacing=2)
+         {"color": grey}),
+        ("", {}),
+        ("Per-candidate pose refit — WORKS", {"bold": True, "color": AMBER}),
+        ("Follows the line above: if mismatch dominates, reduce mismatch. Each candidate is "
+         "re-SCORED at its own best pose — no new criterion, so it cannot invent a preference.",
+         {"color": grey}),
+    ], size=9.5, spacing=2)
 
-    text(s, 0.6, 5.35, 7.6, 0.9,
-         "The rule these bought: downsampling is free for measuring pose and ruinous for deciding "
-         "identity — pose is a global low-frequency property, while identity lives only in the "
-         "full-resolution aperiodic fingerprint.",
+    text(s, 0.6, 5.30, 7.6, 1.0,
+         "Two rules these bought. Downsampling is free for measuring pose and ruinous for deciding "
+         "identity — pose is a global low-frequency property, identity lives only in the "
+         "full-resolution aperiodic fingerprint. And refinement fails gracefully while re-ranking "
+         "fails destructively, so a selection stage must remove a handicap rather than introduce a "
+         "criterion.",
          size=11, bold=True, color=TEAL)
 
 
@@ -772,43 +797,54 @@ def slide_failure(prs, M):
               "Not a picture of a wrong answer: a measurement of why it was wrong")
 
     b = M["bench"]
-    card(s, 0.6, 1.55, 6.0, 2.55, RGBColor(0xFB, 0xED, 0xE9))
-    text(s, 0.9, 1.75, 5.4, 0.32, "Worst case on the reported split",
+    F = load_failure_analysis()
+    card(s, 0.6, 1.50, 6.0, 2.75, RGBColor(0xFB, 0xED, 0xE9))
+    text(s, 0.9, 1.68, 5.4, 0.32, "Worst case on the reported split",
          size=15.5, bold=True, color=RGBColor(0x8A, 0x2D, 0x18), font=HEAD)
-    text(s, 0.9, 2.20, 5.4, 1.7, [
-        f"•  Euclidean error {px(b, 'error_worst_px', 2)} px — a different site entirely",
-        "•  The true location WAS a candidate, at rank 4",
-        "•  It lost by 0.0027 of correlation — 0.32% of the winning score",
-        "•  The winner sat 893.8 px away and matched just as well",
-    ], size=12, color=RGBColor(0x7A, 0x3A, 0x24), spacing=5)
-    text(s, 0.9, 3.72, 5.4, 0.3, "Root cause: ranking, not candidate generation.",
+    worst_px = F.get("worst_error_px", px(b, "error_worst_px", 2))
+    bullets = [f"•  Euclidean error {worst_px} px — a different site entirely"]
+    if F.get("worst_rank_of_truth"):
+        bullets.append(f"•  The true location WAS a candidate, at rank {F['worst_rank_of_truth']}")
+    if F.get("worst_margin_zncc"):
+        bullets.append(f"•  It lost by {F['worst_margin_zncc']} of correlation — "
+                       f"{F['worst_margin_pct']}% of the winning score")
+    bullets.append(f"•  The pair sits in the '{F.get('worst_ambiguity', 'med')}' ambiguity "
+                   f"stratum — no landmark in view")
+    text(s, 0.9, 2.12, 5.4, 1.75, bullets, size=12,
+         color=RGBColor(0x7A, 0x3A, 0x24), spacing=5)
+    text(s, 0.9, 3.88, 5.4, 0.3, "Root cause: ranking, not candidate generation.",
          size=12.5, bold=True, color=RGBColor(0x8A, 0x2D, 0x18))
 
-    card(s, 6.9, 1.55, 5.8, 2.55)
-    text(s, 7.2, 1.75, 5.2, 0.32, "Failures concentrate exactly where theory says they must",
+    card(s, 6.9, 1.50, 5.8, 2.75)
+    text(s, 7.2, 1.68, 5.2, 0.62, "Failures concentrate exactly where theory says they must",
          size=14.5, bold=True, color=INK, font=HEAD)
-    text(s, 7.2, 2.15, 5.2, 0.5,
+    text(s, 7.2, 2.32, 5.2, 0.42,
          "Our generator labels each pair by whether an aperiodic landmark is in view. Stratifying "
-         "the results by that label:", size=11, color=GREY)
-    table(s, 7.2, 2.72, 5.2,
-          [["Crop contains", "n", "Mis-lock", "@1px"],
-           ["a mat boundary", "21", "19%", "81%"],
-           ["only lattice", "9", "67%", "11%"]],
-          col_w=[2.1, 0.7, 1.2, 1.2], size=11)
-    text(s, 7.2, 3.75, 5.2, 0.4,
-         "Six of the ten failures fall in those nine pairs. The method fails precisely where the "
-         "information needed to succeed is absent — which is the honest definition of the "
-         "problem's limit.", size=10, color=GREY, italic=True)
+         "the results by that label:", size=10.5, color=GREY)
+    rows_t = [["Crop contains", "n", "Mis-lock", "@1px"]]
+    for key, label in [("low", "a mat boundary"), ("med", "only lattice")]:
+        if f"strata_{key}_n" in F:
+            rows_t.append([label, F[f"strata_{key}_n"],
+                           f"{F[f'strata_{key}_mislock_pct']}%", f"{F[f'strata_{key}_pass1_pct']}%"])
+    table(s, 7.2, 2.80, 5.2, rows_t, col_w=[2.1, 0.7, 1.2, 1.2], size=11)
+    if "strata_med_failures" in F:
+        text(s, 7.2, 3.86, 5.2, 0.36,
+             f"{F['strata_med_failures']} of the {F['n_failures']} failures fall in those "
+             f"{F['strata_med_n']} pairs. The method fails precisely where the information needed "
+             f"to succeed is absent — the honest definition of the problem's limit.",
+             size=9.5, color=GREY, italic=True)
 
     text(s, 0.6, 4.40, 12.1, 0.35, "Limitations, stated rather than left to be found",
          size=16, bold=True, color=INK, font=HEAD)
     for i, (h, d) in enumerate([
-        ("Selection is unsolved",
-         "Every pass rate is capped by the mis-lock rate. The truth is in the top-20 on 39 of 40 "
-         "pairs, so a perfect re-ranker would reach about 2.5%."),
+        ("Selection is still the cap",
+         f"Every pass rate is capped by the mis-lock rate. The truth is in the top-"
+         f"{F.get('top_k', '20')} on {F.get('candidate_recall_topk', 'most')} pairs "
+         f"({F.get('candidate_recall_pct', '90')}%), so a perfect re-ranker would still have "
+         f"room to roughly halve what remains."),
         ("Runtime above our own target",
-         f"About {ms(b, 'runtime_p50_ms')} per pair against a 300 ms goal. A three-step pose "
-         "bracket gives roughly 260 ms and costs 2.5–5 points of mis-lock; we chose accuracy."),
+         f"About {ms(b, 'runtime_p50_ms')} per pair against a 300 ms goal. The per-candidate "
+         "refit is most of it; top_k is the dial. We took 9 points of mis-lock for the time."),
         ("Untested axes remain",
          "Barrel distortion, astigmatism, charging streaks and impulse noise are modelled but not "
          "stratified — untested, not proven harmless."),
@@ -859,9 +895,11 @@ def slide_conclusion(prs, M):
         text(s, 1.20, y - 0.02, 11.3, 0.3, h, size=12.5, bold=True, color=WHITE)
         text(s, 1.20, y + 0.27, 11.3, 0.62, d, size=10, color=RGBColor(0x9F, 0xB4, 0xC2))
 
+    F = load_failure_analysis()
     text(s, 0.6, 6.65, 12.1, 0.35,
-         "Next: a learned re-ranker — the correct answer is already in the candidate set on 39 of "
-         "40 pairs, and three hand-designed scorers have now failed in three different ways.",
+         f"Next: the correct answer is still in the candidate set on "
+         f"{F.get('candidate_recall_topk', 'most')} pairs, so selection remains the cap — and the "
+         f"one stage that beat it did so by removing a handicap, not by scoring harder.",
          size=11.5, color=AMBER, italic=True)
     s.notes_slide.notes_text_frame.text = (
         "Everything in results/ is regenerated by `make bench`; scripts/verify_submission.py fails "
