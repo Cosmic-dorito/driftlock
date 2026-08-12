@@ -94,7 +94,11 @@ no first row and no improvement can be substantiated (R6).
 
 ---
 
-## Stage 4 STATUS (12 Aug, evening, MacBook Air M2) — pose solved, selection still unsolved
+## Stage 4 STATUS — SUPERSEDED (12 Aug, evening, MacBook Air M2)
+
+> ⚠️ **Historical. The numbers below are two generations old.** They are kept because the
+> reasoning is still the record of how the pose problem was solved. For current results see
+> the generated headline in `docs/RESULTS.md`, which is regenerated from `results/`.
 
 **The rotation/scale envelope now works.** It previously did not work *at all*: on our own
 generator the shipped pipeline mis-located 95% of pairs. Root cause was that the template builder
@@ -121,7 +125,10 @@ coarse-level consensus harmful). This is where the remaining localization points
 
 ---
 
-## Stage 4 STATUS (12 Aug, earlier) — precision solved, selection unsolved
+## Stage 4 STATUS — SUPERSEDED (12 Aug, earlier)
+
+> ⚠️ **Historical.** Kept for the reasoning, not the numbers. Current results live in
+> `docs/RESULTS.md` (generated).
 
 **Shipped and validated on held-out data:** sub-pixel DFT + blind drift correction.
 
@@ -179,6 +186,9 @@ Everything after is additive and behind flags.
 ---
 
 ## Stage 7 — Solving the mis-lock ✅ (12 Aug, win-2)
+
+> Numbers in this section were current when written. **The single source of truth for current
+> results is the generated headline in `docs/RESULTS.md`.**
 
 The binding constraint since Stage 4 was selection, not precision. It is now substantially better.
 

@@ -282,6 +282,40 @@ def check_ppt_numbers_traceable() -> Result:
     return Result(PASS, "every decimal number in the deck is traceable to results/")
 
 
+def check_results_doc_is_current() -> Result:
+    """R2 for the markdown, not just the deck.
+
+    The deck is generated from results/ and checked number-by-number, but docs/RESULTS.md was
+    hand-maintained - and it drifted, to the point where RESULTS.md, PROGRESS.md and results/ each
+    carried a different generation of the headline figures at the same time. A judge browsing the
+    repository would have found the project contradicting itself.
+
+    The headline block is now generated between markers. This check confirms it is present and that
+    its numbers still match results/, so a stale document fails the build instead of shipping.
+    """
+    doc = REPO_ROOT / "docs" / "RESULTS.md"
+    if not doc.exists():
+        return Result(FAIL, "docs/RESULTS.md missing")
+    text = doc.read_text(encoding="utf-8")
+    if "BEGIN GENERATED HEADLINE" not in text:
+        return Result(FAIL, "RESULTS.md headline is not generated - run scripts/make_results_doc.py")
+
+    block = text.split("BEGIN GENERATED HEADLINE")[1].split("END GENERATED HEADLINE")[0]
+    stale = []
+    for label in ("sponsor", "bench", "finfet"):
+        path = REPO_ROOT / "results" / f"metrics_{label}.csv"
+        if not path.exists():
+            continue
+        with path.open(newline="", encoding="utf-8") as fh:
+            metrics = {r["metric"]: r["value"] for r in csv.DictReader(fh)}
+        expected = f"{float(metrics['mislock_rate']) * 100:.1f}%"
+        if expected not in block:
+            stale.append(f"{label}: results/ says {expected}, not found in the generated block")
+    if stale:
+        return Result(FAIL, "RESULTS.md is stale - re-run scripts/make_results_doc.py", stale)
+    return Result(PASS, "RESULTS.md headline is generated and matches results/")
+
+
 def check_torch_optional() -> Result:
     """ADR-0006: the deterministic path must not import torch at module scope."""
     offenders = []
@@ -333,6 +367,7 @@ CHECKS = [
     ("Failure case shown and explained", check_failure_case),
     ("Citations complete and verified (R1)", check_citations_complete),
     ("Deck numbers traceable to results (R2)", check_ppt_numbers_traceable),
+    ("RESULTS.md generated and current (R2)", check_results_doc_is_current),
     ("torch is optional, lazily imported", check_torch_optional),
     ("Tracking docs present", check_docs_present),
     ("Sponsor-generator facts verified (R3)", check_hypotheses_verified),

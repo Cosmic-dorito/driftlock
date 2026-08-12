@@ -94,22 +94,22 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 
 | Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 21 | 21 |
-| + sub-pixel DFT (A9) | 40 | 49 | 38 |
-| + blind drift correction | 60 | 60 | 59 |
-| + sub-pixel + drift | 75 | 88 | 86 |
-| + pose: spectral lattice  [LESS ACCURATE] | 405 | 387 | 394 |
-| + pose: pyramid | 221 | 222 | 222 |
-| ** + per-candidate pose refit  [DEFAULT] ** | 316 | 324 | 328 |
-| + top-K=20 alone (no re-rank) | 23 | 22 | 23 |
-| + top-K + PADM + centre rule  [OVERFIT] | 226 | 221 | 225 |
-| + centre rule on the default  [prior absent here] | 316 | 321 | 327 |
-| + coarse-level consensus re-rank  [HARMFUL] | 239 | 240 | 238 |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 347 | 352 | 352 |
-| + row destripe  [HARMFUL] | 32 | 32 | 32 |
-| + median filter  [no effect here] | 25 | 25 | 25 |
-| + Anscombe A1  [no effect on argmax] | 58 | 58 | 57 |
-| + ECC affine  [never converges] | 27 | 27 | 32 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 20 | 20 |
+| + sub-pixel DFT (A9) | 27 | 27 | 27 |
+| + blind drift correction | 52 | 50 | 51 |
+| + sub-pixel + drift | 58 | 58 | 58 |
+| + pose: spectral lattice  [LESS ACCURATE] | 356 | 354 | 352 |
+| + pose: pyramid | 194 | 190 | 190 |
+| ** + per-candidate pose refit  [DEFAULT] ** | 308 | 304 | 312 |
+| + top-K=20 alone (no re-rank) | 23 | 22 | 22 |
+| + top-K + PADM + centre rule  [OVERFIT] | 205 | 202 | 208 |
+| + centre rule on the default  [prior absent here] | 305 | 315 | 324 |
+| + coarse-level consensus re-rank  [HARMFUL] | 206 | 203 | 200 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 318 | 319 | 309 |
+| + row destripe  [HARMFUL] | 30 | 29 | 29 |
+| + median filter  [no effect here] | 24 | 23 | 23 |
+| + Anscombe A1  [no effect on argmax] | 51 | 51 | 51 |
+| + ECC affine  [never converges] | 25 | 25 | 26 |
 
 ## Reading this table
 

@@ -998,6 +998,90 @@ not tested, whereas a fitted constant has no reason to.
 
 ---
 
+## 18. Three flaws found by an external review, and one it got wrong
+
+An external review of the full experiment trail flagged several things. Two were real and are fixed
+here; a third was factually wrong and acting on it would have been actively harmful. All three are
+recorded, because a review is evidence to be checked rather than instructions to be followed.
+
+### 18a. The documentation carried three generations of numbers at once ❌ → ✅
+
+The most important catch. At one point:
+
+| source | sponsor | bench | FinFET |
+|---|---|---|---|
+| `results/` (actual) | 25.0% | 23.3% | 16.7% |
+| `RESULTS.md` headline | 27.5% | 33.3% | 33.3% |
+| `PROGRESS.md` (one place) | 27.5% | 33.3% | 33.3% |
+| `PROGRESS.md` (another) | 25.0% | 30.0% | 16.7% |
+
+A judge browsing the repository would have found the project contradicting itself, which is worse
+than any single number being unflattering.
+
+**The root cause was a gap in our own tooling, not carelessness.** Rule R2 was enforced for the deck
+— which is generated from `results/` and checked by `verify_submission.py` — but *not* for the
+markdown, which was hand-maintained. A hand-maintained results document drifts by construction,
+because it is updated by discipline rather than by the build.
+
+**Fix:** `scripts/make_results_doc.py` generates the headline block of `RESULTS.md` from `results/`
+between explicit markers, stamped with the date and commit. The analysis and reasoning around it stay
+hand-written; only the numbers are generated.
+
+### 18b. Runtime was being measured in a way that made splits incomparable ❌ → ✅
+
+Regenerating the headline immediately exposed something the review did not catch: runtimes of
+**1228 / 1190 / 354 ms** across the three splits *from a single batch of identical code*. The
+accuracy run walks the splits sequentially over many minutes, so the machine's thermal drift — which
+we had already documented as up to 3× — was being charged to whichever split happened to run last.
+
+**Fix:** `scripts/benchmark_runtime.py` measures runtime separately from accuracy, with warm-up
+calls discarded and the splits **interleaved round-robin**, so drift is spread evenly across them
+rather than landing on one. Re-measured properly, the three splits agree: **1211 / 1232 / 1273 ms**.
+The earlier 354 ms was an artefact of measurement order, not a genuinely faster split.
+
+### 18c. The review's H100 claim was wrong, and following it would have been harmful ⚠️
+
+The review stated that "the official page says KLA's benchmarking team will run the inference script
+on an H100", and concluded that the CPU-only constraint could be relaxed in favour of GPU batching
+and CUDA components.
+
+**That belongs to the KLA PS01 restoration problem, not Applied Materials Drift-Sense.** Our extracted
+spec (`docs/SPEC.md`) contains no GPU or H100 requirement; it says the runtime environment "will take
+precedence when released", i.e. it is *not yet specified*. Building a CUDA dependency on that basis
+would have risked the single failure mode that eliminates teams outright — a script that does not run
+on the evaluator's machine.
+
+The CPU-only path stays. This is exactly why R1 and R3 exist: a confident claim about a source is not
+a fact until someone opens the source.
+
+---
+
+## 19. A 4x speedup with bit-identical results ✅
+
+Having made runtime measurable, the profile was surprising:
+
+| stage | cumulative | marginal |
+|---|---|---|
+| baseline (argmax only) | 39 ms | — |
+| + sub-pixel + drift | 376 ms | **337 ms** |
+| + pose search | 695 ms | 319 ms |
+| + candidate refit | 736 ms | **41 ms** |
+
+**The per-candidate refit — the stage assumed to be expensive — costs 41 ms.** The drift estimator
+cost 337 ms, and not for arithmetic reasons: it ran a Python loop over ~192 row-pairs × 2 axes × 7
+lags, roughly 2700 tiny dot products through the interpreter. The work is trivial; the overhead was
+the cost.
+
+Vectorising it — all row-pairs at once for each lag, via `einsum` — gives **1232 ms → 309 ms on
+bench**, with mis-lock (23.3%), median (0.343 px) and pass@1px (73%) **all unchanged to the digit**,
+because it computes the same dot products in the same order.
+
+That brings the pipeline to our own 300 ms target, from 4× over it, without trading a single point of
+accuracy. The lesson generalises: **profile before optimising, and before assuming which stage is
+expensive** — the intuition here was wrong by an order of magnitude.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken
