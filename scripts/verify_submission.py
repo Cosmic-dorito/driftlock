@@ -165,27 +165,40 @@ def check_image_dimensions() -> Result:
     return Result(PASS, "reference images are 1000x1000")
 
 
+def _metrics_files() -> list[Path]:
+    """Every metrics CSV `evaluate.py` may have written.
+
+    It emits one per split as ``metrics_<label>.csv`` (and plain ``metrics.csv`` when unlabelled),
+    because reporting a single blended number across splits with different difficulty would be the
+    kind of average that hides the failure mode (R9). The check therefore globs rather than
+    insisting on one filename.
+    """
+    results = REPO_ROOT / "results"
+    return sorted(results.glob("metrics*.csv")) if results.is_dir() else []
+
+
 def check_metrics_reported() -> Result:
     """Spec checklist: '5-, 4-, 2- and 1-pixel pass rates are reported.'"""
-    metrics = REPO_ROOT / "results" / "metrics.csv"
-    if not metrics.exists():
-        return Result(PENDING, "results/metrics.csv not yet generated")
-    text = metrics.read_text(encoding="utf-8").lower()
+    files = _metrics_files()
+    if not files:
+        return Result(PENDING, "no results/metrics*.csv generated yet")
     needed = ["pass@5", "pass@4", "pass@2", "pass@1"]
-    missing = [n for n in needed if n not in text]
-    if missing:
-        return Result(FAIL, f"metrics missing: {missing}")
-    return Result(PASS, "threshold-wise pass rates reported")
+    for metrics in files:
+        text = metrics.read_text(encoding="utf-8").lower()
+        missing = [n for n in needed if n not in text]
+        if missing:
+            return Result(FAIL, f"{metrics.name} missing: {missing}")
+    return Result(PASS, f"threshold-wise pass rates reported in {len(files)} metrics file(s)")
 
 
 def check_runtime_reported() -> Result:
     """Spec checklist: 'Runtime, hardware and timing method are stated.'"""
-    metrics = REPO_ROOT / "results" / "metrics.csv"
-    if not metrics.exists():
+    files = _metrics_files()
+    if not files:
         return Result(PENDING, "results not yet generated")
-    text = metrics.read_text(encoding="utf-8").lower()
+    text = files[0].read_text(encoding="utf-8").lower()
     if "runtime" not in text:
-        return Result(FAIL, "no runtime in metrics.csv")
+        return Result(FAIL, f"no runtime in {files[0].name}")
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8").lower()
     if "python version" not in readme and "hardware" not in readme:
         return Result(PENDING, "runtime present, but hardware/timing method not yet stated in README")
@@ -215,7 +228,11 @@ def check_citations_complete() -> Result:
         return Result(FAIL, "docs/REFERENCES.md missing")
     text = refs.read_text(encoding="utf-8")
     verified = len(re.findall(r"\|\s*VERIFIED\s*\|", text))
-    partial = len(re.findall(r"PARTIAL", text))
+    # Count PARTIAL only where it is a row's STATUS - i.e. inside a table cell. The word also
+    # appears in the file's own status legend, and counting that made the check permanently
+    # unsatisfiable no matter how many citations were upgraded.
+    partial = len([line for line in text.splitlines()
+                   if line.lstrip().startswith("|") and "PARTIAL" in line])
     if verified < 3:
         return Result(FAIL, f"only {verified} fully VERIFIED citation(s); the spec requires 2-3 credible sources")
     detail = f"{verified} verified"

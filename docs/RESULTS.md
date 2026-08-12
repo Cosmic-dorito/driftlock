@@ -4,7 +4,41 @@ Every number produced so far, with the exact conditions that produced it. Genera
 `results/`; this file is the human-readable record of what they mean. Nothing here was typed by
 hand from memory (rule R2).
 
-**Last updated:** 12 Aug 2026 · **Deadline:** 16 Aug 2026
+**Last updated:** 12 Aug 2026 (MacBook Air M2) · **Deadline:** 16 Aug 2026
+
+---
+
+## 0. Headline — the current state, on three splits
+
+Shipped configuration: lattice-free **pyramid pose measurement** → full-resolution correlation →
+local pose polish → sub-pixel DFT → **two-axis drift cancellation**. Four dependencies, no GPU, no
+learned weights.
+
+| Split | | Mis-lock | Median (px) | Median, located | pass@1px | pass@0.5px |
+|---|---|---|---|---|---|---|
+| **sponsor** `verify` (40) | baseline | 25.0% | 1.102 | 0.900 | 40.0% | 17.5% |
+| *their generator, fixed 10:1* | **DriftLock** | 27.5% | **0.297** | **0.195** | **70.0%** | **67.5%** |
+| **bench** (30) | baseline | 76.7% | 326.9 | — | 10.0% | 3.3% |
+| *ours, 9–11:1, ±2°* | **DriftLock** | **33.3%** | **0.556** | **0.309** | **60.0%** | **46.7%** |
+| **holdout FinFET** (30) | baseline | 90.0% | 359.9 | — | 3.3% | 3.3% |
+| *held-out architecture* | **DriftLock** | **33.3%** | **0.706** | **0.445** | **66.7%** | **33.3%** |
+
+Runtime p50 371 / 406 / 398 ms (macOS 26.5.2, Apple M2, Python 3.12.7, OpenCV 5.0.0,
+single-threaded, `time.perf_counter()` around load + localize per pair).
+
+**How to read this.** The sponsor's generator emits a clean 10:1 with no rotation (H9), so it tests
+*precision*: there we improve median error **3.7×** and the sub-pixel pass rate **17.5% → 67.5%**.
+Our own generator covers the 9:1–11:1 and 1–2° envelope the problem statement says will be tested,
+and there the baseline simply **does not work** — 77–90% mis-lock, median error in the hundreds of
+pixels. That is the axis nobody can see by validating on the sponsor's data alone.
+
+**The one regression, stated plainly.** Sponsor mis-lock rises 25.0% → 27.5% — a single pair out of
+40. Pose measurement adds hypotheses, and on data that needs none, an extra hypothesis can
+occasionally outscore the right one. We kept it because the same machinery takes mis-lock from 90%
+to 33% on a held-out architecture.
+
+**What is still unsolved:** selection. Every pass rate is capped by the mis-lock rate, and candidate
+recall says a perfect re-ranker would reach ~7.5%. See §6 and `results/failure_case/`.
 
 ---
 
@@ -31,6 +65,43 @@ the spec says 9:1–11:1 and 1–2° will be tested. Those axes are therefore **
 main reason our own generator is required.
 
 ---
+
+## 1b. Pose — the axis that was never tested until 12 Aug
+
+Measured on 40 dev pairs against the manifest's true scale and rotation.
+
+| Method | scale median err | scale p95 | scale bias | rotation median err |
+|---|---|---|---|---|
+| Reciprocal-lattice peak voting | 1.21% | 6.42% | −0.10% | 0.24° |
+| Log-polar Fourier–Mellin | 3.49% | 10.37% | **+2.07%** | **0.13°** |
+| **Coarse pyramid search** (shipped) | **0.72%** | 2.80% | **+0.09%** | 0.43° |
+
+The correlation basin is ~1% wide (a 1.3% scale error drops ZNCC from 0.856 to 0.262), so only the
+pyramid lands inside it reliably. The spectral methods fail for an information-limit reason, not a
+coding one: `dram_legacy` has a 240 nm pitch, so a 1000 nm reference contains **4.2 periods**, and
+four periods cannot pin a frequency to 0.5%. *The lattice is a fine ruler but a short one.*
+
+End-to-end on dev, each step measured:
+
+| Configuration | mis-lock | median (px) |
+|---|---|---|
+| shipped default before this work | 95.0% | 381.0 |
+| + spectral pose | 80.0% | 15.28 |
+| + pyramid pose | 67.5% | 9.48 |
+| + generator GT half-pixel fix, + rotation-aware drift | 20.0% | 1.166 |
+| + two-axis drift cancellation | **20.0%** | **0.497** |
+| *oracle pose (ceiling)* | *22.5%* | *0.296* |
+
+The shipped pipeline now **matches the oracle-pose ceiling** on mis-lock, which says pose is no
+longer the limiting factor on this split — selection is.
+
+---
+
+## 2. Superseded — the 11 Aug headline, kept for the record
+
+> The table below predates the pose work and the two generator fixes of 12 Aug. It is retained
+> because it is what `win-2` measured and reported, and silently replacing it would hide the fact
+> that the pipeline it describes fails completely once rotation and scale are present.
 
 ## 2. Headline result — validated on held-out data
 

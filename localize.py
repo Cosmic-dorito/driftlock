@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from pathlib import Path
@@ -69,15 +70,35 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         costs 185 ms of the runtime budget. Kept in the codebase and in the ablation as a measured
         negative result, off by default.
 
+    Also enabled - pose measurement (A5), added 12 Aug on the MacBook Air M2:
+      * The problem statement says 9:1-11:1 magnification and 1-2 degrees of rotation will be
+        tested. The sponsor's generator produces neither (H9), so this axis was completely untested
+        until our own generator covered it - at which point the pipeline turned out to fail almost
+        entirely on it. The pose is measured by a coarse pyramid search (ADR-0015) rather than read
+        off the lattice, because a 1000 nm reference spans as few as 4 lattice periods and that is
+        not enough to pin a magnification to the 0.5% correlation needs.
+      * It is gated to be safe on data that does not need it: the nominal 10:1 hypothesis is always
+        kept in the bracket, so a failed pose measurement falls back to exactly what the pipeline
+        would have done without it. On the sponsor's fixed-10:1 data it costs runtime and nothing
+        else.
+
     Also not enabled, with reasons in docs/FINDINGS.md: row destriping (removes horizontal word
     lines along with charging streaks), phase congruency (implementation broken), ECC affine (never
     converges), median filter (no impulse noise in this data), Anscombe (cannot move an integer
-    argmax; re-test if a continuous re-ranker lands).
+    argmax; re-test if a continuous re-ranker lands), spectral pose estimation (less accurate than
+    the pyramid on every split measured - ADR-0015).
     """
+    if getattr(args, "config", "driftlock") == "baseline":
+        # The sponsor's published baseline, reproduced exactly: INTER_AREA template, ZNCC, argmax,
+        # no refinement. Exposed as a flag so the ablation's first row is reproducible from the CLI
+        # rather than only from inside the test harness.
+        return PipelineConfig(label="baseline")
+
     return PipelineConfig(
         label="driftlock",
         subpixel=True,
         drift_correction=True,
+        pose_search=True,
     )
 
 
@@ -96,14 +117,22 @@ def run_single(args: argparse.Namespace, config: PipelineConfig) -> int:
     log(f"score={match.score:.4f} runtime={wall_ms:.1f}ms", args.verbose)
 
     if args.json:
+        # A non-finite confidence must be emitted as null, not as Infinity. Python's json module
+        # will happily write bare `Infinity`, which is NOT valid JSON - a strict parser on the
+        # evaluator's side rejects the whole document, and we would fail the batch on a field
+        # nobody even asked for. `inf` here means "no rival candidate was far enough away to
+        # compete", i.e. maximum confidence; null is the honest encoding of that.
+        confidence = match.confidence_radius_px
+        if confidence is not None and not math.isfinite(confidence):
+            confidence = None
         payload = {
             "x": round(match.x, 4),
             "y": round(match.y, 4),
             "score": round(match.score, 6),
-            "confidence_radius_px": match.confidence_radius_px,
+            "confidence_radius_px": confidence,
             "runtime_ms": round(wall_ms, 2),
         }
-        print(json.dumps(payload))
+        print(json.dumps(payload, allow_nan=False))
     else:
         # The one line of stdout this program is allowed to produce.
         print(match.as_stdout_line())
@@ -187,6 +216,8 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--input-dir", help="directory containing reference/ and search/")
 
     parser.add_argument("--out", help="output CSV (required for batch modes)")
+    parser.add_argument("--config", choices=["driftlock", "baseline"], default="driftlock",
+                        help="'baseline' reproduces the sponsor's published matcher (ablation row 1)")
     parser.add_argument("--json", action="store_true", help="emit a JSON object instead of 'x,y'")
     parser.add_argument("--visualize", metavar="OUT.png", help="write a crosshair overlay")
     parser.add_argument("--no-rerank", action="store_true",

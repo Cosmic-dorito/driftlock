@@ -8,78 +8,98 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 
 ## Mis-lock rate (>5 px)
 
-| Stage | verify(tuned) | dram(held-out) | finfet(held-out) |
+| Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 25.0% | 20.0% | 30.0% |
-| + sub-pixel DFT (A9) | 25.0% | 20.0% | 30.0% |
-| + blind drift correction | 25.0% | 20.0% | 30.0% |
-| ** + sub-pixel + drift  [DEFAULT] ** | 25.0% | 20.0% | 30.0% |
-| + top-K=20 alone (no re-rank) | 25.0% | 20.0% | 30.0% |
-| + top-K + PADM + centre rule  [OVERFIT] | 20.0% | 26.7% | 43.3% |
-| + row destripe  [HARMFUL] | 35.0% | 33.3% | 43.3% |
-| + median filter  [no effect here] | 25.0% | 20.0% | 30.0% |
-| + Anscombe A1  [no effect on argmax] | 25.0% | 20.0% | 30.0% |
-| + ECC affine  [never converges] | 25.0% | 20.0% | 30.0% |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 25.0% | 76.7% | 90.0% |
+| + sub-pixel DFT (A9) | 25.0% | 76.7% | 90.0% |
+| + blind drift correction | 25.0% | 76.7% | 90.0% |
+| + sub-pixel + drift | 25.0% | 76.7% | 90.0% |
+| + pose: spectral lattice  [LESS ACCURATE] | 22.5% | 50.0% | 60.0% |
+| ** + pose: pyramid  [DEFAULT] ** | 27.5% | 33.3% | 33.3% |
+| + top-K=20 alone (no re-rank) | 25.0% | 76.7% | 90.0% |
+| + top-K + PADM + centre rule  [OVERFIT] | 20.0% | 70.0% | 80.0% |
+| + coarse-level consensus re-rank  [HARMFUL] | 62.5% | 76.7% | 36.7% |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 22.5% | 43.3% | 50.0% |
+| + row destripe  [HARMFUL] | 35.0% | 90.0% | 90.0% |
+| + median filter  [no effect here] | 25.0% | 70.0% | 70.0% |
+| + Anscombe A1  [no effect on argmax] | 25.0% | 73.3% | 90.0% |
+| + ECC affine  [never converges] | 25.0% | 76.7% | 90.0% |
 
 ## Median error (px)
 
-| Stage | verify(tuned) | dram(held-out) | finfet(held-out) |
+| Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 1.102 | 0.952 | 1.091 |
-| + sub-pixel DFT (A9) | 1.085 | 1.032 | 1.161 |
-| + blind drift correction | 0.427 | 0.503 | 0.664 |
-| ** + sub-pixel + drift  [DEFAULT] ** | 0.238 | 0.301 | 0.422 |
-| + top-K=20 alone (no re-rank) | 1.102 | 0.952 | 1.091 |
-| + top-K + PADM + centre rule  [OVERFIT] | 1.012 | 1.107 | 1.584 |
-| + row destripe  [HARMFUL] | 1.252 | 1.235 | 1.584 |
-| + median filter  [no effect here] | 1.102 | 1.025 | 1.091 |
-| + Anscombe A1  [no effect on argmax] | 1.102 | 0.862 | 1.091 |
-| + ECC affine  [never converges] | 1.102 | 0.952 | 1.091 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 1.102 | 326.905 | 359.893 |
+| + sub-pixel DFT (A9) | 1.085 | 326.905 | 359.893 |
+| + blind drift correction | 0.431 | 326.944 | 360.113 |
+| + sub-pixel + drift | 0.234 | 326.944 | 360.113 |
+| + pose: spectral lattice  [LESS ACCURATE] | 0.246 | 4.177 | 89.280 |
+| ** + pose: pyramid  [DEFAULT] ** | 0.297 | 0.556 | 0.706 |
+| + top-K=20 alone (no re-rank) | 1.102 | 326.905 | 359.893 |
+| + top-K + PADM + centre rule  [OVERFIT] | 1.012 | 262.813 | 312.113 |
+| + coarse-level consensus re-rank  [HARMFUL] | 15.893 | 121.003 | 0.696 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 0.276 | 0.867 | 23.216 |
+| + row destripe  [HARMFUL] | 1.252 | 399.489 | 339.311 |
+| + median filter  [no effect here] | 1.102 | 310.853 | 332.057 |
+| + Anscombe A1  [no effect on argmax] | 1.102 | 314.086 | 362.880 |
+| + ECC affine  [never converges] | 1.102 | 326.905 | 359.893 |
 
 ## pass@1px
 
-| Stage | verify(tuned) | dram(held-out) | finfet(held-out) |
+| Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 40.0% | 50.0% | 43.3% |
-| + sub-pixel DFT (A9) | 45.0% | 46.7% | 40.0% |
-| + blind drift correction | 72.5% | 80.0% | 70.0% |
-| ** + sub-pixel + drift  [DEFAULT] ** | 75.0% | 80.0% | 70.0% |
-| + top-K=20 alone (no re-rank) | 40.0% | 50.0% | 43.3% |
-| + top-K + PADM + centre rule  [OVERFIT] | 47.5% | 43.3% | 30.0% |
-| + row destripe  [HARMFUL] | 32.5% | 40.0% | 30.0% |
-| + median filter  [no effect here] | 40.0% | 46.7% | 43.3% |
-| + Anscombe A1  [no effect on argmax] | 40.0% | 53.3% | 43.3% |
-| + ECC affine  [never converges] | 40.0% | 50.0% | 43.3% |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 40.0% | 10.0% | 3.3% |
+| + sub-pixel DFT (A9) | 45.0% | 10.0% | 6.7% |
+| + blind drift correction | 72.5% | 16.7% | 6.7% |
+| + sub-pixel + drift | 75.0% | 16.7% | 6.7% |
+| + pose: spectral lattice  [LESS ACCURATE] | 77.5% | 43.3% | 30.0% |
+| ** + pose: pyramid  [DEFAULT] ** | 70.0% | 60.0% | 66.7% |
+| + top-K=20 alone (no re-rank) | 40.0% | 10.0% | 3.3% |
+| + top-K + PADM + centre rule  [OVERFIT] | 47.5% | 16.7% | 6.7% |
+| + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 23.3% | 60.0% |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 75.0% | 53.3% | 50.0% |
+| + row destripe  [HARMFUL] | 32.5% | 0.0% | 6.7% |
+| + median filter  [no effect here] | 40.0% | 13.3% | 6.7% |
+| + Anscombe A1  [no effect on argmax] | 40.0% | 10.0% | 3.3% |
+| + ECC affine  [never converges] | 40.0% | 10.0% | 3.3% |
 
 ## pass@0.5px (sub-pixel)
 
-| Stage | verify(tuned) | dram(held-out) | finfet(held-out) |
+| Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 17.5% | 23.3% | 13.3% |
-| + sub-pixel DFT (A9) | 17.5% | 20.0% | 16.7% |
-| + blind drift correction | 62.5% | 46.7% | 33.3% |
-| ** + sub-pixel + drift  [DEFAULT] ** | 72.5% | 66.7% | 60.0% |
-| + top-K=20 alone (no re-rank) | 17.5% | 23.3% | 13.3% |
-| + top-K + PADM + centre rule  [OVERFIT] | 22.5% | 20.0% | 6.7% |
-| + row destripe  [HARMFUL] | 17.5% | 16.7% | 13.3% |
-| + median filter  [no effect here] | 17.5% | 23.3% | 13.3% |
-| + Anscombe A1  [no effect on argmax] | 17.5% | 26.7% | 13.3% |
-| + ECC affine  [never converges] | 17.5% | 23.3% | 13.3% |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 17.5% | 3.3% | 3.3% |
+| + sub-pixel DFT (A9) | 17.5% | 3.3% | 3.3% |
+| + blind drift correction | 62.5% | 13.3% | 6.7% |
+| + sub-pixel + drift | 72.5% | 16.7% | 6.7% |
+| + pose: spectral lattice  [LESS ACCURATE] | 72.5% | 23.3% | 13.3% |
+| ** + pose: pyramid  [DEFAULT] ** | 67.5% | 46.7% | 33.3% |
+| + top-K=20 alone (no re-rank) | 17.5% | 3.3% | 3.3% |
+| + top-K + PADM + centre rule  [OVERFIT] | 22.5% | 6.7% | 3.3% |
+| + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 13.3% | 43.3% |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 70.0% | 40.0% | 26.7% |
+| + row destripe  [HARMFUL] | 17.5% | 0.0% | 3.3% |
+| + median filter  [no effect here] | 17.5% | 3.3% | 6.7% |
+| + Anscombe A1  [no effect on argmax] | 17.5% | 3.3% | 3.3% |
+| + ECC affine  [never converges] | 17.5% | 3.3% | 3.3% |
 
 ## Median runtime (ms)
 
-| Stage | verify(tuned) | dram(held-out) | finfet(held-out) |
+| Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 16 | 17 | 17 |
-| + sub-pixel DFT (A9) | 19 | 20 | 20 |
-| + blind drift correction | 32 | 33 | 34 |
-| ** + sub-pixel + drift  [DEFAULT] ** | 35 | 36 | 36 |
-| + top-K=20 alone (no re-rank) | 18 | 19 | 19 |
-| + top-K + PADM + centre rule  [OVERFIT] | 197 | 201 | 203 |
-| + row destripe  [HARMFUL] | 27 | 27 | 28 |
-| + median filter  [no effect here] | 20 | 20 | 20 |
-| + Anscombe A1  [no effect on argmax] | 48 | 49 | 49 |
-| + ECC affine  [never converges] | 19 | 19 | 20 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 20 | 20 |
+| + sub-pixel DFT (A9) | 42 | 40 | 48 |
+| + blind drift correction | 59 | 57 | 59 |
+| + sub-pixel + drift | 87 | 88 | 86 |
+| + pose: spectral lattice  [LESS ACCURATE] | 388 | 390 | 389 |
+| ** + pose: pyramid  [DEFAULT] ** | 220 | 219 | 223 |
+| + top-K=20 alone (no re-rank) | 22 | 22 | 24 |
+| + top-K + PADM + centre rule  [OVERFIT] | 216 | 215 | 220 |
+| + coarse-level consensus re-rank  [HARMFUL] | 237 | 238 | 236 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 338 | 338 | 346 |
+| + row destripe  [HARMFUL] | 32 | 31 | 31 |
+| + median filter  [no effect here] | 24 | 25 | 24 |
+| + Anscombe A1  [no effect on argmax] | 56 | 56 | 57 |
+| + ECC affine  [never converges] | 25 | 27 | 29 |
 
 ## Reading this table
 
@@ -91,3 +111,5 @@ Two independent failure modes needing separate columns:
 The shipped stages (sub-pixel, drift correction) never touch candidate selection, so they leave the mis-lock rate **identical to baseline on every split**. They are strictly additive refinement: they cannot turn a correct pick into a wrong one, which is why they transfer across architectures without retuning.
 
 PADM re-ranks, so a mistuned scoring function actively destroys correct answers - it gains 5 points on the split it was tuned on and loses 6.7 and 13.3 points on the two held-out splits. **Refinement fails gracefully; re-ranking fails destructively.**
+
+**Pose rows read differently on the two generators, and that is the point.** The sponsor's generator emits a clean 10:1 with no rotation (H9), so measuring the pose there can only cost runtime - it is the control. Our own generator covers the 9:1-11:1 and 1-2 degree envelope the problem statement says will be tested, and without pose measurement the matcher does not work there at all. A submission validated only on the sponsor's data would never discover that.

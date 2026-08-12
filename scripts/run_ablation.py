@@ -50,13 +50,30 @@ def ladder() -> list[PipelineConfig]:
         # --- shipped: strictly additive refinement, never touches candidate selection ---
         PipelineConfig(label="+ sub-pixel DFT (A9)", subpixel=True),
         PipelineConfig(label="+ blind drift correction", drift_correction=True),
-        PipelineConfig(label="** + sub-pixel + drift  [DEFAULT] **",
+        PipelineConfig(label="+ sub-pixel + drift",
                        subpixel=True, drift_correction=True),
+
+        # --- pose (A5). Only matters where the magnification is not a clean 10:1: the sponsor's
+        # generator produces neither rotation nor scale variation (H9), so on their splits these
+        # rows should cost a little runtime and change nothing else. On OUR generator, which
+        # covers the 9:1-11:1 and 1-2 degree envelope the spec promises, they are the difference
+        # between working and not working at all.
+        PipelineConfig(label="+ pose: spectral lattice  [LESS ACCURATE]",
+                       subpixel=True, drift_correction=True,
+                       pose_search=True, pose_method="spectral"),
+        PipelineConfig(label="** + pose: pyramid  [DEFAULT] **",
+                       subpixel=True, drift_correction=True, pose_search=True),
 
         # --- measured negative results, kept per R9 ---
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),
         PipelineConfig(label="+ top-K + PADM + centre rule  [OVERFIT]",
                        top_k=20, padm=True, centre_rule=True),
+        PipelineConfig(label="+ coarse-level consensus re-rank  [HARMFUL]",
+                       subpixel=True, drift_correction=True, pose_search=True,
+                       top_k=20, coarse_consensus=True),
+        PipelineConfig(label="+ max-likelihood re-rank (Poisson-Gauss)  [NO GAIN]",
+                       subpixel=True, drift_correction=True, pose_search=True,
+                       top_k=20, ml_rescore=True),
         PipelineConfig(label="+ row destripe  [HARMFUL]", row_destripe=True),
         PipelineConfig(label="+ median filter  [no effect here]", median_filter=True),
         PipelineConfig(label="+ Anscombe A1  [no effect on argmax]", anscombe=True),
@@ -181,7 +198,13 @@ def main() -> int:
         "transfer across architectures without retuning.", "",
         "PADM re-ranks, so a mistuned scoring function actively destroys correct answers - it gains "
         "5 points on the split it was tuned on and loses 6.7 and 13.3 points on the two held-out "
-        "splits. **Refinement fails gracefully; re-ranking fails destructively.**",
+        "splits. **Refinement fails gracefully; re-ranking fails destructively.**", "",
+        "**Pose rows read differently on the two generators, and that is the point.** The sponsor's "
+        "generator emits a clean 10:1 with no rotation (H9), so measuring the pose there can only "
+        "cost runtime - it is the control. Our own generator covers the 9:1-11:1 and 1-2 degree "
+        "envelope the problem statement says will be tested, and without pose measurement the "
+        "matcher does not work there at all. A submission validated only on the sponsor's data "
+        "would never discover that.",
     ]
     out.write_text("\n".join(lines), encoding="utf-8")
     print(f"\n  Wrote {out.as_posix()}\n")

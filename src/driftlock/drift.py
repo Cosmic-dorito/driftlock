@@ -82,13 +82,25 @@ def _parabolic_subpixel(values: np.ndarray, index: int) -> float:
 
 def estimate_shear(
     search: np.ndarray, gap: int = DEFAULT_GAP, band: int = 7,
-    max_lag: int = DEFAULT_MAX_LAG, step: int = 5,
+    max_lag: int = DEFAULT_MAX_LAG, step: int = 5, rotation_deg: float = 0.0,
 ) -> float | None:
     """Estimate total horizontal drift across the full image height, in pixels.
 
     Returns ``None`` when too few usable row pairs survive - a featureless or heavily zoned image
     where the estimate would be unreliable. The caller then skips the correction rather than
     applying a guess, so an uncertain estimate can never make results worse.
+
+    ``rotation_deg`` is essential whenever the field of view is rotated, and leaving it at zero on
+    rotated data is actively harmful. **A rotation is indistinguishable from drift by this
+    measurement**: both make content move sideways as the scan goes down. A tilt of ``rho``
+    displaces content by ``gap * tan(rho)`` over the same row separation, and the estimator
+    happily reports that as drift and then "corrects" a distortion that was never there.
+
+    Measured on 40 rotated dev pairs (12 Aug, MacBook Air M2): with the true pose supplied but no
+    rotation compensation, the residual error was ``dx = -9.5 * rotation_deg`` - a clean straight
+    line through the failures, up to 19 px on a 2 degree pair. It never appeared on the sponsor's
+    data for the simple reason that their generator produces no rotation (H9), which is exactly the
+    kind of blind spot cross-validating on one generator cannot reveal.
     """
     work = search.astype(np.float64)
     height, width = work.shape
@@ -118,6 +130,12 @@ def estimate_shear(
     # Median rather than mean: robust to the row pairs that cross a mat boundary despite the
     # correlation gate.
     per_gap_shift = float(np.median(shifts))
+
+    # Remove the part of the row-to-row displacement that a tilted field of view explains, leaving
+    # only genuine scan drift. Without this the correction fights the rotation instead of the
+    # drift; see the docstring.
+    per_gap_shift -= gap * float(np.tan(np.deg2rad(rotation_deg)))
+
     return -per_gap_shift * (height - 1) / gap
 
 
@@ -130,15 +148,67 @@ def correct_for_drift(x: float, y: float, shear: float, height: int) -> float:
     return float(x + shear * (y / max(height - 1, 1)))
 
 
+def estimate_drift_shear(search: np.ndarray, gap: int = DEFAULT_GAP) -> float | None:
+    """Separate genuine scan drift from field-of-view rotation, using only the search image.
+
+    The problem this solves
+    -----------------------
+    A tilted field of view and a drifting raster produce the *same* row-to-row displacement, so
+    :func:`estimate_shear` measures their sum and cannot split it. Handing it a rotation estimated
+    elsewhere does not rescue it either: the leverage is brutal, because an error of ``delta``
+    degrees becomes ``tan(delta) * (H-1)`` pixels of shear, so our 0.43 degree pose accuracy turned
+    a 1.5 px correction into a 7 px error. Measured on 40 rotated pairs, every variant of that idea
+    was worse than not correcting at all.
+
+    The observation that fixes it
+    -----------------------------
+    **Drift is anisotropic and rotation is isotropic.** The raster scans line by line, so drift
+    displaces x as a function of y and nothing else - a horizontal feature stays horizontal, it
+    just slides. A rotation, by contrast, tilts *both* axes at once.
+
+    So run the identical measurement on the transposed image. Along columns, drift contributes
+    nothing and only the tilt survives::
+
+        rows   :  S_row = -(drift_rate + tan(rho)) * (H-1)
+        columns:  S_col = +tan(rho) * (W-1)
+
+    and for a square frame the two simply add, leaving the drift term alone::
+
+        S_drift = S_row + S_col * (H-1)/(W-1)
+
+    No rotation estimate is needed, no parameter is introduced, and the rotation cancels
+    *exactly* rather than approximately - which matters, because it was the approximation that
+    made the previous version unusable.
+    """
+    along_rows = estimate_shear(search, gap=gap)
+    if along_rows is None:
+        return None
+
+    # The same estimator along the other axis. np.ascontiguousarray because the correlations below
+    # walk rows, and a transposed view would make every one of them a strided read.
+    along_columns = estimate_shear(np.ascontiguousarray(search.T), gap=gap)
+    if along_columns is None:
+        return along_rows  # no tilt information: fall back to the raw estimate
+
+    height, width = search.shape[:2]
+    return float(along_rows + along_columns * (height - 1) / max(width - 1, 1))
+
+
 def estimate_and_correct(
     search: np.ndarray, x: float, y: float, gap: int = DEFAULT_GAP,
+    rotation_deg: float | None = None,
 ) -> tuple[float, float | None]:
     """Convenience wrapper: estimate the drift and apply it to one coordinate.
 
     Returns ``(corrected_x, estimated_shear)``; the shear is ``None`` when estimation was
     abandoned, in which case the coordinate is returned unchanged.
+
+    With ``rotation_deg=None`` (the default) the rotation is cancelled geometrically by
+    :func:`estimate_drift_shear`, which is both parameter-free and exact. Passing an explicit
+    rotation uses the weaker subtract-an-estimate route and is kept only for the ablation.
     """
-    shear = estimate_shear(search, gap=gap)
+    shear = (estimate_drift_shear(search, gap=gap) if rotation_deg is None
+             else estimate_shear(search, gap=gap, rotation_deg=rotation_deg))
     if shear is None:
         return float(x), None
     return correct_for_drift(x, y, shear, search.shape[0]), shear

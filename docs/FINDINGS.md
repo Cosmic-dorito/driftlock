@@ -585,6 +585,113 @@ Only `dram` versus `finfet` changes anything.
 
 ---
 
+## 14. Rotation and scale — the untested axis, opened up (12 Aug, MacBook Air M2)
+
+Full narrative in `docs/WORKLOG.md`; decisions in ADR-0014…0019. Summary of experiments, with the
+negatives kept in full per R9:
+
+| # | Experiment | Verdict | Effect |
+|---|---|---|---|
+| 13 | Shipped pipeline on our own rotated/scaled data | ❌ **total failure** | 95% mis-lock, 326 px median |
+| 14 | Exact continuous forward operator (replacing `INTER_AREA`) | ✅ **enabling** | scale was quantised to ~1% steps; no pose search could work without this |
+| 15 | Pose by reciprocal-lattice peak voting | ⚪ too imprecise | 1.21% median scale error vs a ~1% basin |
+| 16 | Pose by log-polar Fourier–Mellin | ❌ biased | 3.49% median, **+2.07% bias** |
+| 17 | Pose by coarse pyramid search | ✅ **shipped** | 0.72% median, +0.09% bias, 39 ms |
+| 18 | Generator GT half-pixel convention | ✅ **bug fixed** | `dy = +0.503 ± 0.035` — a pure convention offset |
+| 19 | Rotation-aware drift estimation | ✅ partial | removed `dx = −9.5·rotation°`, but needed rotation to 0.05° |
+| 20 | **Two-axis drift cancellation** | ✅✅ **decisive** | sponsor median 1.155 → 0.297; dev 0.768 → 0.497 |
+| 21 | Coarse-level consensus re-ranking | ❌ **harmful** | mis-lock 20% → 55% |
+| 22 | Pose bracket at half resolution (speed) | ❌ **harmful** | 2× faster, mis-lock 27.5% → 45% |
+| 23 | Per-mat pitch randomisation in our generator | ❌ **removed** | unphysical; pushed scale estimation from 0.69% to 4.1% error |
+
+### 14a. The result worth putting on a slide: drift and rotation are separable by symmetry
+
+The blind drift correction was the previous session's biggest win, and on rotated data it turned
+*destructive* — because **a tilted field of view and a drifting raster produce the same row-to-row
+displacement**. The estimator measured their sum and could not split it. Subtracting a rotation
+*estimate* does not rescue it: an error of δ degrees becomes `tan(δ)·(H−1)` pixels of shear, so our
+0.43° pose accuracy turned a 1.5 px correction into a 7 px error. Measured, every variant of that
+idea was worse than not correcting at all (dev median: uncompensated 9.60 px, Fourier–Mellin
+rotation 1.705, clamped 0.896, **no correction 0.768**).
+
+The fix came from asking what makes the two physically different rather than how to estimate one of
+them better:
+
+> **Drift is anisotropic. Rotation is isotropic.**
+> The raster scans line by line, so drift displaces x as a function of y and leaves horizontal
+> features horizontal. A rotation tilts *both* axes.
+
+So run the identical row-shift measurement on the **transposed** image. Along columns the drift
+contributes nothing and only the tilt survives, and for a square frame the two measurements simply
+add, cancelling the rotation **exactly** rather than approximately:
+
+```
+rows   :  S_row = -(drift_rate + tan ρ)·(H−1)
+columns:  S_col = +tan ρ·(W−1)
+S_drift = S_row + S_col·(H−1)/(W−1)
+```
+
+No rotation estimate, no new parameter, and it restored the drift win on *both* regimes at once —
+sponsor median 1.155 → **0.297** px (sub-pixel rate 15% → 67.5%) and dev 0.768 → **0.497** px.
+
+### 14c. Maximum-likelihood re-ranking — right premise, wrong conclusion ❌
+
+The thesis says this is an ML inverse problem, and until now every candidate had still been ranked
+by ZNCC — which is the ML estimator only for *additive constant-variance* noise. Ours is
+Poisson-then-Gaussian (H3). So we built the estimator the measured noise model actually calls for:
+gain and offset profiled out in closed form per candidate, variance `α·prediction + β` with `(α, β)`
+fitted from the search image itself. No tuned constants, deliberately (PADM died of two).
+
+| Ranking | truth at rank 1 | mean rank of truth |
+|---|---|---|
+| ZNCC | **82.1%** | **2.62** |
+| log-likelihood | 79.5% | 3.77 |
+
+Improved the rank on 2 pairs, worsened it on 4; end to end mis-lock 20.0% → **22.5%**. Off by
+default.
+
+**Why it failed is more useful than the fact that it did.** The premise checks out — fitting the
+noise model gives `α = 0.80`, so the noise is genuinely signal-dependent and ZNCC genuinely
+mis-weights it. But photon noise is not what limits this comparison. The template is an *imperfect
+prediction*: the PSF differs between acquisitions, drift is only partly removed, alignment is
+sub-pixel at best. Those **model-mismatch** residuals are bigger than the shot noise and they are
+structured, so weighting by photon variance sharpens the wrong term. ZNCC survives because it is
+agnostic about magnitudes and asks only whether the shapes agree — the robust question when the
+forward model is approximate.
+
+> **The ML estimator for your noise model is not the ML estimator for your problem, unless the model
+> mismatch is smaller than the noise.**
+
+### 14d. Three re-rankers have now failed — and that is the case for the learned one
+
+| Attempt | Idea | Result |
+|---|---|---|
+| PADM residual re-scoring | remove the lattice in Fourier, score the residual | overfit: −5 pts tuned, +6.7 and +13.3 held out |
+| Coarse-level consensus | let the downsampled level vote | 20% → 55% mis-lock |
+| Maximum-likelihood | rank by the measured noise model | 20% → 22.5% mis-lock |
+
+Meanwhile the prize is now **measured on our own data**: at K=20 the true location is in the
+candidate set on **39 of 40** dev pairs (97.5%), and ZNCC puts it first on 82.1%. **A perfect
+re-ranker would take mis-lock from 20% to ~2.5%.** The correct answer is nearly always available
+and hand-designed scoring has failed three times in three different ways — which is exactly the
+quantitative argument for learning the re-ranker rather than designing it, with the hard
+precondition from ADR-0012 that it must be validated on a held-out *architecture* and gated to fall
+back to the argmax when unsure.
+
+### 14b. The rule that came out of the failures
+
+Experiments 21 and 22 failed for the same reason, and it is now a design rule:
+
+> **Downsampling is free for measuring pose and ruinous for deciding identity.**
+
+Pose is a global, low-frequency property — a 25×25 template measures it fine. Identity lives
+entirely in the full-resolution aperiodic fingerprint, which downsampling destroys. Experiment 21's
+specific error is worth remembering: downsampling does not widen the *field of view*, so the
+reference's 1000 nm footprint never contains a 2600 nm mat boundary at any resolution. There was no
+landmark to reveal.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken

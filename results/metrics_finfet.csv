@@ -1,0 +1,23 @@
+metric,value
+n_pairs,30
+error_mean_px,106
+error_median_px,0.705801
+error_p95_px,651.929
+error_worst_px,883.542
+mislock_rate,0.333333
+n_mislocks,10
+pass@5px,0.666667
+pass@4px,0.666667
+pass@2px,0.666667
+pass@1px,0.666667
+pass@subpixel(0.5px),0.333333
+error_median_px_located_only,0.449223
+error_mean_px_located_only,0.444415
+runtime_p50_ms,266.26
+runtime_p95_ms,289.159
+runtime_mean_ms,276.525
+python_version,3.14.3
+platform,Windows 11 (AMD64)
+processor,"Intel64 Family 6 Model 170 Stepping 4, GenuineIntel"
+opencv_version,5.0.0
+timing_method,"time.perf_counter() around load+localize, per pair, single-threaded"

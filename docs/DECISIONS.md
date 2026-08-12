@@ -291,6 +291,135 @@ by accident.
 
 ---
 
+## ADR-0014 · 2026-08-12 · MacBook Air M2 · accepted · The template builder is a continuous affine, not a resize
+
+**Decision.** `build_template` box-integrates the reference over the detector footprint
+(`area_kernel`, an exact box of arbitrary **real** width) and then samples it with a single affine
+carrying both scale and rotation. `cv2.resize(INTER_AREA)` is gone from the matching path.
+
+**Why.** `INTER_AREA` can only emit an integer output size, so the representable magnifications were
+`1000/n` — 9.0090, 9.0909, 9.1743, … — steps of about **1%**. Our own measurement says a 1.3% scale
+error drops the ZNCC peak from 0.856 to 0.262. The quantisation step was therefore as coarse as the
+whole tolerance, which means **no pose search could ever have worked**: the grid it was searching did
+not exist in the template builder. `INTER_AREA` also cannot express rotation, so rotation had to be a
+second interpolation of an already-resampled image.
+
+It is also the more honest statement of the thesis. The search image was formed by
+*integrate-then-affine-sample*; the template is now built by exactly that operator, so "we invert the
+microscope" is literal rather than decorative.
+
+**Evidence it did not disturb the calibrated convention.** On the sponsor `verify` split the baseline
+reproduces exactly (25.0% mis-lock, 1.102 px median, 40% pass@1px) and the shipped default gives
+0.243 px against win-2's committed 0.238 px.
+
+**What would change our mind.** Nothing short of a measured regression on the sponsor split; the old
+path cannot represent the tested envelope, so it is not a fallback.
+
+---
+
+## ADR-0015 · 2026-08-12 · MacBook Air M2 · accepted · Pose is searched on a pyramid, not read off the lattice
+
+**Decision.** The default pose method is `pyramid` — an exhaustive coarse search on a 4×-downsampled
+level, then a full-resolution bracket, then a local polish. The two spectral estimators stay in the
+tree, off by default, as measured negative results (R9).
+
+**Why, and this one hurt.** "The lattice is a ruler" is the idea the project is named for, and it
+lost on measurement:
+
+| Method | scale median err | rotation median err |
+|---|---|---|
+| Reciprocal-lattice peak voting | 1.21% | 0.24° |
+| Log-polar Fourier–Mellin | 3.49% (+2.07% bias) | 0.13° |
+| **Coarse pyramid search** | **0.72%** (+0.09% bias) | 0.43° |
+
+The cause is an information limit, not an implementation flaw. `dram_legacy` has a 240 nm bit-line
+pitch, so a 1000 nm reference contains **4.2 periods**, and a frequency estimated from four periods
+cannot be pinned to the 0.5% correlation demands. **The lattice is a fine ruler but a short one.**
+
+The pyramid wins for a reason worth stating: a scale error costs misalignment *proportional to
+template size*, so downsampling 4× (100 px → 25 px template) widens the basin from ~1% to ~4%. The
+whole 9:1–11:1 envelope is then ~11 hypotheses at 1/16 the cost each.
+
+**What would change our mind.** A reference that spans many more lattice periods — a finer pitch or a
+larger reference — would move the spectral estimators back into contention, and they are cheaper.
+Re-measure before switching; do not assume.
+
+---
+
+## ADR-0016 · 2026-08-12 · MacBook Air M2 · accepted · Our ground truth was half a pixel off; fixed at the source
+
+**Finding.** With the true pose supplied from the manifest, the residual on 40 dev pairs was
+`dy = +0.503 px, std 0.035` — far too consistent to be anything but a convention.
+
+**Cause.** `warpAffine` samples at **pixel centres**, so the analytic inverse in
+`canvas_to_search_coords` lands in pixel-*index* space. The problem's convention, verified as H2
+against the sponsor's manifests, is `origin + size/2` — half a pixel further. Our GT therefore sat
+half a pixel from the sponsor's for the same physical situation.
+
+**Why it mattered more than it looks.** The sub-pixel threshold *is* 0.5 px. This alone would have
+made every sub-pixel claim on our own benchmark fail while the sponsor's data passed — and the
+natural reaction would have been to blame the matcher and "fix" it into being genuinely wrong.
+
+**What would change our mind.** If the organizers publish an evaluation utility using pixel-centre
+coordinates, this flips — and so does H2. The `+0.5` is in one place for exactly that reason.
+
+---
+
+## ADR-0017 · 2026-08-12 · MacBook Air M2 · accepted · The drift estimator must be told the rotation
+
+**Finding.** `dx = −9.5 × rotation_deg`, a clean straight line through the failures, up to 19 px on a
+2° pair.
+
+**Cause.** A rotation and a drifting raster produce the **same** row-to-row displacement: a tilt of ρ
+moves content sideways by `gap·tan(ρ)` over the same row separation drift does. They are
+indistinguishable to that measurement. The estimator reported the tilt as drift and then "corrected"
+a distortion that was never there.
+
+**Fix.** `estimate_shear` takes `rotation_deg` and subtracts the geometric term, leaving genuine
+drift. `localize` passes the pose of the chosen candidate.
+
+**Why it went unnoticed until now.** The sponsor's generator produces no rotation (H9), so their data
+*structurally cannot* exhibit this. It is the clearest argument in the project for owning a
+generator: cross-validating on someone else's data proves you did not overfit to yours, but it
+cannot test an axis their data does not contain.
+
+---
+
+## ADR-0018 · 2026-08-12 · MacBook Air M2 · accepted · Mats share a pitch; only their roughness differs
+
+**Decision.** `build_canvas(vary_preset_per_mat=...)` defaults to **off**.
+
+**Why.** It randomised each mat's nominal **pitch** by ±6%. A cell array's pitch is a design rule
+fixed by lithography and is identical across every mat on a die — mats differ in line-edge roughness
+and local CD, which we already model per instance. A process engineer would spot it immediately, and
+realism is explicitly graded in the 30% bucket.
+
+It was also measurably harmful: with every mat on its own pitch there is no single pitch for the
+search image to present, which pushed the lattice-based scale estimate from 0.69% error to **4.1%**.
+The motive ("diversity") was reasonable and the mechanism was wrong — diversity belongs at the
+per-*sample* level, where preset choice already provides it.
+
+**What would change our mind.** Modelling a deliberate multi-die or multi-product field of view,
+where genuinely different arrays are in frame. That is a different scenario and should be a separate
+flag, not the default.
+
+---
+
+## ADR-0019 · 2026-08-12 · MacBook Air M2 · accepted · Manifest paths are normalised across platforms
+
+**Decision.** `resolve_manifest_path` retries with `\` → `/` as a **fallback** when the recorded path
+does not resolve as written.
+
+**Why.** A manifest written on Windows records `data\verify\ref\0.png`. POSIX treats a backslash as
+an ordinary filename character, so on macOS or Linux that path does not exist and the entire batch
+fails — which is exactly what happened to us, with two of the team on Windows and one on macOS. The
+evaluator's manifest may equally be Windows-authored.
+
+**Why a fallback and not a rewrite.** On POSIX a backslash can legitimately be part of a filename, so
+a real file must always win over a guessed separator.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

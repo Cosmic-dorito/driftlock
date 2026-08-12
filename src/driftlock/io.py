@@ -176,21 +176,34 @@ def resolve_manifest_path(manifest_path: str | Path, recorded: str) -> Path:
     Manifest paths may be relative to the repo root, relative to the manifest itself, or absolute
     (the sponsor's generator writes paths relative to its own working directory). Try each in turn
     rather than assuming, so a manifest written on another machine still loads.
+
+    **Separator normalisation.** A manifest written on Windows records ``data\\verify\\ref\\0.png``.
+    POSIX treats a backslash as an ordinary filename character, so that path does not resolve on
+    macOS or Linux and the whole batch fails on the evaluator's machine - the failure mode this
+    team hits every time, since one of us is on macOS and two are on Windows. The separator variant
+    is therefore tried as a FALLBACK, never first: on POSIX a backslash can legitimately appear in
+    a filename, and a real file must always win over a guess.
     """
     manifest_path = Path(manifest_path)
-    candidate = Path(recorded)
-    if candidate.is_absolute() and candidate.exists():
-        return candidate
 
-    for base in (manifest_path.parent, manifest_path.parent.parent, Path.cwd()):
-        trial = base / candidate
-        if trial.exists():
-            return trial
-        # Sponsor manifests record e.g. "output/train/reference/00000.png"; fall back to the
-        # filename inside the expected subdirectory.
-        trial = base / candidate.parent.name / candidate.name
-        if trial.exists():
-            return trial
+    variants = [recorded]
+    if "\\" in recorded:
+        variants.append(recorded.replace("\\", "/"))
+
+    for text in variants:
+        candidate = Path(text)
+        if candidate.is_absolute() and candidate.exists():
+            return candidate
+
+        for base in (manifest_path.parent, manifest_path.parent.parent, Path.cwd()):
+            trial = base / candidate
+            if trial.exists():
+                return trial
+            # Sponsor manifests record e.g. "output/train/reference/00000.png"; fall back to the
+            # filename inside the expected subdirectory.
+            trial = base / candidate.parent.name / candidate.name
+            if trial.exists():
+                return trial
 
     raise FileNotFoundError(f"could not resolve '{recorded}' relative to {manifest_path}")
 
@@ -203,8 +216,14 @@ def write_predictions(path: str | Path, matches: list[tuple[str, Match]]) -> Non
         writer = csv.writer(fh)
         writer.writerow(["id", "pred_x", "pred_y", "score", "confidence_radius_px", "runtime_ms"])
         for pair_id, m in matches:
+            # A non-finite confidence is written as an empty cell rather than "inf". It means "no
+            # rival candidate was close enough to compete", and an empty cell is what every CSV
+            # reader already understands as missing - "inf" is a string that breaks strict numeric
+            # parsers on the evaluator's side.
+            confidence = m.confidence_radius_px
+            finite_confidence = (confidence is not None and np.isfinite(confidence))
             writer.writerow([
                 pair_id, f"{m.x:.4f}", f"{m.y:.4f}", f"{m.score:.6f}",
-                "" if m.confidence_radius_px is None else f"{m.confidence_radius_px:.4f}",
+                f"{confidence:.4f}" if finite_confidence else "",
                 "" if m.runtime_ms is None else f"{m.runtime_ms:.2f}",
             ])

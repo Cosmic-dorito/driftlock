@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python -m pytest -q)",
+      "Bash(.venv/bin/python -m ruff check .)",
+      "Bash(python3 -V)",
+      "Bash(python3 -c \"import cv2, numpy, scipy, skimage; print\\(cv2.__version__, numpy.__version__, scipy.__version__, skimage.__version__\\)\")",
+      "Bash(time python3 localize.py --reference data/_smoke/reference/00000.png --search data/_smoke/search/00000.png)",
+      "Bash(python3 /private/tmp/claude-501/-Users-sanjaysubramanyan-Downloads-semicon/ceab1dec-2023-4fb4-ab68-928f3eb61d3d/scratchpad/oracle_pose.py)",
+      "Bash(python3 scripts/verify_submission.py)",
+      "Bash(python3 -m pytest -q)"
+    ]
+  }
+}
