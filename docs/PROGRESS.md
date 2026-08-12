@@ -3,6 +3,10 @@
 **Deadline 16 Aug 2026.** Update this when you clear a gate, not retroactively.
 If a gate slips, say so here rather than quietly carrying it.
 
+> **⏩ Resuming after a break? Read the RESUME HERE section at the top of `docs/HANDOFF.md` first.**
+> It carries the current numbers, the shipped config, the single next action, and the list of things
+> already measured and refuted so they are not retried.
+
 **Execution model: sequential.** One stage at a time, in dependency order. The governing rule:
 **do not start a stage until the previous one has a measured number in `results/`.**
 

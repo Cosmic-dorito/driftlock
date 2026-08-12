@@ -198,6 +198,19 @@ make package   # dist/drift-lock-submission.zip in the spec's required layout
 
 ---
 
+## Resuming work
+
+**Read the `RESUME HERE` section at the top of `docs/HANDOFF.md` before doing anything.** It has the
+current measured results, the shipped configuration, the one next action, and — importantly — the
+list of approaches already tried and refuted with their numbers, so they do not get retried.
+
+Two rules that have each been learned the hard way and cost real time when ignored:
+
+1. **Validate on every split, not a convenient subset.** A stage checked on a subset has reversed a
+   conclusion twice here (ADR-0012, ADR-0021).
+2. **Do not re-rank candidates by a new criterion.** Six attempts, six failures (ADR-0024). The only
+   selection stage that ever worked re-scores by the *same* criterion at a better geometry.
+
 ## Current gate
 
 **Day 0 — scaffolding.** See `docs/PROGRESS.md` for the live status and who owns what next.
