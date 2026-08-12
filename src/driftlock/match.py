@@ -25,6 +25,11 @@ from src.driftlock.io import Match, match_template_peak_to_centre
 # is 1/10 its linear size. Confirmed as H1 on 40 real pairs.
 DEFAULT_SCALE = 10.0
 
+# How many standard errors of the correlation estimate two candidates may differ by and still count
+# as a genuine tie for the problem statement's closest-to-centre rule. Two is the usual "not
+# separable at this sample size" band; it is a statistical convention, not a fitted constant.
+TIE_SIGMAS = 2.0
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -292,18 +297,34 @@ def select_by_centre_rule(
     centre." Judges may test this branch specifically, so it is explicit and visible rather than
     an emergent property of the scoring.
 
-    ``tau`` is derived from the spread of the competing scores rather than hard-coded: on real data
-    the winner-versus-rival margin has a median of 0.016 (H8), so a fixed threshold would be either
-    inert or indiscriminate depending on the pair.
+    **What counts as "valid" is the whole difficulty**, and getting it wrong is expensive. ``tau``
+    used to be ``0.25 * std(scores)``. The candidate set spans the entire search image, so its
+    scores run from ~0.9 down to ~0.3 and that spread gives tau ~= 0.037 - more than twice the
+    median winner-versus-rival margin of 0.016 (H8). The rule therefore declared clearly-worse
+    candidates "tied" and then picked whichever happened to sit nearest the centre. Measured, that
+    nearly doubled the mis-lock rate: 23.3% -> 43.3% over 60 held-out pairs.
+
+    The fix is to derive the threshold from **measurement noise instead of from the spread of an
+    arbitrary set**. The sampling standard error of a correlation coefficient rho over N pixels is
+    approximately ``(1 - rho^2) / sqrt(N)``; two candidates closer than a couple of those are
+    genuinely indistinguishable, and anything further apart is not a tie at any confidence. That
+    makes the rule fire only when the evidence really cannot separate two locations - which is what
+    the problem statement means by "several valid matches" - and leaves a clear winner alone.
+
+    Nothing here is tuned: N comes from the template footprint and rho from the winning score.
     """
     if not candidates:
         raise ValueError("no candidates to select from")
 
     best = max(candidates, key=lambda c: c.score)
     if tau is None:
-        scores = np.array([c.score for c in candidates])
-        # Spread of the field, floored so that a degenerate all-equal field still ties sensibly.
-        tau = float(max(0.25 * scores.std(), 1e-3)) if len(scores) > 1 else 1e-3
+        # Template footprint in search pixels: the reference is 1000 px across at 1 nm/px, so at
+        # magnification `scale` it covers 1000/scale search pixels per side.
+        side = max(1000.0 / max(best.scale, 1e-6), 4.0)
+        n_pixels = side * side
+        rho = float(np.clip(best.score, -0.999, 0.999))
+        std_err = (1.0 - rho * rho) / np.sqrt(n_pixels)
+        tau = float(max(TIE_SIGMAS * std_err, 1e-4))
 
     tied = [c for c in candidates if c.score >= best.score - tau]
     if len(tied) == 1:

@@ -60,3 +60,6 @@ desktop.ini
 .vscode/
 *.swp
 *~
+
+# Office/LibreOffice lock files
+~$*

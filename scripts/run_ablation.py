@@ -71,6 +71,13 @@ def ladder() -> list[PipelineConfig]:
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),
         PipelineConfig(label="+ top-K + PADM + centre rule  [OVERFIT]",
                        top_k=20, padm=True, centre_rule=True),
+        # The spec's mandated tie-break, on top of the shipped default. Its threshold is now the
+        # sampling noise of a correlation rather than the spread of the candidate set, so it fires
+        # only on genuine ties - but the benchmark places targets uniformly, so the deployment
+        # prior it depends on is absent and it can only lose. See ADR-0021.
+        PipelineConfig(label="+ centre rule on the default  [prior absent here]",
+                       subpixel=True, drift_correction=True, pose_search=True,
+                       top_k=10, candidate_refit=True, refit_steps=2, centre_rule=True),
         PipelineConfig(label="+ coarse-level consensus re-rank  [HARMFUL]",
                        subpixel=True, drift_correction=True, pose_search=True,
                        top_k=20, coarse_consensus=True),

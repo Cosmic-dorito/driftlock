@@ -83,17 +83,19 @@ def main() -> int:
         rp, sp = _preprocess(ref, search, cfg)
         poses, _, _ = _resolve_poses(rp, sp, cfg)
 
-        best = None
+        # MERGE candidates across every pose in the bracket, exactly as localize() does. Keeping
+        # only the winning pose's list understates recall: the true location can peak under a
+        # neighbouring pose hypothesis and still be available to the re-scorer.
+        best = []
         for scale, rotation in poses:
             template = build_template(rp, scale, rotation)
             if template.shape[0] >= sp.shape[0] or template.shape[1] >= sp.shape[1]:
                 continue
-            cands = extract_peaks(correlation_surface(sp, template), template.shape,
-                                  args.top_k, cfg.nms_radius_px, scale, rotation)
-            if cands and (best is None or cands[0].score > best[0].score):
-                best = cands
+            best.extend(extract_peaks(correlation_surface(sp, template), template.shape,
+                                      args.top_k, cfg.nms_radius_px, scale, rotation))
         if not best:
             continue
+        best.sort(key=lambda c: -c.score)
 
         gx, gy = rec["gt"]
         hit = [i for i, c in enumerate(best) if np.hypot(c.x - gx, c.y - gy) <= 5.0]

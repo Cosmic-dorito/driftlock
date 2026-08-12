@@ -13,9 +13,9 @@ pass@1px,0.725
 pass@subpixel(0.5px),0.675
 error_median_px_located_only,0.208429
 error_mean_px_located_only,0.255576
-runtime_p50_ms,1035.91
-runtime_p95_ms,1133.42
-runtime_mean_ms,1042.16
+runtime_p50_ms,325.385
+runtime_p95_ms,361.878
+runtime_mean_ms,332.233
 python_version,3.14.3
 platform,Windows 11 (AMD64)
 processor,"Intel64 Family 6 Model 170 Stepping 4, GenuineIntel"

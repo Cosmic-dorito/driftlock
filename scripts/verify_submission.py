@@ -247,7 +247,13 @@ def check_ppt_numbers_traceable() -> Result:
     The likely failure is a STALE number surviving from an earlier run, not an invented one.
     """
     decks = list(REPO_ROOT.glob("*.pptx")) + list(REPO_ROOT.glob("**/solution_presentation.pptx"))
-    decks = [d for d in decks if not any(p in SKIP_DIRS for p in d.relative_to(REPO_ROOT).parts)]
+    # Skip Office/LibreOffice lock files ("~$name.pptx"). They are not decks, they are not readable
+    # while the real file is open, and treating one as a deck fails this check for a reason that has
+    # nothing to do with the submission - which is exactly the kind of false alarm that teaches
+    # people to ignore a verifier.
+    decks = [d for d in decks
+             if not d.name.startswith("~$")
+             and not any(p in SKIP_DIRS for p in d.relative_to(REPO_ROOT).parts)]
     if not decks:
         return Result(PENDING, "no .pptx yet - mandatory deliverable 1")
     try:

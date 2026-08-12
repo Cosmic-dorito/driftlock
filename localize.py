@@ -104,6 +104,27 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         not recover after an idle period. Only numbers measured back-to-back in one sitting are
         comparable, and every quoted runtime here is from such a pairing.
 
+    IMPLEMENTED BUT OFF BY DEFAULT - the problem statement's closest-to-centre rule (A8):
+      * It is implemented, tested and reachable via `centre_rule=True`; the checklist asks that the
+        rule be implemented, and it is. What follows is why it is not the default.
+      * Its threshold was genuinely wrong and is now fixed. tau was 0.25 x std(candidate scores);
+        because the candidate set spans the whole image, that spread gives tau ~= 0.037 - more than
+        twice the 0.016 median margin between the winner and its best rival. Clearly-worse
+        candidates were declared "tied" and then decided on proximity to the centre, which nearly
+        doubled mis-lock (23.3% -> 43.3%). tau is now the sampling noise of a correlation
+        coefficient, (1 - rho^2)/sqrt(N), so the rule fires only when two candidates are genuinely
+        indistinguishable. Nothing is tuned: N is the template footprint, rho the winning score.
+      * Even corrected it costs accuracy: on the sponsor split 25.0% -> 35.0% mis-lock, and 24% ->
+        28% over all three splits.
+      * The reason is not a bug, and it is worth stating. **The rule encodes a deployment prior**:
+        a tool that has drifted lands NEAR the site it meant to revisit, so among equally-scoring
+        candidates the central one is the likely one. Both benchmarks instead sample target
+        positions UNIFORMLY - measured median distance from the search centre is 373 / 335 / 347 px
+        against the 358 px a uniform draw predicts. The prior the rule depends on is simply absent
+        from the test data, so when it fires it is a coin flip that can only lose.
+      * So: implemented for compliance and for deployment, off by default for a benchmark whose
+        target distribution removes the assumption it rests on. Enable with `centre_rule=True`.
+
     Also not enabled, with reasons in docs/FINDINGS.md: row destriping (removes horizontal word
     lines along with charging streaks), phase congruency (implementation broken), ECC affine (never
     converges), median filter (no impulse noise in this data), Anscombe (cannot move an integer

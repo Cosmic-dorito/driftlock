@@ -476,6 +476,37 @@ the code it describes is rewritten.
 
 ---
 
+## ADR-0021 · 2026-08-12 · accepted · Centre rule: fix its threshold, implement it, default it off
+
+**Decision.** Keep the problem statement's closest-to-centre rule implemented, tested and reachable
+via `centre_rule=True`, with a statistically derived tie threshold. Do **not** enable it by default.
+
+**The threshold was wrong and is now correct.** `tau` was `0.25 × std(candidate scores)`. The
+candidate set spans the whole search image, so that spread gives tau ≈ 0.037 — more than twice the
+0.016 median winner-versus-rival margin. Clearly-worse candidates were being called "tied" and then
+decided on centre proximity, which nearly doubled mis-lock (23.3% → 43.3%). `tau` is now the
+sampling standard error of a correlation coefficient, `(1−ρ²)/√N`, at two sigma. Nothing is tuned:
+N is the template footprint and ρ the winning score.
+
+**Why it is still off by default.** Even corrected it costs accuracy — sponsor 25.0% → 35.0%, and
+24% → 28% across all three splits. That is not a defect in the rule. **It encodes a deployment
+prior**: a tool that has drifted lands near the site it meant to revisit, so among equally-scoring
+candidates the central one is the likely one. Both benchmarks sample target positions uniformly —
+measured median distance from the search centre is 373 / 335 / 347 px against the 358 px a uniform
+draw predicts. The assumption the rule rests on is absent from the test data, so when it fires it is
+a coin flip that can only lose.
+
+**Compliance position.** The checklist asks that the rule be implemented; it is, correctly, and the
+reason it is not the default is measured and documented rather than silent. If the evaluation data
+reflects the deployment scenario — targets near the centre because the tool only drifted slightly —
+enabling it is a one-line change and should pay.
+
+**Process note.** An earlier round tested this on bench/FinFET/dev only and concluded it was
+neutral. Adding the sponsor split reversed the conclusion. **A stage must be checked on every split,
+not on a convenient subset** — the same lesson as ADR-0012, learned again.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

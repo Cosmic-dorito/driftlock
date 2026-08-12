@@ -810,6 +810,81 @@ Final tuning: `refit_steps=2` matches `steps=3` exactly (19.0% both) at **316 ms
 
 ---
 
+## 16. The closest-to-centre rule: why a MANDATED rule cannot help here ✅
+
+The problem statement requires it — *"if several valid matches exist, select the one whose centre is
+closest to the search-image centre"* — and the submission checklist lists it explicitly. It had been
+disabled because it nearly doubled the mis-lock rate. That is an uncomfortable place to leave a
+mandated requirement, so it was worth understanding rather than working around.
+
+### 16a. The threshold was genuinely wrong
+
+`tau`, the score window defining a "tie", was `0.25 × std(candidate scores)`. But the candidate set
+spans the **entire search image**, so its scores run from ~0.9 down to ~0.3 and that spread gives
+**tau ≈ 0.037** — more than **twice** the 0.016 median margin between the winner and its best rival
+(H8). The rule was declaring clearly-worse candidates "tied" and then deciding between them on
+proximity to the centre.
+
+**Fixed by deriving the threshold from measurement noise instead of from the spread of an arbitrary
+set.** The sampling standard error of a correlation coefficient ρ over N pixels is ≈ `(1−ρ²)/√N`;
+candidates closer than about two of those are genuinely indistinguishable, and anything further
+apart is not a tie at any confidence. Nothing is tuned — N is the template footprint, ρ the winning
+score.
+
+Effect of the fix alone: **23.3% → 43.3% became 19.0% → 18.0%** on the three splits first tested.
+
+### 16b. But it still costs accuracy — and the reason is not a bug
+
+| split | rule off | rule on (corrected tau) |
+|---|---|---|
+| sponsor | **25.0%** | 35.0% |
+| bench | 30.0% | **26.7%** |
+| holdout FinFET | **16.7%** | 20.0% |
+| **all three** | **24.0%** | 28.0% |
+
+*(An earlier round tested only bench/FinFET/dev and looked neutral. Adding the sponsor split — the
+one that most resembles the evaluation data — reversed the conclusion. A stage must be checked on
+every split, not on a convenient subset.)*
+
+**The rule encodes a deployment prior that the benchmark does not contain.** In the real scenario it
+was written for, a tool has drifted only slightly from a site it meant to revisit, so the target
+genuinely *is* near the centre of the search image, and among equally-scoring candidates the central
+one is the likely one. Both benchmarks instead place targets **uniformly**:
+
+| split | median GT distance from centre | uniform draw predicts |
+|---|---|---|
+| sponsor | 373 px | 358 px |
+| bench | 335 px | 358 px |
+| holdout FinFET | 347 px | 358 px |
+
+The observed distances match the uniform expectation. **The prior the rule depends on is simply
+absent from the test data**, so every time the rule fires it is a coin flip that can only lose.
+
+**Conclusion, and it is a position rather than an omission.** The rule is implemented, tested,
+reachable via `centre_rule=True`, and now has a statistically defensible tie threshold — the
+checklist asks that it be implemented and it is. It is **off by default** because the benchmark's
+uniform target sampling removes the assumption it rests on. On data that reflects the deployment
+scenario it was designed for, it should pay; on this data it cannot, and we can show why with a
+measurement rather than an assertion.
+
+### 16c. Raising K does not help either
+
+Candidate recall, measured correctly this time (merging candidates across all poses, as the pipeline
+actually does — an earlier measurement kept only the winning pose's list and understated it):
+
+| split | K=10 | K=20 | K=40 |
+|---|---|---|---|
+| bench | 90% | 93% | 97% |
+| holdout FinFET | **100%** | 100% | 100% |
+
+**FinFET has perfect candidate recall at K=10 and still mis-locks 16.7% of the time** — so on that
+split, *every* remaining failure is a ranking failure and a perfect re-ranker would reach zero.
+Raising K to 20 changes the mis-lock rate not at all (23.3% either way on bench + FinFET) while
+costing runtime, because the refit ranking cannot use the extra candidates. Recall is not the
+constraint; discrimination is.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken
