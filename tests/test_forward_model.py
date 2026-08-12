@@ -170,6 +170,13 @@ class TestDriftVersusRotation:
             rotation_deg=rotation_deg, centre_nm=(2000.0, 2000.0),
         )
 
+    # These two pin the estimator's MATHEMATICS, which is independent of the row separation, so
+    # they name the gap explicitly rather than inheriting the default. The default gap is an
+    # operating point chosen for robustness on real data (ADR-0022) and it moved once already;
+    # a test of the maths must not fail when that happens, and must not be silently loosened to
+    # accommodate it either. `test_gap_respects_the_saturation_bound` covers the operating point.
+    DERIVATION_GAP = 100
+
     def test_uncompensated_rotation_is_reported_as_drift(self):
         """Hand-derived: a vertical canvas line satisfies cos*(u-h) - sin*(v-h) = const,
         so du/dv = tan(rho). Over ``gap`` rows the content moves ``gap*tan(rho)`` sideways, and
@@ -178,7 +185,8 @@ class TestDriftVersusRotation:
         """
         from src.driftlock.drift import estimate_shear
 
-        spurious = estimate_shear(self._striped_view(1.0), rotation_deg=0.0)
+        spurious = estimate_shear(self._striped_view(1.0), gap=self.DERIVATION_GAP,
+                                  rotation_deg=0.0)
         assert spurious is not None
         assert spurious == pytest.approx(-17.44, abs=3.0)
 
@@ -186,10 +194,40 @@ class TestDriftVersusRotation:
         """The same image, told the rotation: the artefact must cancel to about zero."""
         from src.driftlock.drift import estimate_shear
 
-        corrected = estimate_shear(self._striped_view(1.0), rotation_deg=1.0)
+        corrected = estimate_shear(self._striped_view(1.0), gap=self.DERIVATION_GAP,
+                                   rotation_deg=1.0)
         assert corrected is not None
         # There is no drift in this image, so anything much above a pixel is a failure.
         assert abs(corrected) < 2.0
+
+    def test_gap_respects_the_saturation_bound(self):
+        """The row separation must keep the rotation-induced displacement inside the lag search.
+
+        This is the constraint that the old default violated (ADR-0022). A tilt of rho moves
+        content ``gap*tan(rho)`` sideways per row-pair; if that exceeds ``max_lag`` the correlation
+        peak clips at the edge of its own search window and the estimate saturates. At the old
+        gap=100 a 2 degree tilt gives 3.49 px against max_lag=3 - infeasible, and the measured
+        standard deviation of the estimate was 13-20 px on rotated data.
+
+        Hand-derived expectations, not copied from the implementation:
+            gap_for_rotation(2.0) = (3 - 1.5) / tan(2 deg) = 1.5 / 0.034921 = 42.9 -> 42
+        """
+        from src.driftlock.drift import DEFAULT_MAX_LAG, gap_for_rotation
+
+        assert gap_for_rotation(2.0) == pytest.approx(42, abs=1)
+
+        # Whatever the rotation, the chosen gap must satisfy the bound it was derived from.
+        for rotation in (0.25, 0.5, 1.0, 1.5, 2.0):
+            gap = gap_for_rotation(rotation)
+            displacement = gap * np.tan(np.deg2rad(rotation))
+            assert displacement + 1.5 <= DEFAULT_MAX_LAG + 1e-6, (
+                f"rotation {rotation} deg with gap {gap} displaces {displacement:.2f} px, "
+                f"which does not fit inside max_lag {DEFAULT_MAX_LAG}"
+            )
+
+        # With no tilt there is nothing to saturate, so the long, low-noise baseline is used.
+        assert gap_for_rotation(0.0) == 100
+        assert gap_for_rotation(None) > 0
 
     def test_sign_is_not_symmetric(self):
         """Asymmetric on purpose: +1 deg and -1 deg must give OPPOSITE spurious shears.

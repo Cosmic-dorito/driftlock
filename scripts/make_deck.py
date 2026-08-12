@@ -953,7 +953,17 @@ def main() -> int:
     slide_failure(prs, M)
     slide_conclusion(prs, M)
 
-    prs.save(OUT)
+    try:
+        prs.save(OUT)
+    except PermissionError:
+        # Almost always PowerPoint holding the file open. A traceback here is unhelpful and looks
+        # like a code fault; say what it is and where the rebuilt deck went, so the work is not lost.
+        fallback = OUT.with_name(f"{OUT.stem}.rebuilt{OUT.suffix}")
+        prs.save(fallback)
+        print(f"\n  {OUT.name} is open in another program (PowerPoint?) and could not be replaced.")
+        print(f"  The rebuilt deck was written to {fallback.name} instead.")
+        print(f"  Close the file and re-run, or rename {fallback.name} over it.\n")
+        return 1
     print(f"  Wrote {OUT.relative_to(REPO_ROOT).as_posix()}  ({len(prs.slides.__iter__.__self__._sldIdLst)} slides)")
     return 0
 

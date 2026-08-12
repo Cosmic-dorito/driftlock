@@ -57,7 +57,29 @@ from scipy.ndimage import uniform_filter1d
 # Rows this far apart still sit within a single mat (~260 search px), so they share content.
 # Larger gaps give a bigger drift signal relative to measurement noise, hence better precision -
 # gap=100 measured best of {25, 50, 100}.
-DEFAULT_GAP = 100
+# Row separation for the displacement measurement. It is NOT free: it is pinned between two hard
+# constraints, and the value it used to have (100) satisfied neither.
+#
+#   gap * tan(rho_max) + |drift|   <   max_lag   <   lattice_pitch / 2
+#   \_________________________/                      \______________/
+#    the displacement we must be           beyond this the correlation locks onto the
+#    able to SEE without clipping          NEXT lattice line instead of the right one
+#
+# The DRAM word-line pitch is ~6.4 search px, so the upper bound is ~3.2 px. At gap=100 a 2-degree
+# rotation alone displaces content by 100*tan(2) = 3.49 px, so the lower bound already exceeds the
+# upper one - there is NO valid max_lag at that gap, and the measurement saturated at the edge of
+# its own search window. That is what produced estimates with a standard deviation of 13-20 px on
+# rotated data, and it is why the "exact" two-axis cancellation was not exact: its inputs were
+# clipped before it ever ran.
+#
+# At gap=40 the constraint is satisfiable: 40*tan(2) + 1.5 = 2.9 < 3 < 3.2. Measured standard
+# deviation of the estimate drops from 13.3 to 0.6 px on bench, 16.5 to 0.6 on dev, with medians
+# unchanged - the fix removes catastrophic outliers rather than shifting the average.
+#
+# The cost is leverage: the estimate is scaled by (H-1)/gap, so a shorter gap amplifies per-pair
+# noise. The median over ~24 row pairs absorbs that, and a noisy-but-unbiased estimate is worth far
+# more than an occasionally-saturated one.
+DEFAULT_GAP = 40
 
 # Expected drift is a few pixels, so a narrow lag window suffices - and it must stay well below the
 # lattice pitch (~6.4-9.6 search px) or the periodicity aliases the correlation onto the wrong
@@ -192,6 +214,31 @@ def estimate_drift_shear(search: np.ndarray, gap: int = DEFAULT_GAP) -> float | 
 
     height, width = search.shape[:2]
     return float(along_rows + along_columns * (height - 1) / max(width - 1, 1))
+
+
+def gap_for_rotation(rotation_deg: float | None, max_lag: int = DEFAULT_MAX_LAG,
+                     drift_allowance_px: float = 1.5, cap: int = 100) -> int:
+    """The largest row separation whose displacement still fits inside the lag search.
+
+    Derived from the constraint in the DEFAULT_GAP comment rather than tuned::
+
+        gap * tan(rho) + drift  <  max_lag        =>    gap < (max_lag - drift) / tan(rho)
+
+    At 2 degrees this returns 43, which is where the empirical sweep put the optimum (40) - the
+    formula and the measurement agree, which is the reason to trust either.
+
+    As the rotation goes to zero the bound goes to infinity and the gap is capped at 100, recovering
+    the long-baseline behaviour that is best on unrotated data: a longer gap divides the estimate by
+    a bigger number, so it amplifies per-pair noise less. Using one fixed gap forces a choice
+    between the two regimes; deriving it from the measured rotation serves both.
+    """
+    if rotation_deg is None:
+        return DEFAULT_GAP
+    tan_rho = abs(float(np.tan(np.deg2rad(rotation_deg))))
+    headroom = max(max_lag - drift_allowance_px, 0.5)
+    if tan_rho < 1e-6:
+        return cap
+    return int(np.clip(headroom / tan_rho, 12, cap))
 
 
 def estimate_and_correct(

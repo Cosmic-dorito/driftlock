@@ -885,6 +885,119 @@ constraint; discrimination is.
 
 ---
 
+## 17. Attacking mis-lock from first principles ✅✅
+
+Rather than trying another scorer, this round started from two questions: **what actually
+distinguishes the true cell from an impostor**, and **what noise is actually limiting us**.
+
+Only four things distinguish cell (i,j) from cell (i+m, j+n): the accumulated random-walk deviation
+of line positions, per-line width jitter, per-contact radius jitter, and mat boundaries. The
+dominant one is **geometric** — where the lines sit relative to a perfect grid.
+
+### 17a. A wrong hypothesis, and what it taught ❌
+
+The reasoning was: the limiting noise is model mismatch, which is *photometric* (PSF, apodisation,
+gain), and every scorer we compare with uses *amplitudes*. So compare something photometrically
+invariant instead.
+
+Two implementations, both worse than the argmax they replaced:
+
+| method | dev | bench | holdout FinFET |
+|---|---|---|---|
+| argmax | 20.0% | 26.7% | 33.3% |
+| lattice-phase fingerprint | 32.5% | 26.7% | 43.3% |
+| gradient-orientation correlation | 27.5% | 36.7% | 40.0% |
+| orientation, magnitude-weighted | 22.5% | 46.7% | 50.0% |
+
+**The premise was wrong, and being wrong was the useful part.** The stage that actually fixed
+ranking was a **pose** refit — a *geometric* correction. So:
+
+> **The mismatch is geometric. The evidence is photometric.**
+
+Photometric invariance discards the evidence while leaving the actual mismatch untouched, which is
+exactly backwards. This explains *why* the refit worked rather than merely recording that it did,
+and it says the direction with headroom is **removing more geometric mismatch**, not inventing
+features.
+
+### 17b. Following that: a real bug in the drift estimator ✅✅
+
+The drift is a **shear** — the most obvious remaining geometric distortion. Testing whether
+un-shearing the image (rather than correcting the coordinate afterwards) helps selection produced a
+strange split: FinFET 33.3% → 16.7%, but bench 26.7% → **36.7%**. The diagnostic printed alongside
+it gave the answer: mean estimated shear on bench was **6.98 px** where the truth is 1.5.
+
+Measuring the estimator against known truth:
+
+| split | true | est mean | est **sd** | median abs error |
+|---|---|---|---|---|
+| dev | 1.50 | 1.20 | 1.12 | 0.66 |
+| bench | 1.50 | −1.01 | **17.75** | 0.49 |
+| holdout FinFET | 1.50 | 1.01 | 0.93 | 0.81 |
+
+Median error was fine; the **standard deviation was catastrophic**. And on bench,
+`corr(|rotation|, |shear error|) = +0.433`, with median error 0.25 px below 0.5° against **1.50 px
+above 1°** — six times worse.
+
+**The bug.** `DEFAULT_GAP = 100` and `DEFAULT_MAX_LAG = 3`. A 2° rotation displaces content by
+`100·tan(2°) = 3.49 px` per row-pair — **outside the ±3 lag search entirely**. The correlation peak
+clipped at the edge of its own search window and the measurement saturated. The "exact" two-axis
+rotation cancellation was not exact because **its inputs were clipped before it ever ran**.
+
+**The constraint, derived rather than tuned.** The row separation is pinned between two bounds:
+
+```
+gap·tan(ρ_max) + |drift|   <   max_lag   <   lattice_pitch / 2
+\______________________/                     \_______________/
+ must be able to SEE the        beyond this the correlation locks onto
+ displacement without clipping   the NEXT lattice line
+```
+
+The DRAM word-line pitch is ~6.4 search px, so the upper bound is ~3.2. At gap=100 the lower bound
+is 5 — **there is no valid `max_lag` at that gap.** The configuration was infeasible.
+
+Sweeping confirms both failure modes exactly as predicted:
+
+| config | dev sd | bench sd | FinFET sd |
+|---|---|---|---|
+| gap=100, lag=3 (was) | 0.6 | **13.3** | 0.6 |
+| gap=100, lag=5 | **16.5** | **19.2** | 0.5 |
+| **gap=40, lag=3** | **0.6** | **0.6** | **0.8** |
+
+Widening the lag to 5 makes it *worse* — 5 > pitch/2, so it aliases onto the neighbouring lattice
+line. Both bounds are real.
+
+### 17c. Deriving the gap from the measured rotation ✅
+
+A fixed gap forces a choice between regimes: short is required when the field is tilted, long is
+better when it is not (the estimate is divided by `(H−1)/gap`, so a longer baseline amplifies noise
+less). We already measure rotation, so the constraint can simply be solved:
+
+```
+gap  <  (max_lag − drift) / tan(ρ)      → 43 at 2°, uncapped as ρ → 0 (capped at 100)
+```
+
+**The formula returns 43 at 2°, where the empirical sweep put the optimum at 40** — derivation and
+measurement agree independently, which is the reason to trust either.
+
+### 17d. Result
+
+| split | before | after | median | pass@0.5px |
+|---|---|---|---|---|
+| sponsor | 25.0% | 25.0% | 0.297 | 67.5% → **68%** |
+| bench | 30.0% | **23.3%** | 0.509 → **0.343** | 50% → **63%** |
+| holdout FinFET | 16.7% | **16.7%** | 0.587 → **0.313** | 33% → **63%** |
+| **total mis-lock** | **24/100** | **22/100** | | |
+
+The headline is precision rather than mis-lock: **sub-pixel pass rate across all 100 pairs rises
+from 50 to 65**, and FinFET's nearly doubles. bench mis-lock falls 6.7 points.
+
+A fixed gap=40 scores marginally better on mis-lock (21/100) but clearly worse on precision (60/100
+sub-pixel). We ship the **derived** rule over the **fitted** constant: it performs better where it
+matters most, and a rule that follows from the constraint should survive a rotation range we have
+not tested, whereas a fitted constant has no reason to.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken

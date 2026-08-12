@@ -14,14 +14,14 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + sub-pixel DFT (A9) | 25.0% | 76.7% | 90.0% |
 | + blind drift correction | 25.0% | 76.7% | 90.0% |
 | + sub-pixel + drift | 25.0% | 76.7% | 90.0% |
-| + pose: spectral lattice  [LESS ACCURATE] | 22.5% | 50.0% | 60.0% |
-| + pose: pyramid | 27.5% | 33.3% | 33.3% |
-| ** + per-candidate pose refit  [DEFAULT] ** | 25.0% | 30.0% | 16.7% |
+| + pose: spectral lattice  [LESS ACCURATE] | 22.5% | 46.7% | 60.0% |
+| + pose: pyramid | 27.5% | 26.7% | 33.3% |
+| ** + per-candidate pose refit  [DEFAULT] ** | 25.0% | 23.3% | 16.7% |
 | + top-K=20 alone (no re-rank) | 25.0% | 76.7% | 90.0% |
 | + top-K + PADM + centre rule  [OVERFIT] | 27.5% | 70.0% | 73.3% |
-| + centre rule on the default  [prior absent here] | 35.0% | 26.7% | 20.0% |
-| + coarse-level consensus re-rank  [HARMFUL] | 62.5% | 76.7% | 36.7% |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 22.5% | 43.3% | 50.0% |
+| + centre rule on the default  [prior absent here] | 35.0% | 20.0% | 20.0% |
+| + coarse-level consensus re-rank  [HARMFUL] | 62.5% | 73.3% | 36.7% |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 22.5% | 36.7% | 50.0% |
 | + row destripe  [HARMFUL] | 35.0% | 90.0% | 90.0% |
 | + median filter  [no effect here] | 25.0% | 70.0% | 70.0% |
 | + Anscombe A1  [no effect on argmax] | 25.0% | 73.3% | 90.0% |
@@ -33,16 +33,16 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 |---|---|---|---|
 | baseline (sponsor: INTER_AREA + ZNCC argmax) | 1.102 | 326.905 | 359.893 |
 | + sub-pixel DFT (A9) | 1.085 | 326.905 | 359.893 |
-| + blind drift correction | 0.431 | 326.944 | 360.113 |
-| + sub-pixel + drift | 0.234 | 326.944 | 360.113 |
-| + pose: spectral lattice  [LESS ACCURATE] | 0.246 | 4.177 | 89.280 |
-| + pose: pyramid | 0.297 | 0.556 | 0.706 |
-| ** + per-candidate pose refit  [DEFAULT] ** | 0.297 | 0.509 | 0.587 |
+| + blind drift correction | 0.464 | 326.997 | 360.686 |
+| + sub-pixel + drift | 0.297 | 326.997 | 360.686 |
+| + pose: spectral lattice  [LESS ACCURATE] | 0.246 | 0.892 | 89.289 |
+| + pose: pyramid | 0.297 | 0.365 | 0.316 |
+| ** + per-candidate pose refit  [DEFAULT] ** | 0.297 | 0.343 | 0.313 |
 | + top-K=20 alone (no re-rank) | 1.102 | 326.905 | 359.893 |
 | + top-K + PADM + centre rule  [OVERFIT] | 1.105 | 174.810 | 295.865 |
-| + centre rule on the default  [prior absent here] | 0.323 | 0.509 | 0.587 |
-| + coarse-level consensus re-rank  [HARMFUL] | 15.893 | 121.003 | 0.696 |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 0.276 | 0.867 | 23.216 |
+| + centre rule on the default  [prior absent here] | 0.323 | 0.343 | 0.316 |
+| + coarse-level consensus re-rank  [HARMFUL] | 15.893 | 121.000 | 0.636 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 0.276 | 0.482 | 23.225 |
 | + row destripe  [HARMFUL] | 1.252 | 399.489 | 339.311 |
 | + median filter  [no effect here] | 1.102 | 310.853 | 332.057 |
 | + Anscombe A1  [no effect on argmax] | 1.102 | 314.086 | 362.880 |
@@ -54,16 +54,16 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 |---|---|---|---|
 | baseline (sponsor: INTER_AREA + ZNCC argmax) | 40.0% | 10.0% | 3.3% |
 | + sub-pixel DFT (A9) | 45.0% | 10.0% | 6.7% |
-| + blind drift correction | 72.5% | 16.7% | 6.7% |
-| + sub-pixel + drift | 75.0% | 16.7% | 6.7% |
-| + pose: spectral lattice  [LESS ACCURATE] | 77.5% | 43.3% | 30.0% |
-| + pose: pyramid | 70.0% | 60.0% | 66.7% |
-| ** + per-candidate pose refit  [DEFAULT] ** | 72.5% | 60.0% | 80.0% |
+| + blind drift correction | 72.5% | 20.0% | 6.7% |
+| + sub-pixel + drift | 75.0% | 20.0% | 6.7% |
+| + pose: spectral lattice  [LESS ACCURATE] | 77.5% | 53.3% | 30.0% |
+| + pose: pyramid | 70.0% | 70.0% | 63.3% |
+| ** + per-candidate pose refit  [DEFAULT] ** | 72.5% | 73.3% | 80.0% |
 | + top-K=20 alone (no re-rank) | 40.0% | 10.0% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 40.0% | 16.7% | 10.0% |
-| + centre rule on the default  [prior absent here] | 65.0% | 63.3% | 76.7% |
-| + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 23.3% | 60.0% |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 75.0% | 53.3% | 50.0% |
+| + centre rule on the default  [prior absent here] | 65.0% | 76.7% | 76.7% |
+| + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 26.7% | 56.7% |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 75.0% | 56.7% | 50.0% |
 | + row destripe  [HARMFUL] | 32.5% | 0.0% | 6.7% |
 | + median filter  [no effect here] | 40.0% | 13.3% | 6.7% |
 | + Anscombe A1  [no effect on argmax] | 40.0% | 10.0% | 3.3% |
@@ -75,16 +75,16 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 |---|---|---|---|
 | baseline (sponsor: INTER_AREA + ZNCC argmax) | 17.5% | 3.3% | 3.3% |
 | + sub-pixel DFT (A9) | 17.5% | 3.3% | 3.3% |
-| + blind drift correction | 62.5% | 13.3% | 6.7% |
-| + sub-pixel + drift | 72.5% | 16.7% | 6.7% |
-| + pose: spectral lattice  [LESS ACCURATE] | 72.5% | 23.3% | 13.3% |
-| + pose: pyramid | 67.5% | 46.7% | 33.3% |
-| ** + per-candidate pose refit  [DEFAULT] ** | 67.5% | 50.0% | 40.0% |
+| + blind drift correction | 52.5% | 13.3% | 6.7% |
+| + sub-pixel + drift | 65.0% | 10.0% | 3.3% |
+| + pose: spectral lattice  [LESS ACCURATE] | 72.5% | 33.3% | 16.7% |
+| + pose: pyramid | 67.5% | 63.3% | 56.7% |
+| ** + per-candidate pose refit  [DEFAULT] ** | 67.5% | 63.3% | 63.3% |
 | + top-K=20 alone (no re-rank) | 17.5% | 3.3% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 20.0% | 6.7% | 6.7% |
-| + centre rule on the default  [prior absent here] | 62.5% | 50.0% | 43.3% |
-| + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 13.3% | 43.3% |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 70.0% | 40.0% | 26.7% |
+| + centre rule on the default  [prior absent here] | 62.5% | 63.3% | 63.3% |
+| + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 20.0% | 50.0% |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 70.0% | 53.3% | 43.3% |
 | + row destripe  [HARMFUL] | 17.5% | 0.0% | 3.3% |
 | + median filter  [no effect here] | 17.5% | 3.3% | 6.7% |
 | + Anscombe A1  [no effect on argmax] | 17.5% | 3.3% | 3.3% |
@@ -94,22 +94,22 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 
 | Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 18 | 27 | 25 |
-| + sub-pixel DFT (A9) | 24 | 29 | 30 |
-| + blind drift correction | 64 | 62 | 61 |
-| + sub-pixel + drift | 70 | 70 | 69 |
-| + pose: spectral lattice  [LESS ACCURATE] | 330 | 324 | 328 |
-| + pose: pyramid | 203 | 199 | 202 |
-| ** + per-candidate pose refit  [DEFAULT] ** | 321 | 326 | 329 |
-| + top-K=20 alone (no re-rank) | 28 | 27 | 41 |
-| + top-K + PADM + centre rule  [OVERFIT] | 230 | 233 | 294 |
-| + centre rule on the default  [prior absent here] | 316 | 323 | 382 |
-| + coarse-level consensus re-rank  [HARMFUL] | 220 | 217 | 258 |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 352 | 357 | 392 |
-| + row destripe  [HARMFUL] | 37 | 37 | 37 |
-| + median filter  [no effect here] | 31 | 31 | 30 |
-| + Anscombe A1  [no effect on argmax] | 60 | 60 | 63 |
-| + ECC affine  [never converges] | 27 | 30 | 36 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 21 | 21 |
+| + sub-pixel DFT (A9) | 40 | 49 | 38 |
+| + blind drift correction | 60 | 60 | 59 |
+| + sub-pixel + drift | 75 | 88 | 86 |
+| + pose: spectral lattice  [LESS ACCURATE] | 405 | 387 | 394 |
+| + pose: pyramid | 221 | 222 | 222 |
+| ** + per-candidate pose refit  [DEFAULT] ** | 316 | 324 | 328 |
+| + top-K=20 alone (no re-rank) | 23 | 22 | 23 |
+| + top-K + PADM + centre rule  [OVERFIT] | 226 | 221 | 225 |
+| + centre rule on the default  [prior absent here] | 316 | 321 | 327 |
+| + coarse-level consensus re-rank  [HARMFUL] | 239 | 240 | 238 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 347 | 352 | 352 |
+| + row destripe  [HARMFUL] | 32 | 32 | 32 |
+| + median filter  [no effect here] | 25 | 25 | 25 |
+| + Anscombe A1  [no effect on argmax] | 58 | 58 | 57 |
+| + ECC affine  [never converges] | 27 | 27 | 32 |
 
 ## Reading this table
 

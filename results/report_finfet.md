@@ -7,11 +7,11 @@ Pairs evaluated: **30**
 | Metric | Value |
 |---|---|
 | Mis-lock rate (>5 px) | **16.7%** (5 pairs) |
-| Median error | 0.587 px |
-| Mean error | 65.865 px |
-| p95 error | 433.875 px |
+| Median error | 0.313 px |
+| Mean error | 65.783 px |
+| p95 error | 434.090 px |
 | Worst-case error | 707.37 px |
-| Median error, correctly-located pairs only | 0.525 px |
+| Median error, correctly-located pairs only | 0.195 px |
 
 > The error distribution is bimodal: a correctly-located pair is off by about a pixel, a mis-located one by tens or hundreds. The mis-lock rate is therefore reported separately - a single average would hide the failure mode this problem is about.
 
@@ -23,15 +23,15 @@ Pairs evaluated: **30**
 | 4 px | 83.3% |
 | 2 px | 83.3% |
 | 1 px | 80.0% |
-| sub-pixel (0.5 px) | 40.0% |
+| sub-pixel (0.5 px) | 63.3% |
 
 ## Runtime
 
 | Metric | Value |
 |---|---|
-| Median (p50) | 332.7 ms |
-| p95 | 361.7 ms |
-| Mean | 339.4 ms |
+| Median (p50) | 353.8 ms |
+| p95 | 404.5 ms |
+| Mean | 374.0 ms |
 
 ## Environment
 
@@ -48,41 +48,41 @@ Pairs evaluated: **30**
 
 | Group | n | Median err (px) | Mis-lock rate | Pass@1px |
 |---|---|---|---|---|
-| 10.4..11 | 8 | 0.454 | 12% | 88% |
-| 9.04..9.45 | 8 | 0.735 | 12% | 88% |
-| 9.45..9.82 | 7 | 0.530 | 14% | 71% |
-| 9.82..10.4 | 7 | 0.701 | 29% | 71% |
+| 10.4..11 | 8 | 0.260 | 12% | 88% |
+| 9.04..9.45 | 8 | 0.547 | 12% | 75% |
+| 9.45..9.82 | 7 | 0.123 | 14% | 86% |
+| 9.82..10.4 | 7 | 0.404 | 29% | 71% |
 
 ## Stratified by `rotation_deg`
 
 | Group | n | Median err (px) | Mis-lock rate | Pass@1px |
 |---|---|---|---|---|
 | -0.274..0.776 | 7 | 0.404 | 0% | 100% |
-| -1.96..-0.274 | 8 | 0.783 | 25% | 62% |
+| -1.96..-0.274 | 8 | 0.445 | 25% | 75% |
 | 0.776..1.23 | 7 | 0.194 | 43% | 57% |
-| 1.23..2 | 8 | 0.587 | 0% | 100% |
+| 1.23..2 | 8 | 0.152 | 0% | 88% |
 
 ## Stratified by `ambiguity_level`
 
 | Group | n | Median err (px) | Mis-lock rate | Pass@1px |
 |---|---|---|---|---|
-| low | 24 | 0.464 | 12% | 83% |
-| med | 6 | 0.756 | 33% | 67% |
+| low | 24 | 0.201 | 12% | 83% |
+| med | 6 | 0.679 | 33% | 67% |
 
 ## Stratified by `gt_x`
 
 | Group | n | Median err (px) | Mis-lock rate | Pass@1px |
 |---|---|---|---|---|
-| 438..551 | 7 | 0.525 | 14% | 71% |
-| 551..744 | 7 | 0.780 | 29% | 71% |
-| 744..941 | 8 | 0.720 | 12% | 88% |
-| 76.4..438 | 8 | 0.530 | 12% | 88% |
+| 438..551 | 7 | 0.320 | 14% | 86% |
+| 551..744 | 7 | 0.780 | 29% | 57% |
+| 744..941 | 8 | 0.194 | 12% | 88% |
+| 76.4..438 | 8 | 0.206 | 12% | 88% |
 
 ## Stratified by `gt_y`
 
 | Group | n | Median err (px) | Mis-lock rate | Pass@1px |
 |---|---|---|---|---|
-| 316..499 | 7 | 0.530 | 0% | 100% |
-| 48..316 | 8 | 0.452 | 25% | 75% |
-| 499..668 | 7 | 0.644 | 0% | 100% |
-| 668..946 | 8 | 1.038 | 38% | 50% |
+| 316..499 | 7 | 0.353 | 0% | 100% |
+| 48..316 | 8 | 0.259 | 25% | 75% |
+| 499..668 | 7 | 0.194 | 0% | 86% |
+| 668..946 | 8 | 0.744 | 38% | 62% |

@@ -474,12 +474,24 @@ def localize(
     # estimator depends on.
     final_x, final_y = chosen.x, chosen.y
     if config.drift_correction:
-        from src.driftlock.drift import estimate_and_correct
+        from src.driftlock.drift import estimate_and_correct, gap_for_rotation
         # rotation_deg=None asks for the two-axis cancellation: drift displaces x as a function of
         # y only, while a tilt bends both axes, so measuring along rows AND columns isolates the
         # drift exactly. Handing it a rotation ESTIMATE instead was measurably worse than not
         # correcting at all - see src/driftlock/drift.py.
-        final_x, _ = estimate_and_correct(search, final_x, final_y, rotation_deg=None)
+        #
+        # The measured rotation is still used, but for something else entirely: to SIZE the
+        # measurement rather than to subtract from it. A tilt displaces content by gap*tan(rho) per
+        # row-pair, so the row separation must be short enough that the displacement still fits
+        # inside the lag search - otherwise the correlation peak clips at the window edge and the
+        # estimate saturates. Deriving the gap from the rotation serves both regimes: a long
+        # baseline (low noise) when the field is square, a short one when it is tilted.
+        measured_rotation = (pose_estimate.rotation_deg
+                             if pose_estimate is not None and config.pose_search else None)
+        final_x, _ = estimate_and_correct(
+            search, final_x, final_y,
+            gap=gap_for_rotation(measured_rotation), rotation_deg=None,
+        )
 
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     return Match(

@@ -507,6 +507,73 @@ not on a convenient subset** — the same lesson as ADR-0012, learned again.
 
 ---
 
+## ADR-0022 · 2026-08-12 · accepted · The drift gap is derived from the measured rotation
+
+**Decision.** `DEFAULT_GAP` drops from 100 to 40, and the operating value is computed per pair from
+the measured rotation via `gap_for_rotation()`.
+
+**The bug this fixes.** With `gap=100` and `max_lag=3`, a 2° rotation displaces content by
+`100·tan(2°) = 3.49 px` per row-pair — outside the ±3 lag search entirely. The correlation peak
+clipped at the edge of its own window and the estimate saturated. Measured standard deviation of the
+shear estimate was **17.75 px on bench** (truth 1.5), and error above 1° of rotation was six times
+that below 0.5°. The two-axis rotation cancellation was not "exact" as documented, because its
+inputs were clipped before it ran.
+
+**The constraint, which is derived and not tuned.**
+
+```
+gap·tan(ρ) + |drift|  <  max_lag  <  lattice_pitch / 2
+```
+
+Below the lower bound the measurement saturates; above the upper bound the correlation locks onto
+the next lattice line. With a ~6.4 px word-line pitch the upper bound is ~3.2, so at gap=100 the
+lower bound (5) exceeds it — **the old configuration was infeasible, not merely suboptimal.** A
+sweep confirms both failure modes: gap=100/lag=3 gives sd 13.3 on bench, and widening to lag=5
+gives sd 16.5–19.2 by aliasing.
+
+**Why adaptive rather than a fixed 40.** A long baseline divides the estimate by a larger number and
+so amplifies per-pair noise less; it is better whenever the field is not tilted. Solving the
+constraint for the measured rotation serves both regimes, and returns **43 at 2°** — where the
+empirical sweep independently put the optimum (40).
+
+**Result.** Total mis-lock 24/100 → 22/100; sub-pixel pass rate across all splits 50 → 65; bench
+mis-lock 30.0% → 23.3%; FinFET pass@0.5px 33% → 63%.
+
+**Fitted vs derived, chosen deliberately.** A fixed gap=40 scores one pair better on mis-lock
+(21/100) and five pairs worse on sub-pixel. We take the derived rule: it wins where it matters more,
+and it has a reason to hold at rotation ranges we have not tested, which a fitted constant does not.
+
+---
+
+## ADR-0023 · 2026-08-12 · rejected · Photometrically-invariant matching features
+
+**Decision.** Do not use lattice-phase fingerprints or gradient-orientation correlation for ranking.
+
+**The hypothesis.** The limiting noise on ranking is model mismatch, which is photometric (PSF,
+apodisation, gain), while every scorer we use compares amplitudes. So compare something invariant to
+photometry: the analytic phase of the lattice carrier (which measures line displacement directly),
+or the unit gradient vector field (direction without magnitude).
+
+**Measured — all worse than the argmax they replaced:**
+
+| method | dev | bench | FinFET |
+|---|---|---|---|
+| argmax | 20.0% | 26.7% | 33.3% |
+| lattice-phase fingerprint | 32.5% | 26.7% | 43.3% |
+| gradient orientation | 27.5% | 36.7% | 40.0% |
+| orientation, magnitude-weighted | 22.5% | 46.7% | 50.0% |
+
+**Why the premise was wrong, which is the valuable part.** The stage that did fix ranking was a
+**pose refit** — a geometric correction. So the mismatch limiting us is **geometric**, while the
+evidence distinguishing candidates is **photometric**. Photometric invariance therefore discards the
+evidence and leaves the mismatch in place — exactly backwards.
+
+Stated as a rule: **the mismatch is geometric, the evidence is photometric.** That explains the
+refit's success rather than merely recording it, and it correctly predicted where the next gain
+would come from — removing more geometric mismatch (ADR-0022), not inventing features.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,
