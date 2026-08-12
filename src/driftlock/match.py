@@ -124,6 +124,11 @@ class PipelineConfig:
     # there. The optimum lies BETWEEN coarse samples - measured - and this finds it for one extra
     # correlation instead of a denser grid. Adopted only if it scores higher.
     refit_pose_interp: bool = False
+    # Refine inside this many DISTINCT pose basins rather than only around the best sample. Both
+    # earlier attempts to exploit a wide span failed by assuming a single basin: the coarse grid
+    # takes its highest sample (possibly the wrong peak) and the parabola fit spans several peaks.
+    # 0 or 1 disables it. See src/driftlock/refit.py.
+    refit_basins: int = 0
 
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation

@@ -1236,10 +1236,66 @@ The frontier is real:
 buys **one pair out of forty** (25.0% → 22.5%) for a **3× runtime cost**. That is a poor trade
 against the metric that is actually scored.
 
+*(Wording corrected: this is a frontier for the current optimization strategy, not a property of the
+problem. See §22 — we measured that this implementation needs 3× runtime, not that the task does.)*
+
 The dense configuration is kept in the ablation as a measured operating point, not deleted. A
 quantified accuracy/runtime frontier is a more useful thing to hand a reader than a single arbitrary
 point on it, and if the released evaluation environment turns out to be generous about runtime, the
 better-accuracy configuration is one flag away.
+
+---
+
+## 22. Multi-basin refinement — and the reason all three shortcuts fail ❌
+
+An external review argued, correctly, that both earlier attempts to exploit a wide refit span share
+one flaw: they assume the pose surface has a **single basin**. A coarse grid takes its highest
+*sample*, which can sit in the wrong peak; and a parabola fitted across widely separated samples
+interpolates *between* peaks rather than within one. Its proposal — retain several distinct local
+maxima and refine inside each — is precisely targeted at that mechanism.
+
+Implemented as non-maximum suppression in `(scale, rotation)` space (a sample qualifies only if it
+beats its four neighbours, so it finds *basins* rather than the top-N samples, which usually all
+belong to one peak).
+
+| config | dev | sponsor | bench | FinFET | held-out | p50 |
+|---|---|---|---|---|---|---|
+| narrow, 2 steps (shipped) | 12.5% | 25.0% | 23.3% | 16.7% | **22.0%** | **308 ms** |
+| dense wide, 5 steps | 10.0% | 22.5% | 20.0% | 16.7% | **20.0%** | 850 ms |
+| multi-basin, 3 steps, 2 basins | 20.0% | 25.0% | 23.3% | 30.0% | 26.0% | 441 ms |
+| multi-basin, 3 steps, 3 basins | 20.0% | 25.0% | 23.3% | 30.0% | 26.0% | 441 ms |
+
+Worse than both, and **identical for 2 and 3 basins** — the third basin never fires, because a 3×3
+grid rarely contains three distinct local maxima. It also lands on exactly the same 26.0% as the
+plain coarse-wide grid, i.e. basin retention changed nothing at all.
+
+### The general result
+
+Three independent attempts to get dense-grid accuracy out of a coarse grid:
+
+| method on a coarse wide grid | held-out |
+|---|---|
+| take the best sample | 26.0% |
+| parabola interpolation | 27.0% |
+| multi-basin retention | 26.0% |
+| **dense sampling** | **20.0%** |
+
+> **You cannot reconstruct an optimum from samples that do not resolve it.**
+
+The basins are narrower than the sample spacing, so nine samples spanning ±3% simply do not contain
+the structure any of these methods is trying to recover. This is a sampling-theorem argument, not an
+implementation shortfall: the dense grid wins on **sampling density**, and no post-hoc cleverness on
+sparse samples substitutes for it. Three failures with three different mechanisms, all reducing to
+the same cause, is what makes this a result rather than a run of bad luck.
+
+### A correction to our own wording
+
+An earlier version of this document called the remaining 2-point gap *"irreducible"*. The review
+objected, and it is right: **we proved this implementation needs 3× runtime, not that the problem
+does.** The honest statement is a measured accuracy/runtime frontier *for the current optimization
+strategy*. A fundamentally cheaper optimizer — a learned geometry initializer that lands inside the
+right basin without sampling for it, for instance — is not excluded by anything measured here. It is
+simply not something we have built or tested, and the frontier stands until someone does.
 
 ---
 

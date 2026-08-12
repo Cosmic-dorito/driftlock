@@ -101,7 +101,95 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
     if getattr(config, "refit_pose_interp", False):
         candidates = _interpolate_pose(search, reference, candidates, build_template,
                                        correlation_surface, margin)
+
+    # Multi-basin refinement: sweep the wide span coarsely, keep the distinct local maxima, and
+    # spend the fine budget inside each of them rather than only around the single best sample.
+    basins = getattr(config, "refit_basins", 0)
+    if basins > 1:
+        candidates = _refit_multibasin(search, reference, candidates, build_template,
+                                       correlation_surface, span, rot_span, steps, margin,
+                                       basins, shrink)
     return candidates
+
+
+def _refit_multibasin(search: np.ndarray, reference: np.ndarray, candidates: list,
+                      build_template, correlation_surface, span: float, rot_span: float,
+                      steps: int, margin: int, max_basins: int, shrink: float) -> list:
+    """Refine each candidate inside several distinct pose basins, then keep its best result."""
+    for cand in candidates:
+        probe = cand.extra.get("refit_grid")
+        if probe is None:
+            continue
+        grid, scales_ax, rot_ax = probe
+        peaks = _pose_basins(grid, max_basins)
+        if len(peaks) < 2:
+            continue                      # a single basin: the plain refit already found it
+
+        fine_scale_span = span * shrink
+        fine_rot_span = rot_span * shrink
+        for si, ri in peaks:
+            centre_scale = float(scales_ax[si])
+            centre_rot = float(rot_ax[ri])
+            fine_scales = np.linspace(centre_scale * (1 - fine_scale_span),
+                                      centre_scale * (1 + fine_scale_span), steps)
+            fine_rots = np.linspace(centre_rot - fine_rot_span,
+                                    centre_rot + fine_rot_span, steps)
+            for scale in fine_scales:
+                for rotation in fine_rots:
+                    template = build_template(reference, float(scale), float(rotation))
+                    th, tw = template.shape
+                    if th + 2 * margin >= search.shape[0] or tw + 2 * margin >= search.shape[1]:
+                        continue
+                    y0 = max(margin, min(int(round(cand.y - th / 2.0)),
+                                         search.shape[0] - th - margin))
+                    x0 = max(margin, min(int(round(cand.x - tw / 2.0)),
+                                         search.shape[1] - tw - margin))
+                    window = search[y0 - margin:y0 + th + margin, x0 - margin:x0 + tw + margin]
+                    if window.shape[0] <= th or window.shape[1] <= tw:
+                        continue
+                    _, score, _, loc = cv2.minMaxLoc(correlation_surface(window, template))
+                    if score > cand.score:
+                        cand.score = float(score)
+                        cand.x = x0 - margin + loc[0] + tw / 2.0
+                        cand.y = y0 - margin + loc[1] + th / 2.0
+                        cand.scale, cand.rotation_deg = float(scale), float(rotation)
+    candidates.sort(key=lambda c: -c.score)
+    return candidates
+
+
+def _pose_basins(grid: np.ndarray, max_basins: int) -> list[tuple[int, int]]:
+    """Distinct local maxima of the pose-score surface, best first.
+
+    Both earlier failures share one cause: they assume the pose surface has a single basin.
+    A coarse wide grid takes its highest SAMPLE, which can sit in the wrong basin; and fitting a
+    parabola across widely separated samples interpolates BETWEEN basins rather than within one
+    (measured 27.0% held-out, worse than not widening at all).
+
+    Retaining several basins removes that assumption. Note this is not "keep the top N samples" -
+    those usually all belong to the same peak. A sample qualifies only if it beats its four
+    neighbours, which is non-maximum suppression in (scale, rotation) space rather than in image
+    space.
+    """
+    rows, cols = grid.shape
+    peaks = []
+    for si in range(rows):
+        for ri in range(cols):
+            value = grid[si, ri]
+            if value <= -1.5:
+                continue
+            neighbours = []
+            if si > 0:
+                neighbours.append(grid[si - 1, ri])
+            if si < rows - 1:
+                neighbours.append(grid[si + 1, ri])
+            if ri > 0:
+                neighbours.append(grid[si, ri - 1])
+            if ri < cols - 1:
+                neighbours.append(grid[si, ri + 1])
+            if all(value >= n for n in neighbours):
+                peaks.append((value, si, ri))
+    peaks.sort(reverse=True)
+    return [(si, ri) for _, si, ri in peaks[:max_basins]]
 
 
 def _parabola_vertex(lo: float, mid: float, hi: float) -> float:
@@ -238,6 +326,9 @@ def _refit_once(search: np.ndarray, reference: np.ndarray, candidates: list,
             si, ri = np.unravel_index(int(np.argmax(grid)), grid.shape)
             if 0 < si < grid.shape[0] - 1 and 0 < ri < grid.shape[1] - 1:
                 scales_ax, rot_ax = ax
+                # Keep the whole grid too: multi-basin refinement needs every local maximum,
+                # not just the neighbourhood of the single best sample.
+                cand.extra["refit_grid"] = (grid, scales_ax, rot_ax)
                 cand.extra["refit_probe"] = (
                     (grid[si - 1, ri], grid[si, ri], grid[si + 1, ri]),
                     (grid[si, ri - 1], grid[si, ri], grid[si, ri + 1]),
