@@ -113,6 +113,9 @@ class PipelineConfig:
     refit_rotation_span: float = 0.30    # +/-0.3 degrees
     refit_steps: int = 3                 # per axis, so 9 correlations per candidate
     refit_margin_px: int = 7
+    # Penalty on how far a candidate's pose must move to reach its best score, in units of the
+    # search span. 0 = the plain maximum. See src/driftlock/refit.py for why this loophole exists.
+    refit_pose_penalty: float = 0.0
 
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation

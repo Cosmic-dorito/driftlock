@@ -63,6 +63,7 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
     if len(candidates) < 2:
         return candidates
 
+    pose_penalty = getattr(config, "refit_pose_penalty", 0.0)
     span = config.refit_scale_span
     rot_span = config.refit_rotation_span
     steps = max(config.refit_steps, 1)
@@ -84,8 +85,8 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
     for i, cand in enumerate(candidates):
         groups.setdefault((round(cand.scale, 6), round(cand.rotation_deg, 6)), []).append(i)
 
-    best = [{"score": c.score, "xy": (c.x, c.y), "pose": (c.scale, c.rotation_deg)}
-            for c in candidates]
+    best = [{"score": c.score, "penalty": 0.0, "xy": (c.x, c.y),
+             "pose": (c.scale, c.rotation_deg)} for c in candidates]
 
     for (pose_scale, pose_rotation), members in groups.items():
         scales = ([pose_scale] if steps == 1 else
@@ -113,9 +114,27 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
                         continue
 
                     _, score, _, loc = cv2.minMaxLoc(correlation_surface(window, template))
-                    if score > best[i]["score"]:
+
+                    # Charge a candidate for how far it had to move to reach that score.
+                    #
+                    # Ranking candidates by their score GAIN when the pose is freed measured at
+                    # 80-92% mis-lock - catastrophically backwards - because an impostor starts
+                    # with MORE mismatch and so has more to absorb. The same asymmetry leaks into
+                    # the plain maximum: a wrong candidate can buy a high score with a large pose
+                    # excursion that the true one never needs. Penalising the excursion keeps the
+                    # freedom that made the refit work while removing the loophole.
+                    #
+                    # Expressed in units of the search span, so it is scale-free.
+                    penalty = 0.0
+                    if pose_penalty > 0.0:
+                        ds = (scale - pose_scale) / max(pose_scale * span, 1e-9)
+                        dr = (rotation - pose_rotation) / max(rot_span, 1e-9)
+                        penalty = pose_penalty * (ds * ds + dr * dr)
+
+                    if score - penalty > best[i]["score"] - best[i]["penalty"]:
                         best[i] = {
                             "score": float(score),
+                            "penalty": float(penalty),
                             "xy": (x0 - margin + loc[0] + tw / 2.0,
                                    y0 - margin + loc[1] + th / 2.0),
                             "pose": (float(scale), float(rotation)),

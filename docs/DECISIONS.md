@@ -574,6 +574,46 @@ would come from — removing more geometric mismatch (ADR-0022), not inventing f
 
 ---
 
+## ADR-0024 · 2026-08-12 · accepted · Stop adding re-ranking criteria; the evidence is conclusive
+
+**Decision.** No further candidate re-ranking criteria will be attempted. The default pipeline keeps
+per-candidate pose refit and nothing else in the selection stage.
+
+**The evidence.** Six independent attempts to re-rank candidates by a *new* criterion, across three
+splits and two architectures:
+
+| Attempt | Result |
+|---|---|
+| PADM residual scoring | overfit — gained on tuned split, lost both held-out |
+| Coarse-level consensus | harmful (62.5% on sponsor) |
+| Maximum-likelihood, Poisson–Gaussian | no gain — mismatch dominates photon noise |
+| Refit-*gain* ranking | catastrophic (80–92%) |
+| Lattice-phase / gradient-orientation features | harmful (up to 50%) |
+| Residual tie-break, statistically gated | harmful (20.0% → 25.0% held-out) |
+| **Per-candidate pose refit** *(same criterion, better geometry)* | **28.0% → 19.0%, improves every split** |
+
+> **Every attempt to re-rank by a NEW criterion failed. The only stage that worked re-scores by the
+> SAME criterion at a better geometry.**
+
+**Why this is a decision and not a pause.** Six failures and one success is no longer a run of bad
+luck; it is the shape of the problem. At dose 200 and 10 nm/px the aperiodic fingerprint carries too
+little information to support any hand-designed discriminator we have found, while reducing geometric
+mismatch pays every time. Continuing to guess at criteria in the face of that evidence would be poor
+judgement rather than persistence, and each attempt costs a full three-split validation.
+
+**What would change our mind.** Evidence that the fingerprint is recoverable at all — for example a
+component that reduces geometric mismatch further (a richer constrained local deformation, or a
+learned model trained to *reduce mismatch* rather than to *score similarity*) and thereby raises the
+margin the discriminator has to work with. The direction is more geometry, not more scoring.
+
+**A gate calibrated before a stage runs is not calibrated after it.** The residual tie-break used the
+tie threshold derived in ADR-0021, and it fired on 38 of 40 sponsor pairs — because the refit
+compresses the score distribution, which is exactly its purpose. Any future gate placed downstream of
+the refit must be re-derived against post-refit scores. This also applies to the centre rule, which
+shares that threshold.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

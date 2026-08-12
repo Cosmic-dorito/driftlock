@@ -1082,6 +1082,85 @@ expensive** — the intuition here was wrong by an order of magnitude.
 
 ---
 
+## 20. Six re-ranking attempts, one rule ✅ (the strongest conclusion in the project)
+
+Two further experiments were run specifically to attack mis-lock. Both failed, and with them the
+picture is now unambiguous enough to be stated as a result rather than a running tally.
+
+### 20a. Penalising pose excursion in the refit — no effect ⚪
+
+**Reasoning.** Ranking by score *gain* when the pose is freed failed at 80–92% because impostors
+start with more mismatch and have more to absorb (§15d). The same asymmetry should leak into the
+plain maximum: a wrong candidate could buy a high score with a large pose excursion the true one
+never needs. So charge each candidate for how far it had to move.
+
+**Result**, swept on `dev` only (R5), penalty in units of the search span:
+
+| penalty | 0.0 | 0.002 | 0.005 | 0.01 | 0.02 | 0.05 |
+|---|---|---|---|---|---|---|
+| dev mis-lock | **12.5%** | 12.5% | 12.5% | 12.5% | 20.0% | 20.0% |
+
+No gain at any setting, and harmful above 0.01. **The loophole does not exist**: the winning poses
+already sit near the centre of the bracket, so there is nothing to penalise. Kept in the code at 0
+with the reasoning recorded; the hypothesis was reasonable and the measurement says no.
+
+### 20b. Tie-break by aperiodic residual — harmful ❌
+
+**Reasoning.** The candidate-consensus residual helped dev and FinFET but hurt bench when used as a
+*global* re-ranker (§15b). Perhaps the problem was not the signal but *when it is allowed to act*:
+let it decide only among candidates that are statistically indistinguishable on the primary score,
+reusing the tie threshold derived for the centre rule (§16a). No blend weight, and gated so it
+cannot override a clear winner — exactly the shape ADR-0012 says a safe stage should have.
+
+**Result:**
+
+| split | refit only | + residual tie-break | tie fired on |
+|---|---|---|---|
+| dev | 12.5% | 12.5% | 20/40 |
+| sponsor | 22.5% | **30.0%** | **38/40** |
+| bench | 20.0% | **23.3%** | 18/30 |
+| holdout FinFET | 16.7% | **20.0%** | 17/30 |
+| **held-out total** | **20.0%** | **25.0%** | |
+
+**Why, and it is worth knowing:** the tie test fires on **38 of 40 sponsor pairs**. The refit
+*compresses the score distribution* — that is what it is for — so after it runs, a threshold derived
+from correlation sampling noise declares almost everything tied. A weak residual signal then decides
+nearly every pair, and it decides badly. **A gate calibrated before a stage runs is not calibrated
+after it.** The same caution applies to the centre rule, which shares that threshold.
+
+### 20c. The rule these six experiments establish
+
+| # | Attempt | Kind | Result |
+|---|---|---|---|
+| 1 | PADM residual scoring | new criterion | overfit — helped tuned split, hurt both held-out |
+| 2 | Coarse-level consensus | new criterion | harmful (62.5% on sponsor) |
+| 3 | Maximum-likelihood (Poisson–Gaussian) | new criterion | no gain; mismatch > photon noise |
+| 4 | Refit-*gain* ranking | new criterion | catastrophic (80–92%) |
+| 5 | Lattice-phase / gradient-orientation | new criterion | harmful (up to 50%) |
+| 6 | Residual tie-break, gated | new criterion | harmful (20.0% → 25.0%) |
+| ✅ | **Per-candidate pose refit** | **same criterion, better geometry** | **28.0% → 19.0%, every split** |
+
+> **Every attempt to re-rank candidates by a NEW criterion has failed. The only stage that worked
+> re-scores by the SAME criterion at a better geometry.**
+
+Six independent failures and one success, across three splits and two architectures, is no longer a
+run of bad luck — it is the shape of the problem. At dose 200 and 10 nm/px sampling the aperiodic
+fingerprint carries too little information to support *any* hand-designed discriminator we have
+found, while reducing geometric mismatch pays every time it is tried.
+
+**So we stop here rather than trying a seventh.** Continuing to guess at criteria, given this
+evidence, would be poor judgement rather than persistence. If mis-lock is to fall further, the
+evidence points at *more geometric mismatch removal* — a richer local deformation model, or a learned
+component trained to reduce mismatch rather than to score similarity — not at another scoring
+function.
+
+**What this is worth in the submission.** The failure-analysis bucket is 10% of the score and asks
+specifically about repeated-pattern ambiguity. A single measured principle supported by six
+independent negative experiments is a considerably stronger answer than a seventh attempt would have
+been, whether or not it worked.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken
