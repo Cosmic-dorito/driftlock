@@ -1161,6 +1161,88 @@ been, whether or not it worked.
 
 ---
 
+## 21. Geometric headroom exists — and it costs 3× runtime to reach ⚖️
+
+After ADR-0024 closed the door on new scoring criteria, the open question was whether *geometry* had
+anything left. It does, and the shape of the answer is a clean accuracy/runtime frontier rather than
+a free win.
+
+### 21a. Pose-regime routing — refuted ❌
+
+An external review proposed that on nominal 10:1 data the extra pose hypotheses are distractors, so
+routing to fewer poses should help. My own ablation was suggestive: pose search takes sponsor from
+25.0% to 27.5%, and only the refit claws it back.
+
+Measured directly — candidates from all poses merged, versus candidates from the single best-scoring
+pose:
+
+| split | merge all poses | best pose only |
+|---|---|---|
+| sponsor | **22.5%** | 27.5% |
+| bench | **20.0%** | 36.7% |
+| holdout FinFET | **16.7%** | 26.7% |
+| **total** | **20.0%** | **30.0%** |
+
+**Restricting poses is far worse.** The extra hypotheses are not distractors — they are *recall*.
+Routing on that basis is a dead end.
+
+*(The review also reported a bug in this experiment, claiming the comparison used `g.score` on a
+list. The code reads `g[0].score`, and `extract_peaks` returns candidates sorted descending, so that
+is exactly `max(c.score for c in g)`. The comparison was fair.)*
+
+### 21b. A wider refit genuinely helps ✅
+
+| refit span / steps | dev | sponsor | bench | FinFET | held-out | p50 |
+|---|---|---|---|---|---|---|
+| **.006 / .3, 2 steps** (shipped) | 12.5% | 25.0% | 23.3% | 16.7% | **22.0%** | **297 ms** |
+| .03 / 1.5, **3** steps | 20.0% | 25.0% | 23.3% | 30.0% | 26.0% | 441 ms |
+| **.03 / 1.5, 5 steps** | **10.0%** | **22.5%** | **20.0%** | 16.7% | **20.0%** | 886 ms |
+| .05 / 2.0, 5 steps | 17.5% | 25.0% | 20.0% | 23.3% | 23.0% | 895 ms |
+
+Two points matter here. The wide span improves **both** the tuning split and held-out, which is the
+signature of a real effect. But **span and step count interact**: the same wide span sampled with 3
+steps instead of 5 is *worse than not widening at all* (26.0% vs 22.0%). The optimum lies **between**
+coarse samples, so a wide span is only useful when sampled densely — and that density is the cost.
+
+### 21c. Interpolating the pose between samples — failed ❌
+
+The obvious escape: the grid scores already describe the local shape, so fit a parabola per axis,
+evaluate once at its vertex, and get dense-grid accuracy from a coarse grid. This is exactly the
+sub-pixel peak-fitting argument applied to pose instead of position, and it costs one extra
+correlation instead of sixteen.
+
+| config | dev | sponsor | bench | FinFET | held-out | p50 |
+|---|---|---|---|---|---|---|
+| dense .03/1.5 s5 | 10.0% | 22.5% | 20.0% | 16.7% | **20.0%** | 886 ms |
+| wide s3 + interpolation | 20.0% | 30.0% | 30.0% | 20.0% | **27.0%** | 559 ms |
+| wide s4 + interpolation | 20.0% | 27.5% | 23.3% | 23.3% | **25.0%** | 785 ms |
+
+Worse than both the dense grid and the shipped narrow one. **A parabola through three widely
+separated samples interpolates across basins rather than within one** — the same reason the coarse
+wide grid failed. Interpolation cannot rescue a grid that is too coarse to resolve the structure it
+is sampling; it needs three points on *one* peak, and a wide coarse grid does not provide them.
+
+### 21d. The decision, and why
+
+The frontier is real:
+
+| | held-out mis-lock | p50 runtime |
+|---|---|---|
+| **shipped (narrow refit)** | 22.0% | **297 ms** |
+| dense wide refit | **20.0%** | 886 ms |
+
+**We ship the narrow configuration.** The spec weights *"coordinate accuracy on sponsor test data
+**and computation time**"* in one 50% bucket, and on sponsor specifically the dense configuration
+buys **one pair out of forty** (25.0% → 22.5%) for a **3× runtime cost**. That is a poor trade
+against the metric that is actually scored.
+
+The dense configuration is kept in the ablation as a measured operating point, not deleted. A
+quantified accuracy/runtime frontier is a more useful thing to hand a reader than a single arbitrary
+point on it, and if the released evaluation environment turns out to be generous about runtime, the
+better-accuracy configuration is one flag away.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken

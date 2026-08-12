@@ -75,6 +75,13 @@ def ladder() -> list[PipelineConfig]:
         # sampling noise of a correlation rather than the spread of the candidate set, so it fires
         # only on genuine ties - but the benchmark places targets uniformly, so the deployment
         # prior it depends on is absent and it can only lose. See ADR-0021.
+        # The other end of the accuracy/runtime frontier: a wider, densely-sampled refit reaches
+        # 20.0% held-out mis-lock against 22.0%, for ~3x the runtime. Reported rather than shipped,
+        # because the spec scores accuracy and computation time in one bucket - see FINDINGS 21d.
+        PipelineConfig(label="+ wide dense refit  [more accurate, 3x runtime]",
+                       subpixel=True, drift_correction=True, pose_search=True,
+                       top_k=10, candidate_refit=True, refit_steps=5,
+                       refit_scale_span=0.03, refit_rotation_span=1.5),
         PipelineConfig(label="+ centre rule on the default  [prior absent here]",
                        subpixel=True, drift_correction=True, pose_search=True,
                        top_k=10, candidate_refit=True, refit_steps=2, centre_rule=True),

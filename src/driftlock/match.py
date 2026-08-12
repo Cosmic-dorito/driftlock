@@ -116,6 +116,14 @@ class PipelineConfig:
     # Penalty on how far a candidate's pose must move to reach its best score, in units of the
     # search span. 0 = the plain maximum. See src/driftlock/refit.py for why this loophole exists.
     refit_pose_penalty: float = 0.0
+    # Coarse-to-fine passes over the refit span. A wide span helps but must be sampled finely;
+    # two passes cover it for ~1/3 the correlations of one dense grid. See refit.py.
+    refit_passes: int = 1
+    refit_pass_shrink: float = 0.4
+    # Interpolate the winning pose between grid samples (a parabola per axis) and evaluate once
+    # there. The optimum lies BETWEEN coarse samples - measured - and this finds it for one extra
+    # correlation instead of a denser grid. Adopted only if it scores higher.
+    refit_pose_interp: bool = False
 
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation
