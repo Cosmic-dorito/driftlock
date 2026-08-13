@@ -55,7 +55,7 @@ Remaining ideas, in rough order of expected value:
    on 10.0 / 13.3 / 10.0%. bench is the outlier worth understanding: 16.7% mis-lock against 10%
    irrecoverable means most of its failures are *already lost before selection runs*, which is a
    different problem from the one six re-rankers failed at.
-2. **Runtime, not accuracy.** ~427 ms with no accuracy risk available: the refit window is already
+2. **Runtime, not accuracy.** ~390-430 ms depending on the run; nothing here risks accuracy: the refit window is already
    a local ROI (template + 2×7 px), but the ~1000 remaining per-pair `matchTemplate` calls are
    small and overhead-dominated, so batching them is the open lever. Do not reach for FFT without
    benchmarking — the windows are 114×114 and setup cost may exceed the arithmetic.

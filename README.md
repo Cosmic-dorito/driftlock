@@ -198,7 +198,9 @@ Stated plainly rather than left for a judge to find.
    any selection rule runs. Both numbers are reported in the results table rather than assumed.
    **Six** re-ranking criteria were built, measured and rejected; all six are in the ablation with
    their numbers, and the single principle they establish is in [ADR-0024](docs/DECISIONS.md).
-2. **Runtime is ~430 ms/pair, above our own 300 ms target.** This is a deliberate, measured trade:
+2. **Runtime is above our own 300 ms target** (see the p50 column in the table above — this
+   sentence deliberately does not restate the figure, because a hand-typed copy of a generated
+   number is exactly what goes stale). This is a deliberate, measured trade:
    the narrow-refit configuration runs at ~296 ms for +4 points of held-out mis-lock, and is
    reachable by config (`refit_steps=2, refit_scale_span=0.006, refit_rotation_span=0.30,
    refit_screen_steps=0`). We chose accuracy. There is no published
