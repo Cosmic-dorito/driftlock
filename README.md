@@ -166,11 +166,11 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 | Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Runtime p50 |
 |---|---|---|---|---|---|---|
 | **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | 22 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **25.0%** | **0.297** | **72.5%** | **67.5%** | 316 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **22.5%** | **0.275** | **75.0%** | **70.0%** | 431 ms |
 | **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | 22 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **23.3%** | **0.343** | **73.3%** | **63.3%** | 322 ms |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.337** | **76.7%** | **63.3%** | 413 ms |
 | **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | 22 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **16.7%** | **0.313** | **80.0%** | **63.3%** | 328 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **13.3%** | **0.201** | **83.3%** | **66.7%** | 423 ms |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
 
@@ -189,13 +189,16 @@ Failure case with root cause: [`results/failure_case/`](results/failure_case/).
 
 Stated plainly rather than left for a judge to find.
 
-1. **Selection is not solved.** Every pass rate is capped by the mis-lock rate (27.5% / 33.3% /
-   33.3%). Candidate recall at K=20 is 92.5%, so the true location is usually *available* and
-   simply out-scored — a perfect re-ranker would reach ~7.5%. Two re-rankers were built, measured
-   and rejected (PADM: overfit; coarse-level consensus: harmful). Both are in the ablation.
-2. **Runtime is ~400 ms/pair, above our own 300 ms target.** The pose bracket is five
-   full-resolution correlations. `pose_bracket_steps=3` gives ~260 ms for +2.5–5 points of
-   mis-lock; we chose accuracy. There is no published runtime limit to calibrate against yet.
+1. **Selection is not solved.** Every pass rate is capped by the mis-lock rate (22.5% / 16.7% /
+   13.3%). Candidate recall is 90–97% depending on split, so the true location is usually
+   *available* and simply out-scored — a perfect re-ranker would reach ~5%. **Six** re-ranking
+   criteria were built, measured and rejected; all six are in the ablation with their numbers, and
+   the single principle they establish is in [ADR-0024](docs/DECISIONS.md).
+2. **Runtime is ~430 ms/pair, above our own 300 ms target.** This is a deliberate, measured trade:
+   the narrow-refit configuration runs at ~296 ms for +4 points of held-out mis-lock, and is
+   reachable by config (`refit_steps=2, refit_scale_span=0.006, refit_rotation_span=0.30,
+   refit_screen_steps=0`). We chose accuracy. There is no published
+   runtime limit to calibrate against yet, and the ablation reports both operating points.
 3. **Drift correction assumes a square frame.** The two-axis cancellation uses
    `S_row + S_col·(H−1)/(W−1)`; it is exact for the 1000×1000 images the spec defines and
    approximate otherwise.

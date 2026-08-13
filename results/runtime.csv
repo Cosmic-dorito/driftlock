@@ -1,10 +1,10 @@
 split,config,n,p50_ms,p95_ms,mean_ms
-sponsor,driftlock,12,316.2,357.4,319.6
-sponsor,baseline,12,21.5,26.0,21.7
-bench,driftlock,12,322.3,360.1,325.5
-bench,baseline,12,21.6,25.1,21.7
-finfet,driftlock,12,328.1,355.8,328.8
-finfet,baseline,12,22.5,32.6,24.2
+sponsor,driftlock,12,430.7,514.4,429.9
+sponsor,baseline,12,21.9,23.9,21.1
+bench,driftlock,12,413.2,473.5,418.1
+bench,baseline,12,21.9,23.3,21.1
+finfet,driftlock,12,423.0,476.8,419.9
+finfet,baseline,12,21.9,23.5,21.3
 
 # platform,Windows 11 (AMD64)
 # processor,Intel64 Family 6 Model 170 Stepping 4, GenuineIntel

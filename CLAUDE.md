@@ -213,4 +213,6 @@ Two rules that have each been learned the hard way and cost real time when ignor
 
 ## Current gate
 
-**Day 0 — scaffolding.** See `docs/PROGRESS.md` for the live status and who owns what next.
+**Gate 6 cleared — a complete, verified, packaged submission exists.** Everything from here is
+optional improvement. Live status in `docs/PROGRESS.md`; current numbers in `docs/RESULTS.md`
+(generated from `results/`, never hand-edited).

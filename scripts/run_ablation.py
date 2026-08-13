@@ -63,9 +63,19 @@ def ladder() -> list[PipelineConfig]:
                        pose_search=True, pose_method="spectral"),
         PipelineConfig(label="+ pose: pyramid",
                        subpixel=True, drift_correction=True, pose_search=True),
-        PipelineConfig(label="** + per-candidate pose refit  [DEFAULT] **",
+        PipelineConfig(label="+ per-candidate pose refit, narrow",
                        subpixel=True, drift_correction=True, pose_search=True,
                        top_k=10, candidate_refit=True, refit_steps=2),
+        # The refit's cost is correlation count, not template construction: candidates arrive
+        # top_k-per-POSE, so a dense grid over all 60 is 1500 correlations per pair. Screening with
+        # the cheap narrow grid first and spending the dense budget on the survivors is both
+        # faster and more accurate than the unscreened dense grid - the wide sweep is now centred
+        # on a pose the narrow pass already corrected. See ADR-0025.
+        PipelineConfig(label="** + screened wide refit  [DEFAULT] **",
+                       subpixel=True, drift_correction=True, pose_search=True,
+                       top_k=10, candidate_refit=True, refit_steps=5,
+                       refit_scale_span=0.03, refit_rotation_span=1.5,
+                       refit_screen_steps=2, refit_screen_top_n=10),
 
         # --- measured negative results, kept per R9 ---
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),
@@ -75,16 +85,18 @@ def ladder() -> list[PipelineConfig]:
         # sampling noise of a correlation rather than the spread of the candidate set, so it fires
         # only on genuine ties - but the benchmark places targets uniformly, so the deployment
         # prior it depends on is absent and it can only lose. See ADR-0021.
-        # The other end of the accuracy/runtime frontier: a wider, densely-sampled refit reaches
-        # 20.0% held-out mis-lock against 22.0%, for ~3x the runtime. Reported rather than shipped,
-        # because the spec scores accuracy and computation time in one bucket - see FINDINGS 21d.
-        PipelineConfig(label="+ wide dense refit  [more accurate, 3x runtime]",
+        # The unscreened wide grid: what the default was measured against. It is the SLOWER and
+        # LESS accurate of the two (20.0% held-out at 601 ms, against the screened 18.0% at 427),
+        # which is the evidence that the screen is not merely a cost saving - see FINDINGS 23.
+        PipelineConfig(label="+ wide dense refit, unscreened  [slower AND worse]",
                        subpixel=True, drift_correction=True, pose_search=True,
                        top_k=10, candidate_refit=True, refit_steps=5,
                        refit_scale_span=0.03, refit_rotation_span=1.5),
         PipelineConfig(label="+ centre rule on the default  [prior absent here]",
                        subpixel=True, drift_correction=True, pose_search=True,
-                       top_k=10, candidate_refit=True, refit_steps=2, centre_rule=True),
+                       top_k=10, candidate_refit=True, refit_steps=5,
+                       refit_scale_span=0.03, refit_rotation_span=1.5,
+                       refit_screen_steps=2, refit_screen_top_n=10, centre_rule=True),
         PipelineConfig(label="+ coarse-level consensus re-rank  [HARMFUL]",
                        subpixel=True, drift_correction=True, pose_search=True,
                        top_k=20, coarse_consensus=True),

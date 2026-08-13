@@ -264,6 +264,34 @@ number that check exists to find. The example now reads a real prediction out of
 
 ---
 
+## Stage 8 — Screening the refit ✅ (13 Aug, win-2)
+
+> Current numbers live in the generated headline in `docs/RESULTS.md`.
+
+The §21d accuracy/runtime frontier — "2 points of mis-lock costs 3× runtime" — was an artefact of
+the implementation, not a property of the problem, exactly as §22's correction hedged it might be.
+
+| | held-out mis-lock | p50 |
+|---|---|---|
+| previously shipped (narrow refit) | 22.0% | 296 ms |
+| wide dense, unscreened | 20.0% | 601 ms |
+| **shipped now: wide dense + screen** | **18.0%** | **427 ms** |
+
+Every split improved: sponsor 25.0 → 22.5%, bench 23.3 → 16.7%, holdout FinFET 16.7 → 13.3%.
+
+**How.** The recorded next action (hoist box-integration out of the refit's rotation loop) worked
+and was bit-identical, but addressed only 6% of the cost. Profiling found the real driver: `top_k`
+is per *pose*, so the refit receives 60 candidates and sweeps each over 25 poses — 1500 correlations
+per pair. Screening with the cheap narrow grid and giving only the top 10 the dense one is **faster
+and more accurate**, because the wide sweep is then centred on an already-corrected pose. ADR-0025,
+FINDINGS §23.
+
+Two packaging defects surfaced while re-verifying: a stale `*.rebuilt.pptx` had been committed, and
+`package_submission.py` chose the deck by `next(glob("*.pptx"))` — so the zip could have shipped the
+stale deck. Both fixed (FINDINGS §23f).
+
+---
+
 ## Stage 7 — Stretch, all flag-gated
 
 Stop wherever time runs out; each is independently shippable.

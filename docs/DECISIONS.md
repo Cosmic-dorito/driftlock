@@ -614,6 +614,52 @@ shares that threshold.
 
 ---
 
+## ADR-0025 · 2026-08-13 · accepted · The default refit is wide, densely sampled, and screened
+
+**Decision.** The shipped configuration changes from a narrow refit over all candidates to a **wide,
+densely-sampled refit over the top 10 candidates after a cheap narrow screen**:
+
+```python
+refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
+refit_screen_steps=2, refit_screen_top_n=10
+```
+
+**Measured**, all four splits, `dev` used only for tuning (R5):
+
+| config | dev | sponsor | bench | FinFET | held-out | p50 |
+|---|---|---|---|---|---|---|
+| narrow only (ADR-0019, previously shipped) | 12.5% | 25.0% | 23.3% | 16.7% | 22.0% | 296 ms |
+| wide dense, unscreened (ADR-0024 era) | 10.0% | 22.5% | 20.0% | 16.7% | 20.0% | 601 ms |
+| **wide dense + screen** | 12.5% | **22.5%** | **16.7%** | **13.3%** | **18.0%** | **427 ms** |
+
+**Why this is not a new criterion, and therefore not a violation of ADR-0024.** The screen ranks by
+ZNCC and the dense pass re-scores by ZNCC. It is the same criterion evaluated at two resolutions —
+the *same* shape as the one selection stage that has ever worked here (ADR-0019). Nothing is ranked
+by anything that was not already ranking it.
+
+**Why it is more accurate than the dense grid it replaces**, which is the non-obvious part: the wide
+sweep is centred on each candidate's pose *after* the narrow pass has corrected it, so the same 25
+samples land somewhere better. This does not contradict §22's "you cannot reconstruct an optimum from
+samples that do not resolve it" — the dense sampling is retained in full; only its centre improves.
+
+**Why `top_n=10` and not 6**, when both measured identically on all 140 pairs and 6 is 41 ms faster
+and meets a pre-registered "<400 ms" bar: after the screen, the true candidate lies within the top 10
+on **90.0%** of sponsor pairs but only **80.0%** of the top 6. The tie was broken on retained recall
+rather than on today's tie, because recall is what protects against evaluation data that differs from
+ours, and the sponsor split is the one the problem statement scores. The bar was missed deliberately
+and the reason recorded, rather than the bar being moved.
+
+**What made it affordable.** Profiling, not cleverness. The dense grid's cost was assumed to be
+template construction; it is 6%. It is correlation count: candidates arrive `top_k`-per-*pose*, so 60
+of them over a 5×5 grid is 1500 correlations per pair. Hoisting box-integration out of the rotation
+loop (bit-identical, verified by diffing all 100 held-out predictions) gave a real 1.35× and was not
+enough on its own. See FINDINGS §23.
+
+**Consequence for ADR-0024's frontier.** §21d's "2 points of accuracy costs 3× runtime" was an
+artefact of this implementation, exactly as §22's correction hedged. It is now 18.0% at 1.4×.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

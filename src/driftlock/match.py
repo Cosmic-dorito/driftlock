@@ -129,6 +129,19 @@ class PipelineConfig:
     # takes its highest sample (possibly the wrong peak) and the parabola fit spans several peaks.
     # 0 or 1 disables it. See src/driftlock/refit.py.
     refit_basins: int = 0
+    # Screen with the cheap narrow grid, then spend the dense budget only on the survivors.
+    #
+    # Profiling says the dense configuration's cost is NOT template construction (6% of it) but
+    # sheer correlation count: candidates arrive top_k-per-pose, so 60 of them swept over a 5x5
+    # grid is 1500 correlations per pair. Refitting a candidate lying 30th on score cannot change
+    # the answer - the refit compresses scores, it does not reorder by 30 places.
+    # This is still the SAME criterion at a better geometry (ADR-0019/0024), applied in two
+    # resolutions, not a new one: nothing is ranked by anything except ZNCC.
+    # 0 disables the screen and every candidate gets the full grid.
+    refit_screen_steps: int = 0
+    refit_screen_top_n: int = 10
+    refit_screen_scale_span: float = 0.006
+    refit_screen_rotation_span: float = 0.30
 
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation

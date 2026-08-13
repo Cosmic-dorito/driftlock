@@ -94,7 +94,33 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         is why it generalises where three re-rankers did not (ADR-0019): total mis-lock over the
         three splits 28.0% -> 19.0%, improving EVERY split, most on held-out FinFET (33.3% ->
         20.0%).
-      * refit_steps=2 rather than 3: identical total mis-lock (19/100 either way) at lower cost.
+      * The refit span is WIDE and sampled DENSELY (+/-3% of scale, +/-1.5 deg, 5 steps per axis),
+        because span and step count interact: the same wide span sampled with 3 steps instead of 5
+        is worse than not widening at all (26.0% against 22.0% held-out). The optimum lies BETWEEN
+        coarse samples, and three separate attempts to recover it from a coarse grid all failed -
+        best-sample 26.0%, parabola interpolation 27.0%, multi-basin retention 26.0%, against dense
+        sampling's 20.0%. You cannot reconstruct an optimum from samples that do not resolve it.
+
+    Also enabled - screening the refit (13 Aug, win-2), which is what made the dense grid
+    affordable enough to default:
+      * A dense grid over every candidate costs steps^2 correlations EACH, and candidates arrive
+        top_k-per-POSE, so 60 of them over a 5x5 grid is 1500 correlations - measured at 334 of the
+        540 ms. The cost was never template construction (6% of it), which is why hoisting the
+        box-integration out of the rotation loop, though it is a real 1.35x speedup and
+        bit-identical, did not by itself make this shippable.
+      * So the cheap narrow grid ranks the candidates first and only the top 10 get the dense one.
+        This is the same criterion at two resolutions, not a new criterion, so it stays on the safe
+        side of ADR-0024.
+      * It is FASTER AND MORE ACCURATE than the unscreened dense grid: held-out mis-lock 20.0% ->
+        18.0%, p50 601 -> 427 ms, because the wide grid is now centred on a pose the narrow pass
+        has already corrected. Against the previously shipped narrow-only configuration: 22.0% ->
+        18.0% held-out for 296 -> 427 ms.
+      * top_n=10 rather than 6, which measured identically on all 140 pairs and saves 41 ms. The
+        tie-break is recall, not the tie: after the screen the true candidate sits inside the top
+        10 on 90.0% of sponsor pairs but only 80.0% of the top 6. Discarding 10 points of headroom
+        on the split the problem statement actually scores, to buy 41 ms, is the wrong way round -
+        recall is what protects against evaluation data we have not seen.
+      * refit_steps=2 rather than 3 in the SCREEN: identical total mis-lock at lower cost.
       * COST, measured back-to-back on one machine in one sitting: p50 782 ms -> 1197 ms per pair,
         about 1.5x. That is well above our own 300 ms aspiration and it is a deliberate trade - we
         took 9 points of mis-lock for 400 ms. `top_k` is the dial if the balance needs changing
@@ -145,7 +171,12 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         pose_search=True,
         top_k=10,
         candidate_refit=True,
-        refit_steps=2,
+        # Screened wide refit (13 Aug, win-2). See ADR-0025 and FINDINGS section 23.
+        refit_steps=5,
+        refit_scale_span=0.03,
+        refit_rotation_span=1.5,
+        refit_screen_steps=2,
+        refit_screen_top_n=10,
     )
 
 

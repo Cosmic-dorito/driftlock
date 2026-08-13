@@ -1,6 +1,6 @@
 # HANDOFF — cold start on a new machine
 
-## ⏩ RESUME HERE — state as of 12 Aug 2026, commit `02f780d`
+## ⏩ RESUME HERE — state as of 13 Aug 2026
 
 **The submission is COMPLETE, VERIFIED and PACKAGED.** Everything below is optional improvement
 work. If time runs out right now, ship what is in `dist/`.
@@ -14,50 +14,47 @@ work. If time runs out right now, ship what is in `dist/`.
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | p50 |
 |---|---|---|---|---|---|
-| sponsor (40) | 25.0% | 0.297 | 72.5% | 67.5% | 316 ms |
-| bench (30, ours) | 23.3% | 0.343 | 73.3% | 63.3% | 322 ms |
-| holdout FinFET (30) | 16.7% | 0.313 | 80.0% | 63.3% | 328 ms |
+| sponsor (40) | 22.5% | 0.275 | 75.0% | 70.0% | 431 ms |
+| bench (30, ours) | 16.7% | 0.337 | 76.7% | 63.3% | 413 ms |
+| holdout FinFET (30) | 13.3% | 0.201 | 83.3% | 66.7% | 423 ms |
 
-Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **22/100 = 22.0%**.
+Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **18/100 = 18.0%** (was 22.0%).
 
 ### Shipped configuration (`localize.py::build_config`)
 
 ```python
 PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
-               pose_search=True, top_k=10, candidate_refit=True, refit_steps=2)
+               pose_search=True, top_k=10, candidate_refit=True,
+               refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
+               refit_screen_steps=2, refit_screen_top_n=10)
 ```
 
-### 🎯 THE NEXT ACTION — make the known-better configuration affordable
+Changed 13 Aug — the wide dense refit is now screened, which made it both **cheaper and more
+accurate** than the unscreened version. See ADR-0025 and FINDINGS §23. The §21d accuracy/runtime
+frontier no longer exists in the form it was written.
 
-This is where work stopped, mid-thought. It is the highest-value remaining item.
+### 🎯 THE NEXT ACTION — nothing is queued; pick from below
 
-**The known accuracy/runtime frontier:**
+The previously-recorded next action (hoist box-integration out of the refit's rotation loop) is
+**done**: bit-identical, 850 → 616 ms, and it turned out to address only 6% of the cost. Profiling
+then found the real one — 60 candidates × 25 poses = 1500 correlations/pair — and screening it
+gave 18.0% held-out at 427 ms. Full story in FINDINGS §23.
 
-| config | held-out mis-lock | p50 |
-|---|---|---|
-| shipped (narrow refit) | 22.0% | ~308 ms |
-| dense wide refit | **20.0%** | ~850 ms |
+**The submission is in a better state than it has ever been and is complete.** Remaining ideas, in
+rough order of expected value:
 
-where "dense wide" is `refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5`.
+1. **Recall is now the cap, and it is measurable.** After the screen the true candidate is *absent
+   entirely* from 2.5 / 10.0 / 3.3% of pairs (sponsor / bench / FinFET) — that is the floor no
+   selection stage can beat. bench's 10% is the outlier worth understanding; it is where the
+   remaining mis-locks live (16.7% mis-lock against 10% irrecoverable).
+2. **`top_k` per pose is now known to be the cost driver.** Nobody has swept it since the screen
+   existed. A larger `top_k` costs only the screen (4 correlations each), not the dense grid, so
+   raising recall may now be nearly free — the exact opposite of the trade before 13 Aug.
+3. Determinism test (PROGRESS 3.8), still outstanding.
+4. RGB optical extension — the explicit scored bonus, never started.
 
-**The idea not yet tried:** the dense config costs ~26 ms per extra template, and
-`build_template()` does two things — *box-integrate* the 1000×1000 reference (depends on **scale
-only**) and *warp* it (depends on scale **and** rotation). The refit currently calls
-`build_template(reference, scale, rotation)` **without** passing `integrated=`, so it re-integrates
-for every rotation.
-
-`build_template` **already accepts an `integrated=` argument** — the pose bracket in
-`match.py::localize` uses it (`integrated = integrate_reference(ref_proc, poses[0][0] * level)`).
-The refit does not.
-
-So: in `src/driftlock/refit.py::_refit_once`, group the pose grid **by scale**, call
-`integrate_reference` once per scale, and pass it into `build_template` for every rotation at that
-scale. For a 5×5 grid that is 5 integrations instead of 25.
-
-**If this brings the dense config under ~400 ms, ship it** — that is 20.0% held-out at acceptable
-runtime, strictly better than the current 22.0%. Validate on **all four** splits (dev, sponsor,
-bench, finfet) before believing it; a stage checked on a convenient subset has already reversed a
-conclusion twice in this project (ADR-0012, ADR-0021).
+Whatever is next: validate on **all four** splits (dev, sponsor, bench, finfet). A stage checked on
+a convenient subset has reversed a conclusion twice here (ADR-0012, ADR-0021).
 
 ### What NOT to try again (all measured, all recorded)
 
@@ -76,6 +73,11 @@ FINDINGS §22:
 **Also refuted:** pose-regime routing (best-pose-only is 30.0% vs 20.0% merged), pose-excursion
 penalty (no gain at any setting), centre rule as a default (the benchmark samples targets uniformly,
 so the deployment prior it needs is absent — ADR-0021).
+
+**Also measured and settled (13 Aug):** widening the refit span beyond ±3%/±1.5° does not help
+(±5%/±2° is 19.0% against 18.0%); sampling it denser than 5 steps does not help (7 steps is 19.0%
+and 603 ms); narrowing to ±2%/±1° does not help (19.0%). The screen's `top_n` is flat over
+{6, 10, 15, 20} on accuracy — chosen at 10 on retained recall, not on the tie. See FINDINGS §23d.
 
 ### Housekeeping notes
 

@@ -1297,6 +1297,133 @@ strategy*. A fundamentally cheaper optimizer — a learned geometry initializer 
 right basin without sampling for it, for instance — is not excluded by anything measured here. It is
 simply not something we have built or tested, and the frontier stands until someone does.
 
+*(Superseded by §23. The frontier was real for the strategy measured here; screening the refit
+removed it, and the wide configuration now costs 1.4× rather than 3× — while being more accurate
+than the unscreened version of itself.)*
+
+---
+
+## 23. The frontier dissolves: screening the refit ✅✅ (13 Aug, win-2)
+
+§21d framed a two-point accuracy gain as costing 3× runtime, and shipped the cheaper point. That
+frontier turned out to be an artefact of **where the dense configuration's time was actually going**,
+which nobody had measured. Profiling it was the whole of the work.
+
+### 23a. First, the hypothesis that was wrong ⚪
+
+The recorded next action was: `build_template` does two things — box-integrate the 1000×1000
+reference (depends on **scale** only) and affine-warp it (scale **and** rotation) — and the refit
+re-integrated for every rotation. Hoisting the integration to once per scale turns a 5×5 grid's 25
+integrations into 5.
+
+Implemented, and it works exactly as predicted: **850 → 616 ms, bit-identical** on all 100 held-out
+pairs (verified by diffing predictions against the committed CSVs, not by eyeballing the summary
+metrics). But 616 ms is not 400 ms, and the reason is that the hypothesis was aimed at the wrong
+term. After the hoist:
+
+| | dense config, per pair |
+|---|---|
+| `matchTemplate` (correlation) | **1.08 s / 2.0 s of total profile** |
+| `sepFilter2D` (integration) | 0.13 s |
+| `warpAffine` | 0.04 s |
+
+Template construction was **6%** of the refit. It was never the cost.
+
+### 23b. The measurement that redirected everything ✅
+
+Instrumenting `_refit_once` to print what it is actually given:
+
+```
+candidates=60  groups=6  steps=5  ->  templates=150  corrs=1500
+```
+
+**Sixty candidates, not ten.** `top_k=10` is *per pose*, and the pose bracket contributes six poses,
+so the refit receives 60 candidates and sweeps each over 25 poses: **1500 correlations per pair**,
+which is 334 of the dense configuration's 540 ms almost exactly. The cost is candidate count × grid
+size, and only the grid size had ever been considered.
+
+Nothing about this was visible in the config; it took an instrumented run to see it.
+
+### 23c. Screen cheaply, then spend the dense budget on the survivors ✅✅
+
+A candidate lying 30th on score cannot become the answer — the refit *compresses* scores, it does
+not reorder by thirty places. So rank with the cheap narrow grid first, and give only the top 10 the
+expensive one. **This is the same criterion at two resolutions, not a new criterion**, so it stays on
+the safe side of ADR-0024.
+
+| config | dev | sponsor | bench | FinFET | held-out | p50 |
+|---|---|---|---|---|---|---|
+| narrow only (previously shipped) | 12.5% | 25.0% | 23.3% | 16.7% | 22.0% | 296 ms |
+| wide dense, unscreened | 10.0% | 22.5% | 20.0% | 16.7% | 20.0% | 601 ms |
+| **wide dense + screen, top 10** | 12.5% | **22.5%** | **16.7%** | **13.3%** | **18.0%** | **427 ms** |
+
+Runtimes interleaved round-robin across configs *and* splits, warm-up discarded — the method §19
+established, extended so that the configs are comparable to each other and not only the splits.
+
+**The screen is not merely a cost saving: it is faster *and* more accurate than the dense grid it
+replaces.** The mechanism is that the wide sweep is now centred on a pose the narrow pass has already
+corrected, so the same 25 samples land in a better place. Dense sampling is what §22 said was
+irreplaceable; this does not contradict that — it keeps the dense sampling and improves where it is
+centred.
+
+Held-out improving 20.0% → 18.0% while the tuning split *worsens* 10.0% → 12.5% is the opposite of
+the overfitting signature, and is why this was believed.
+
+### 23d. Choosing the threshold on recall, not on the tie ⚪→✅
+
+Accuracy was **identical** for `top_n` ∈ {6, 10, 15, 20} across all 140 pairs; only runtime differed
+(392 / 427 / 478 / 510 ms). A tie on the evidence available is exactly where it is easiest to pick
+the wrong thing for the wrong reason — the pre-registered criterion was "under 400 ms", which
+`top_n=6` meets and `top_n=10` misses.
+
+So the tie was broken by measuring what the screen *discards*, which is the quantity that matters on
+data we have not seen. Rank of the true candidate after the screen:
+
+| split | rank 1 | within top 6 | within top 10 | within top 20 | present at all |
+|---|---|---|---|---|---|
+| sponsor | 75.0% | 80.0% | **90.0%** | 95.0% | 97.5% |
+| bench | 80.0% | 86.7% | 86.7% | 86.7% | 90.0% |
+| holdout FinFET | 83.3% | 90.0% | 90.0% | 90.0% | 96.7% |
+
+On **sponsor** — the split the problem statement actually scores — `top_n=6` throws away **10 points
+of recall** that `top_n=10` keeps. Both convert it to the same answer *today*; recall is the headroom
+that protects against evaluation data that differs from ours, and 41 ms is a poor price for it.
+`top_n=10` ships, over the pre-registered runtime bar, with the reason recorded rather than the bar
+quietly moved.
+
+Note also that the screen at top-10 is **strictly more permissive than the previously shipped
+configuration's own selection**, which took rank 1 after that identical narrow pass. It cannot
+discard anything the old default was keeping.
+
+### 23e. What this changes about §21d
+
+| | held-out mis-lock | p50 |
+|---|---|---|
+| §21d's stated frontier: cheap point | 22.0% | 297 ms |
+| §21d's stated frontier: accurate point | 20.0% | 886 ms |
+| **now** | **18.0%** | **427 ms** |
+
+The accurate point is now better than §21d's accurate point *and* cheaper than its own earlier self.
+§22's correction — "we proved this implementation needs 3× runtime, not that the problem does" —
+was the right hedge, and it earned its keep within a day: **the 3× was an implementation artefact,
+and profiling removed it.** The general lesson is §19's, learned twice now: *profile before
+optimising, and before assuming which stage is expensive.* Both times the intuition was wrong, and
+both times it was wrong about the same thing — assuming the expensive-looking operation (a filter
+over a 1000×1000 image) dominated a large number of cheap-looking ones (a correlation on a 114×114
+window).
+
+### 23f. Two packaging defects found while re-verifying ❌ → ✅
+
+`verify_submission.py --strict` failed on three untraceable deck numbers. The cause was
+`solution_presentation.rebuilt.pptx` — a fallback `make_deck.py` writes when the real deck is locked
+by an open PowerPoint/LibreOffice window — which had been committed on 12 Aug and was two
+generations stale. Deleted and added to `.gitignore`.
+
+It also exposed a live bug: `package_submission.py` selected the deck with
+`next(REPO_ROOT.glob("*.pptx"))`, and glob order is not guaranteed. **The submission zip could have
+shipped the stale fallback deck**, silently, with a plausible filename and a complete-looking
+archive. Now selected by exact name.
+
 ---
 
 ## 13. What this means for the plan

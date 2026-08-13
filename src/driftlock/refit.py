@@ -79,6 +79,24 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
     #
     # Two passes reach the same places for far fewer templates: sweep the wide span coarsely, then
     # re-centre on the winner and sweep a shrunken span. Same coverage, ~1/3 the correlations.
+
+    # Screen before spending the dense budget. Measured: the dense grid's cost is correlation
+    # count, not template construction - candidates arrive top_k-per-POSE, so a 5x5 grid over 60
+    # candidates is 1500 correlations per pair (334 of the 540 ms). A cheap narrow refit ranks
+    # them first, and only the survivors get the expensive grid. Same criterion throughout.
+    screen_steps = getattr(config, "refit_screen_steps", 0)
+    screen_n = getattr(config, "refit_screen_top_n", 10)
+    deferred: list = []
+    if screen_steps > 0 and len(candidates) > screen_n:
+        candidates = _refit_once(search, reference, candidates, build_template,
+                                 correlation_surface,
+                                 getattr(config, "refit_screen_scale_span", 0.006),
+                                 getattr(config, "refit_screen_rotation_span", 0.30),
+                                 screen_steps, margin, pose_penalty)
+        # The losers are kept, not dropped: they still carry their screened score, and downstream
+        # stages (the ambiguity index, the confidence radius) read the whole candidate set.
+        candidates, deferred = candidates[:screen_n], candidates[screen_n:]
+
     for pass_index in range(passes):
         scale_span = span * (shrink ** pass_index)
         rotation_span = rot_span * (shrink ** pass_index)
@@ -109,6 +127,8 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
         candidates = _refit_multibasin(search, reference, candidates, build_template,
                                        correlation_surface, span, rot_span, steps, margin,
                                        basins, shrink)
+    if deferred:
+        candidates = sorted(candidates + deferred, key=lambda c: -c.score)
     return candidates
 
 
@@ -239,6 +259,9 @@ def _refit_once(search: np.ndarray, reference: np.ndarray, candidates: list,
                 build_template, correlation_surface, span: float, rot_span: float,
                 steps: int, margin: int, pose_penalty: float) -> list:
     """One sweep of the refit, centred on each candidate's current pose."""
+    # Imported here, not at module level, for the same reason build_template is injected rather
+    # than imported: match imports this module, so a top-level import would close the cycle.
+    from src.driftlock.match import integrate_reference
 
     # The template depends only on (scale, rotation) - NOT on which candidate we are scoring. The
     # obvious loop nesting (candidate outer, pose inner) therefore rebuilds the same few templates
@@ -274,8 +297,16 @@ def _refit_once(search: np.ndarray, reference: np.ndarray, candidates: list,
             axes[i] = (np.asarray(scales), np.asarray(rotations))
 
         for si, scale in enumerate(scales):
+            # build_template does two things: box-integrate the full 1000x1000 reference over one
+            # detector footprint (a separable filter, and by far the dominant cost) and affine-warp
+            # it to ~100x100. Only the FIRST depends on rotation - it does not. Integrating once per
+            # scale instead of once per (scale, rotation) turns a 5x5 grid's 25 integrations into 5.
+            # The value passed is exactly what build_template would have computed itself, so this is
+            # a pure hoist: results are bit-identical.
+            integrated = integrate_reference(reference, float(scale))
             for ri, rotation in enumerate(rotations):
-                template = build_template(reference, float(scale), float(rotation))
+                template = build_template(reference, float(scale), float(rotation),
+                                          integrated=integrated)
                 th, tw = template.shape
                 if th + 2 * margin >= search.shape[0] or tw + 2 * margin >= search.shape[1]:
                     continue

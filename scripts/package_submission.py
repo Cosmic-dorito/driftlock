@@ -98,8 +98,13 @@ def stage(include_data: bool) -> list[str]:
         else:
             warnings.append("MISSING data/bench/ - the >=30-pair validation evidence the spec requires")
 
-    deck = next(REPO_ROOT.glob("*.pptx"), None)
-    if deck:
+    # By exact name, not by glob. make_deck.py writes solution_presentation.rebuilt.pptx as a
+    # fallback when the real deck is locked by an open PowerPoint/LibreOffice window, and that
+    # fallback is stale the moment the real one is rebuilt. `next(glob("*.pptx"))` returns whatever
+    # the filesystem lists first, so it could have shipped the stale deck - silently, since both
+    # files are named plausibly and the zip would look complete.
+    deck = REPO_ROOT / "solution_presentation.pptx"
+    if deck.is_file():
         shutil.copy2(deck, STAGE / "solution_presentation.pptx")
     else:
         warnings.append("MISSING solution_presentation.pptx - deliverable 1 is MANDATORY")
