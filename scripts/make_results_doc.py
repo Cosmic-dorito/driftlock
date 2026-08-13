@@ -71,6 +71,21 @@ def load_runtime() -> dict[tuple[str, str], str]:
     return out
 
 
+def load_screen_recall() -> dict[str, dict[str, str]]:
+    """Screen recall, reported because the screen is a HARD GATE.
+
+    The dense refit cannot recover a candidate the screen dropped, so screen recall upper-bounds
+    achievable accuracy. A results table that reports only the mis-lock rate hides that bound, and
+    an evaluator running on a different distribution would meet it without warning.
+    """
+    path = RESULTS / "screen_recall.csv"
+    if not path.exists():
+        return {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        return {r["split"]: r for r in csv.DictReader(fh)
+                if r.get("split") and not r["split"].startswith("#")}
+
+
 def build() -> str:
     runtimes = load_runtime()
     rows = []
@@ -148,6 +163,7 @@ def build_readme_block() -> str:
     calls it. Three stale facts in one paragraph is what hand-maintained numbers do.
     """
     runtimes = load_runtime()
+    screen = load_screen_recall()
     env = load("bench") or {}
     rows = []
     for key, name, note in SPLITS:
@@ -155,28 +171,39 @@ def build_readme_block() -> str:
         if run is None:
             continue
         if base is not None:
+            # The baseline has no screen, so its recall cell is "n/a" rather than blank - an empty
+            # cell reads as "not measured", which would be a different and untrue claim.
             rows.append(
                 f"| **{name}** ({run['n_pairs']} pairs) | baseline | {pct(base, 'mislock_rate')} | "
                 f"{num(base, 'error_median_px')} | {pct(base, 'pass@1px')} | "
-                f"{pct(base, 'pass@subpixel(0.5px)')} | "
+                f"{pct(base, 'pass@subpixel(0.5px)')} | n/a | "
                 f"{runtimes.get((key, 'baseline'), '—')} |")
+        recall = screen.get(key, {})
+        rec = f"{float(recall['screen_recall_top10']) * 100:.1f}%" if recall else "—"
         rows.append(
             f"| *{note}* | **DriftLock** | **{pct(run, 'mislock_rate')}** | "
             f"**{num(run, 'error_median_px')}** | **{pct(run, 'pass@1px')}** | "
-            f"**{pct(run, 'pass@subpixel(0.5px)')}** | "
+            f"**{pct(run, 'pass@subpixel(0.5px)')}** | {rec} | "
             f"{runtimes.get((key, 'driftlock'), '—')} |")
 
     return "\n".join([
         README_BEGIN,
         "",
-        "| Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Runtime p50 |",
-        "|---|---|---|---|---|---|---|",
+        "| Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | "
+        "Runtime p50 |",
+        "|---|---|---|---|---|---|---|---|",
         *rows,
         "",
         "**Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either "
         "located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of "
         "pixels away — so an averaged error describes neither case. Precision is therefore a "
         "*conditional* claim: once the correct repeat is selected, localization is sub-pixel.",
+        "",
+        "**Screen recall is reported because the screen is a hard gate.** The pipeline ranks "
+        "candidates with a cheap narrow pose refit and gives only the top 10 the expensive wide "
+        "one; the wide stage cannot recover a candidate the screen dropped, so this column "
+        "upper-bounds what any downstream stage could achieve. Reporting the mis-lock rate without "
+        "it would hide the bound rather than state it.",
         "",
         "Two different things are being measured and should not be averaged together. On the "
         "**sponsor's** data the magnification is a clean 10:1 with no rotation, so it tests "

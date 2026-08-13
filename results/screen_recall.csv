@@ -1,0 +1,8 @@
+split,candidate_pool_median,screen_recall_top10,screen_recall_top6,screen_rank1,candidate_present,n_pairs
+sponsor,60,0.9000,0.8000,0.7500,0.9750,40
+bench,60,0.8667,0.8667,0.8000,0.9000,30
+finfet,60,0.9000,0.9000,0.8333,0.9667,30
+
+# The screen is a HARD GATE: the dense refit cannot recover a candidate it drops,
+# so screen recall bounds achievable accuracy and is reported rather than assumed.
+# candidate_present = true location survives to the screen at all; that is the floor.

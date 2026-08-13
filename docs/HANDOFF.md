@@ -40,18 +40,31 @@ The previously-recorded next action (hoist box-integration out of the refit's ro
 then found the real one — 60 candidates × 25 poses = 1500 correlations/pair — and screening it
 gave 18.0% held-out at 427 ms. Full story in FINDINGS §23.
 
-**The submission is in a better state than it has ever been and is complete.** Remaining ideas, in
-rough order of expected value:
+**The submission is in a better state than it has ever been and is complete.**
 
-1. **Recall is now the cap, and it is measurable.** After the screen the true candidate is *absent
-   entirely* from 2.5 / 10.0 / 3.3% of pairs (sponsor / bench / FinFET) — that is the floor no
-   selection stage can beat. bench's 10% is the outlier worth understanding; it is where the
-   remaining mis-locks live (16.7% mis-lock against 10% irrecoverable).
-2. **`top_k` per pose is now known to be the cost driver.** Nobody has swept it since the screen
-   existed. A larger `top_k` costs only the screen (4 correlations each), not the dense grid, so
-   raising recall may now be nearly free — the exact opposite of the trade before 13 Aug.
+**14 Aug: the two most promising remaining knobs were swept and both are flat.** `top_k` ∈
+{10, 15, 20, 30} all give 18.0% held-out (5 gives 19.0%); `top_n` ∈ {6, 10, 15, 20} all give 18.0%.
+This configuration sits at a local optimum in its own parameters — further accuracy will not come
+from tuning them (FINDINGS §23g). Also settled: the screen's mechanism is *not* better
+initialisation (that explanation was published, then measured and refuted — §23f).
+
+Remaining ideas, in rough order of expected value:
+
+1. **Recall is the cap, and it is now a reported metric.** The true candidate is absent from the
+   pool entirely on 2.5 / 10.0 / 3.3% of pairs (sponsor / bench / FinFET) and is lost at the screen
+   on 10.0 / 13.3 / 10.0%. bench is the outlier worth understanding: 16.7% mis-lock against 10%
+   irrecoverable means most of its failures are *already lost before selection runs*, which is a
+   different problem from the one six re-rankers failed at.
+2. **Runtime, not accuracy.** ~427 ms with no accuracy risk available: the refit window is already
+   a local ROI (template + 2×7 px), but the ~1000 remaining per-pair `matchTemplate` calls are
+   small and overhead-dominated, so batching them is the open lever. Do not reach for FFT without
+   benchmarking — the windows are 114×114 and setup cost may exceed the arithmetic.
 3. Determinism test (PROGRESS 3.8), still outstanding.
 4. RGB optical extension — the explicit scored bonus, never started.
+
+**Do not retry:** multi-basin pose refinement (§22, 26.0%), pose interpolation (§21c, 27.0%),
+pose-regime routing (§21a), pose-excursion penalty (§20a), or any seventh scoring criterion
+(ADR-0024). All have been proposed again by external review since being measured and refuted.
 
 Whatever is next: validate on **all four** splits (dev, sponsor, bench, finfet). A stage checked on
 a convenient subset has reversed a conclusion twice here (ADR-0012, ADR-0021).

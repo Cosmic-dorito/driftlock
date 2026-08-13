@@ -163,16 +163,18 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 
 <!-- BEGIN GENERATED README RESULTS -->
 
-| Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Runtime p50 |
-|---|---|---|---|---|---|---|
-| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | 22 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **22.5%** | **0.275** | **75.0%** | **70.0%** | 431 ms |
-| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | 22 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.337** | **76.7%** | **63.3%** | 413 ms |
-| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | 22 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **13.3%** | **0.201** | **83.3%** | **66.7%** | 423 ms |
+| Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | Runtime p50 |
+|---|---|---|---|---|---|---|---|
+| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 20 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **22.5%** | **0.275** | **75.0%** | **70.0%** | 90.0% | 407 ms |
+| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 20 ms |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.337** | **76.7%** | **63.3%** | 86.7% | 388 ms |
+| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 20 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **13.3%** | **0.201** | **83.3%** | **66.7%** | 90.0% | 388 ms |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
+
+**Screen recall is reported because the screen is a hard gate.** The pipeline ranks candidates with a cheap narrow pose refit and gives only the top 10 the expensive wide one; the wide stage cannot recover a candidate the screen dropped, so this column upper-bounds what any downstream stage could achieve. Reporting the mis-lock rate without it would hide the bound rather than state it.
 
 Two different things are being measured and should not be averaged together. On the **sponsor's** data the magnification is a clean 10:1 with no rotation, so it tests precision. On **ours** — the 9:1–11:1 and ±2° envelope the problem statement says will be tested — the baseline does not work at all (77–90% mis-lock). That axis is invisible to anyone validating only on the published generator, because it produces neither.
 
@@ -189,11 +191,13 @@ Failure case with root cause: [`results/failure_case/`](results/failure_case/).
 
 Stated plainly rather than left for a judge to find.
 
-1. **Selection is not solved.** Every pass rate is capped by the mis-lock rate (22.5% / 16.7% /
-   13.3%). Candidate recall is 90–97% depending on split, so the true location is usually
-   *available* and simply out-scored — a perfect re-ranker would reach ~5%. **Six** re-ranking
-   criteria were built, measured and rejected; all six are in the ablation with their numbers, and
-   the single principle they establish is in [ADR-0024](docs/DECISIONS.md).
+1. **Selection is not solved, and the screen is a hard gate.** Every pass rate is capped by the
+   mis-lock rate (22.5% / 16.7% / 13.3%). The true location survives to the candidate stage on
+   97.5% / 90.0% / 96.7% of pairs and survives the screen on 90.0% / 86.7% / 90.0% — so it is
+   usually *available* and simply out-scored, but on a minority of pairs it is already gone before
+   any selection rule runs. Both numbers are reported in the results table rather than assumed.
+   **Six** re-ranking criteria were built, measured and rejected; all six are in the ablation with
+   their numbers, and the single principle they establish is in [ADR-0024](docs/DECISIONS.md).
 2. **Runtime is ~430 ms/pair, above our own 300 ms target.** This is a deliberate, measured trade:
    the narrow-refit configuration runs at ~296 ms for +4 points of held-out mis-lock, and is
    reachable by config (`refit_steps=2, refit_scale_span=0.006, refit_rotation_span=0.30,
@@ -227,6 +231,18 @@ make package     # dist/drift-lock-submission.zip in the sponsor's recommended l
 
 New to the project, or on a new machine? Read [`docs/HANDOFF.md`](docs/HANDOFF.md) — zero to running
 in under ten minutes.
+
+### Reproducibility, checked rather than asserted
+
+`make package` writes `dist/drift-lock-submission.zip`. Before each submission that zip is extracted
+into an empty directory and run end to end, and **all 15 accuracy metrics must come out identical** —
+not close, identical. `scripts/verify_submission.py --strict` additionally enforces that every
+number in the deck traces to a file in `results/`, that the generated results blocks are not stale,
+and that no absolute path appears in any source file.
+
+This is not ceremony. It has caught real defects, including a deck slide built from two invented
+coordinates and a stale fallback deck that the packaging script could have shipped in place of the
+real one. Both are recorded in [`docs/FINDINGS.md`](docs/FINDINGS.md).
 
 ## Attribution
 

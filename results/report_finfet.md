@@ -29,9 +29,9 @@ Pairs evaluated: **30**
 
 | Metric | Value |
 |---|---|
-| Median (p50) | 445.4 ms |
-| p95 | 505.9 ms |
-| Mean | 461.5 ms |
+| Median (p50) | 400.0 ms |
+| p95 | 481.1 ms |
+| Mean | 418.2 ms |
 
 ## Environment
 

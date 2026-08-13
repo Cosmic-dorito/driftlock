@@ -1361,10 +1361,10 @@ Runtimes interleaved round-robin across configs *and* splits, warm-up discarded 
 established, extended so that the configs are comparable to each other and not only the splits.
 
 **The screen is not merely a cost saving: it is faster *and* more accurate than the dense grid it
-replaces.** The mechanism is that the wide sweep is now centred on a pose the narrow pass has already
-corrected, so the same 25 samples land in a better place. Dense sampling is what §22 said was
-irreplaceable; this does not contradict that — it keeps the dense sampling and improves where it is
-centred.
+replaces.** *(The mechanism originally stated here — that the wide sweep is now centred on a pose the
+narrow pass has already corrected — was measured on 14 Aug and refuted. See §23f for the corrected
+account. Dense sampling is still what §22 said was irreplaceable; what changes is how widely it is
+handed out.)*
 
 Held-out improving 20.0% → 18.0% while the tuning split *worsens* 10.0% → 12.5% is the opposite of
 the overfitting signature, and is why this was believed.
@@ -1412,7 +1412,77 @@ both times it was wrong about the same thing — assuming the expensive-looking 
 over a 1000×1000 image) dominated a large number of cheap-looking ones (a correlation on a 114×114
 window).
 
-### 23f. Two packaging defects found while re-verifying ❌ → ✅
+### 23f. Why the screen works — the explanation we published first was wrong ❌ → ✅
+
+§23c attributed the gain to *better initialisation*: the wide sweep is centred on a pose the narrow
+pass has already corrected. An external reviewer arrived at the same explanation independently and
+called it the strongest formulation of the method. It is wrong, and one experiment shows it.
+
+The screen does two separable things — it **prunes** the field, and it **re-scores** the field
+before pruning. Run each without the other:
+
+| variant | prunes | re-scores first | dev | sponsor | bench | FinFET | held-out | p50 |
+|---|---|---|---|---|---|---|---|---|
+| A — no screen | – | – | 10.0% | 22.5% | 20.0% | 16.7% | **20.0%** | 598 ms |
+| B — **shipped** | ✓ | ✓ | 12.5% | 22.5% | 16.7% | 13.3% | **18.0%** | 397 ms |
+| C — screen runs, nothing pruned | – | ✓ | 12.5% | 22.5% | 20.0% | 16.7% | **20.0%** | 730 ms |
+| D — truncate on unrefit scores | ✓ | – | 17.5% | 27.5% | 20.0% | 23.3% | **24.0%** | 304 ms |
+
+*(C is `refit_screen_top_n=9999`; D is `refit_screen_steps=1`, a single evaluation at the existing
+pose, which truncates without moving anything. Making these expressible required separating "run the
+screen" from "truncate" in `refit_candidates` — they had been one condition.)*
+
+**C is identical to A on every split.** Re-centring the poses buys nothing, because the wide grid's
+±3% span dwarfs the ±0.6% the narrow pass moves anything by; it simply re-finds the same optimum.
+And **D is the worst configuration measured**, worse than doing nothing.
+
+So the mechanism is neither half:
+
+> **A wide pose search helps the true candidate and helps impostors more.** Handing ±3% and ±1.5° to
+> 60 candidates gives 59 impostors 25 chances each to find a flattering pose. The screen is a
+> **bound on how much geometric freedom the candidate field collectively receives** — and the narrow
+> refit is what makes a top-10 cut trustworthy enough to take *before* granting that freedom.
+
+That asymmetry is not new: it is exactly why ranking by refit *gain* failed at 80–92% (§15d).
+Impostors start with more mismatch and therefore have more to absorb. What is new is that the same
+asymmetry sets a limit on how *widely* geometric freedom may be distributed — which is why the
+harm appears between top_n=20 (18.0%) and no pruning at all (20.0%), and why the accuracy plateau
+over top_n ∈ {6, 10, 15, 20} is a plateau rather than a monotone trend.
+
+**Why this correction is worth more than the explanation it replaces.** "Coarse geometric
+preconditioning" is a nicer story and would have gone in the deck unchallenged. It predicts C ≈ B.
+C = A. Publishing the measured mechanism instead costs a good slide and buys a claim that survives
+a judge asking "how do you know?".
+
+### 23g. Two parameters swept to a plateau, both negative ⚪
+
+Recorded because both were named as the highest-value remaining knobs — one by us in the handoff,
+one by an external review — and both turned out flat. `top_k` is the per-pose candidate count, so it
+sets the pool the screen sees (6 poses × top_k).
+
+| `top_k` | pool | dev | sponsor | bench | FinFET | held-out | p50 |
+|---|---|---|---|---|---|---|---|
+| 5 | 30 | 17.5% | 25.0% | 16.7% | 13.3% | 19.0% | 357 ms |
+| **10** | **60** | 12.5% | 22.5% | 16.7% | 13.3% | **18.0%** | **397 ms** |
+| 15 | 90 | 12.5% | 22.5% | 16.7% | 13.3% | 18.0% | 401 ms |
+| 20 | 120 | 12.5% | 22.5% | 16.7% | 13.3% | 18.0% | 427 ms |
+| 30 | 180 | 12.5% | 22.5% | 20.0% | 10.0% | 18.0% | 478 ms |
+
+The reasoning for expecting a win was sound — before the screen, raising `top_k` multiplied the
+*dense* grid; after it, extra candidates only pay for the cheap screen, so recall should have been
+nearly free. It is free. There is simply none left to buy: `top_k=10` is already at the plateau, and
+below it (5) accuracy falls. Checking whether the flat accuracy hid a recall gain, `top_k=20`
+doubles the pool and moves screen recall@10 by +3.3 points on bench, 0 on sponsor and **−3.3 on
+FinFET** — the extra candidates crowd the top 10 as often as they populate it.
+
+`top_n` (the screen's cut) is likewise flat over {6, 10, 15, 20} at 18.0%, and was set to 10 on
+retained recall rather than on the tie (§23d).
+
+**Both are reported as measured negatives (R9).** Two independently-motivated "highest-value knobs"
+landing on a plateau is itself the finding: this configuration is at a local optimum in its
+parameters, and further accuracy will not come from tuning them.
+
+### 23h. Two packaging defects found while re-verifying ❌ → ✅
 
 `verify_submission.py --strict` failed on three untraceable deck numbers. The cause was
 `solution_presentation.rebuilt.pptx` — a fallback `make_deck.py` writes when the real deck is locked

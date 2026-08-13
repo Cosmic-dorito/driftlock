@@ -277,7 +277,10 @@ the implementation, not a property of the problem, exactly as §22's correction 
 | wide dense, unscreened | 20.0% | 601 ms |
 | **shipped now: wide dense + screen** | **18.0%** | **427 ms** |
 
-Every split improved: sponsor 25.0 → 22.5%, bench 23.3 → 16.7%, holdout FinFET 16.7 → 13.3%.
+**No split regressed, and all three reported splits improved:** sponsor 25.0 → 22.5%, bench
+23.3 → 16.7%, holdout FinFET 16.7 → 13.3%. The `dev` tuning split was unchanged at 12.5% — an
+earlier draft of this line said "every split improved", which was not true and is exactly the kind
+of claim R6 exists to catch.
 
 **How.** The recorded next action (hoist box-integration out of the refit's rotation loop) worked
 and was bit-identical, but addressed only 6% of the cost. Profiling found the real driver: `top_k`
@@ -288,7 +291,7 @@ FINDINGS §23.
 
 Two packaging defects surfaced while re-verifying: a stale `*.rebuilt.pptx` had been committed, and
 `package_submission.py` chose the deck by `next(glob("*.pptx"))` — so the zip could have shipped the
-stale deck. Both fixed (FINDINGS §23f).
+stale deck. Both fixed (FINDINGS §23h).
 
 ---
 

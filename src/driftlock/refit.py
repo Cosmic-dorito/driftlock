@@ -87,15 +87,32 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
     screen_steps = getattr(config, "refit_screen_steps", 0)
     screen_n = getattr(config, "refit_screen_top_n", 10)
     deferred: list = []
-    if screen_steps > 0 and len(candidates) > screen_n:
+    if screen_steps > 0 and len(candidates) > 1:
         candidates = _refit_once(search, reference, candidates, build_template,
                                  correlation_surface,
                                  getattr(config, "refit_screen_scale_span", 0.006),
                                  getattr(config, "refit_screen_rotation_span", 0.30),
                                  screen_steps, margin, pose_penalty)
-        # The losers are kept, not dropped: they still carry their screened score, and downstream
-        # stages (the ambiguity index, the confidence radius) read the whole candidate set.
-        candidates, deferred = candidates[:screen_n], candidates[screen_n:]
+        # Truncation is deliberately SEPARATE from running the screen, so the two things the screen
+        # does - pruning the field, and re-scoring it before pruning - can be measured apart.
+        # Setting screen_top_n above the candidate count runs the screen with no pruning at all,
+        # which is the control that separates them. Measured (FINDINGS 23f), held-out mis-lock:
+        #
+        #   no screen                      20.0%     re-scoring alone buys NOTHING (C == A), and
+        #   screen + prune (shipped)       18.0%     pruning alone is WORSE THAN NOTHING (D).
+        #   screen, nothing pruned  (C)    20.0%
+        #   prune on unrefit scores (D)    24.0%
+        #
+        # So this is not "better initialisation for the wide grid", which was our first published
+        # explanation and is refuted by C. A wide pose search helps the true candidate and helps
+        # impostors MORE - the same asymmetry that sank refit-gain ranking at 80-92% (FINDINGS 15d).
+        # Handing +/-3% and +/-1.5 deg to 60 candidates gives 59 impostors 25 chances each to find a
+        # flattering pose. The screen BOUNDS how much geometric freedom the field collectively gets,
+        # and the narrow refit is what makes a top-10 cut trustworthy enough to take beforehand.
+        if len(candidates) > screen_n:
+            # The losers are kept, not dropped: they still carry their screened score, and
+            # downstream stages (ambiguity index, confidence radius) read the whole candidate set.
+            candidates, deferred = candidates[:screen_n], candidates[screen_n:]
 
     for pass_index in range(passes):
         scale_span = span * (shrink ** pass_index)

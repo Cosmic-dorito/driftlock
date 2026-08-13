@@ -405,7 +405,13 @@ flag, not the default.
 
 ---
 
-## ADR-0019 · 2026-08-12 · MacBook Air M2 · accepted · Manifest paths are normalised across platforms
+## ADR-0026 · 2026-08-12 · MacBook Air M2 · accepted · Manifest paths are normalised across platforms
+
+*(Renumbered 14 Aug. This was written as a second ADR-0019, colliding with the per-candidate refit
+decision below. Kept in chronological position; this entry was renumbered rather than the refit one
+because every inbound reference — in `localize.py`, `match.py`, `PROGRESS.md` and ADR-0025 — means
+the refit. Duplicate identifiers in a decision log are a credibility problem even when nothing
+depends on them.)*
 
 **Decision.** `resolve_manifest_path` retries with `\` → `/` as a **fallback** when the recorded path
 does not resolve as written.
@@ -637,10 +643,32 @@ ZNCC and the dense pass re-scores by ZNCC. It is the same criterion evaluated at
 the *same* shape as the one selection stage that has ever worked here (ADR-0019). Nothing is ranked
 by anything that was not already ranking it.
 
-**Why it is more accurate than the dense grid it replaces**, which is the non-obvious part: the wide
-sweep is centred on each candidate's pose *after* the narrow pass has corrected it, so the same 25
-samples land somewhere better. This does not contradict §22's "you cannot reconstruct an optimum from
-samples that do not resolve it" — the dense sampling is retained in full; only its centre improves.
+**Why it is more accurate than the dense grid it replaces.** ⚠️ *This paragraph originally claimed
+the gain came from the narrow pass re-centring each candidate's pose before the wide grid is laid
+around it. That explanation was plausible, was proposed independently by an external reviewer, and
+is **wrong** — it was measured on 14 Aug and refuted. The corrected account:*
+
+Factorising the screen into its two effects (FINDINGS §23f):
+
+| variant | prunes | re-scores first | held-out |
+|---|---|---|---|
+| A — no screen | – | – | 20.0% |
+| B — **shipped** | ✓ | ✓ | **18.0%** |
+| C — screen runs, nothing pruned | – | ✓ | 20.0% |
+| D — truncate to 10 on unrefit scores | ✓ | – | 24.0% |
+
+**Neither half works alone.** Re-scoring without pruning (C) is worth exactly nothing; pruning
+without re-scoring first (D) is worse than no screen at all. The mechanism is therefore not "better
+initialisation" but a **bound on how much geometric freedom the candidate field collectively
+receives**, made safe by ranking the field first:
+
+> A wide pose search helps the true candidate and helps impostors *more* — the §15d asymmetry, which
+> sank refit-*gain* ranking at 80–92%. Handing ±3% and ±1.5° to 60 candidates gives 59 impostors 25
+> chances each to find a flattering pose. The narrow refit is what makes a top-10 cut trustworthy
+> enough to take before that exposure is granted.
+
+This is consistent with, not contrary to, §22: dense sampling is still irreplaceable — it is just
+dangerous to hand out widely. And it re-derives ADR-0024's rule from a third direction.
 
 **Why `top_n=10` and not 6**, when both measured identically on all 140 pairs and 6 is 41 ms faster
 and meets a pre-registered "<400 ms" bar: after the screen, the true candidate lies within the top 10
