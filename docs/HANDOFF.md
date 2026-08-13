@@ -1,6 +1,6 @@
 # HANDOFF — cold start on a new machine
 
-## ⏩ RESUME HERE — state as of 13 Aug 2026
+## ⏩ RESUME HERE — state as of 14 Aug 2026
 
 **The submission is COMPLETE, VERIFIED and PACKAGED.** Everything below is optional improvement
 work. If time runs out right now, ship what is in `dist/`.
@@ -14,9 +14,9 @@ work. If time runs out right now, ship what is in `dist/`.
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | p50 |
 |---|---|---|---|---|---|
-| sponsor (40) | 22.5% | 0.275 | 75.0% | 70.0% | 431 ms |
-| bench (30, ours) | 16.7% | 0.337 | 76.7% | 63.3% | 413 ms |
-| holdout FinFET (30) | 13.3% | 0.201 | 83.3% | 66.7% | 423 ms |
+| sponsor (40) | 22.5% | 0.275 | 75.0% | 70.0% | 407 ms |
+| bench (30, ours) | 16.7% | 0.337 | 76.7% | 63.3% | 388 ms |
+| holdout FinFET (30) | 13.3% | 0.201 | 83.3% | 66.7% | 388 ms |
 
 Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **18/100 = 18.0%** (was 22.0%).
 
@@ -55,7 +55,7 @@ Remaining ideas, in rough order of expected value:
    on 10.0 / 13.3 / 10.0%. bench is the outlier worth understanding: 16.7% mis-lock against 10%
    irrecoverable means most of its failures are *already lost before selection runs*, which is a
    different problem from the one six re-rankers failed at.
-2. **Runtime, not accuracy.** ~390-430 ms depending on the run; nothing here risks accuracy: the refit window is already
+2. **Runtime, not accuracy.** Nothing below risks accuracy. The refit window is already
    a local ROI (template + 2×7 px), but the ~1000 remaining per-pair `matchTemplate` calls are
    small and overhead-dominated, so batching them is the open lever. Do not reach for FFT without
    benchmarking — the windows are 114×114 and setup cost may exceed the arithmetic.
