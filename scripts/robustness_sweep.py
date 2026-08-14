@@ -113,9 +113,11 @@ def generate(split: str, flags: list[str], pairs: int, seed: int, arch: str) -> 
 
     The completeness test counts rows, and that is not fussiness. An earlier version of this checked
     only that the manifest FILE existed, on the stated belief that generate_dataset.py writes it
-    last. It does not: the file is opened before the first pair and rows are appended as they are
-    produced, so it exists from the first second of a run. An interrupted split would therefore have
-    been cached as finished and SCORED ON A HANDFUL OF PAIRS, reported as if it were thirty.
+    last. It does not: the file is opened before the first pair, so it exists from the first second
+    of a run. Its CONTENT is buffered and lands only on close - observed directly, a split with 131
+    of 160 images had a manifest of zero rows - so an interrupted split leaves an empty manifest
+    that `exists()` happily accepts. It would have been cached as finished and SCORED ON WHATEVER
+    PAIRS HAPPENED TO BE THERE, then reported as if it were thirty.
 
     Every point in the published sweep was verified to have 30 images and 30 manifest rows, so
     nothing reported was affected - but it held by luck rather than by the check.

@@ -67,6 +67,15 @@ Remaining ideas, in rough order of expected value:
 **Charging streaks and runtime are both CLOSED, not open** — see below. There is no queued
 algorithmic work, and that is a conclusion rather than a schedule artefact.
 
+**Do not build the learned verifier (settled 15 Aug, §32).** The gate was run before the build. The
+strongest candidate feature is one the pipeline discards — *multiplicity*, how many independent pose
+hypotheses find a site, which separates truth from impostor at Cohen's d = **1.098** against
+**0.414** for the ZNCC score we actually decide on. It still yields nothing: blending it into the
+score gives a gain on a 37-group tuning set that **disappears** when selection is done properly on a
+fresh 151-group set, which picks a null operating point and is *flatter* (1.3 pts spread vs 2.7).
+Four times the data did not sharpen a peak; it showed there is no peak. A model would face the same
+flat criterion with more free parameters.
+
 **Do not retry:** multi-basin pose refinement (§22, 26.0%), pose interpolation (§21c, 27.0%),
 pose-regime routing (§21a), pose-excursion penalty (§20a), or any seventh scoring criterion
 (ADR-0024). All have been proposed again by external review since being measured and refuted.

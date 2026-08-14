@@ -2197,7 +2197,44 @@ against it is not.
 
 **The blocker is model-selection power, not absence of signal** — which is a falsifiable statement
 and a different claim from the other negatives in this document. It predicts that a substantially
-larger tuning set would change the answer, and that is testable rather than rhetorical.
+larger tuning set would change the answer.
+
+### 32a. The prediction was tested with 4× the data, and it was wrong ❌
+
+A fresh 160-pair `dev2` split was generated with disjoint seeds across both architectures (151 of
+them yield a usable candidate set) purely to test that claim. If selection power were the blocker,
+a tuning set four times larger should resolve the optimum and land on a better held-out point.
+
+| w | 0.000 | 0.002 | **0.003** | 0.005 | 0.008 | 0.012 | 0.020 |
+|---|---|---|---|---|---|---|---|
+| dev, 37 groups | 94.6% | 94.6% | **97.3%** | 97.3% | 97.3% | 97.3% | 94.6% |
+| **dev2, 151 groups** | 94.7% | **95.4%** | 95.4% | 95.4% | 94.7% | 94.0% | 94.0% |
+| held-out, 93 | 91.4% | 91.4% | **92.5%** | 90.3% | 90.3% | 88.2% | 87.1% |
+
+| selection set | picks | held-out result |
+|---|---|---|
+| dev, 37 groups | w = 0.003 | 92.5% (+1.1) |
+| **dev2, 151 groups** | **w = 0.002** | **91.4% — exactly the baseline** |
+
+**The larger, better-powered tuning set selects a null operating point.** It is also *flatter*: its
+spread across the whole sweep is 1.3 points against the small set's 2.7. Four times the data did not
+sharpen a peak — it showed there is no peak to sharpen.
+
+Which means the +1.1 points the small `dev` appeared to buy was **luck**. Run the selection properly
+and the gain is zero. The small set's apparent optimum at w=0.003 sits one step away from w=0.004,
+which costs 2.2 points on held-out, and `dev` could not tell them apart.
+
+**So the honest conclusion is stronger than the one it replaces, and it is not the one I predicted.**
+The problem is not that we lack the data to tune this feature. It is that *there is no reliable
+operating point to find*: multiplicity separates truth from impostor with a Cohen's d of 1.098 in
+the margin, and still yields no repeatable improvement when added to the decision. Strong marginal
+separation and a usable decision rule are different things, and this is a clean demonstration of the
+gap between them.
+
+**And it closes the learned-verifier question on evidence rather than on schedule.** A model would be
+selected on the same signal, with more free parameters, against a criterion now measured to be flat
+where it matters. Having made a falsifiable prediction and had it fail is a better reason to stop
+than running out of days.
 
 `matchTemplate` is **579 calls and ~199 ms per pair**, about half the runtime, so batching them was
 the obvious remaining runtime lever and was proposed by review.
