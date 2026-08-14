@@ -215,12 +215,13 @@ Stated plainly rather than left for a judge to find.
 4. **Rotation beyond ±2° and scale outside 9:1–11:1 are not searched.** Both ranges come straight
    from the problem statement; `PipelineConfig.pose_scale_range` / `pose_rotation_range` widen them
    at linear cost.
-5. **Target position does not measurably matter.**
+5. **No positional dependence was detectable in this 100-pair sample.**
    [`results/position_strata.csv`](results/position_strata.csv) splits the same 100 evaluated pairs
    by distance from the field centre (targets span 32–547 px) and by proximity to the frame edge.
-   Every stratum's Wilson interval overlaps every other and the pattern is non-monotone, so no
-   positional dependence is resolvable at this sample size — which is also why the spec's
-   closest-to-centre tie-break cannot help here ([ADR-0021](docs/DECISIONS.md)).
+   Every stratum's Wilson interval overlaps every other and the pattern is non-monotone. That is a
+   statement about what this sample can resolve, not a proof that position is irrelevant — the
+   intervals are wide. It is also why the spec's closest-to-centre tie-break cannot help here
+   ([ADR-0021](docs/DECISIONS.md)).
 6. **Degradations are now stratified — and two of them hurt.**
    [`results/robustness.csv`](results/robustness.csv) sweeps 22 operating points across dose, read
    noise, scale, rotation and five degradations, deliberately running *past* the envelope the
@@ -229,6 +230,14 @@ Stated plainly rather than left for a judge to find.
    names explicitly as a possible degradation — and **barrel distortion (43.3%)**, which it does
    not. Scale beyond the promised range is the envelope limit: 16.7% inside 9–11:1, 40.0% at
    8–12:1. This is validation only; nothing is tuned on those seeds.
+
+   **Charging streaks are the dominant degradation-specific weakness, and we know why.** The failure
+   decomposition inverts there: 23.3% of pairs lose the true location *before* it is ever a
+   candidate, against 3.3% lost at final ranking — so it is a signal-recovery problem, not a
+   ranking one. Raising `top_k` to 20 or 30 changes nothing (33.3% at all three), which says the
+   correlation peak is **erased rather than demoted**. An artifact-aware correction was built and
+   measured: it recovers one absent peak in thirty and regresses the primary benchmark, so it is
+   not shipped ([FINDINGS §26](docs/FINDINGS.md)).
 7. **Small differences between splits are not resolved, and we say so.**
    [`results/significance.csv`](results/significance.csv) carries Wilson intervals and a paired
    McNemar test. Two stress splits with *identical* generator parameters differing only by seed

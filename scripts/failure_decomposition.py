@@ -205,7 +205,11 @@ def main() -> int:
         print(f"    winner |rotation| mean {wt.mean():.3f} deg   truth {tt.mean():.3f} deg")
         print(f"    winner travelled further in {100 * (wt > tt).mean():.0f}% of them")
         print(f"    median score margin the truth lost by: {np.median(margin):.4f}")
-        mech_out = out.with_name("failure_mechanism.csv")
+        # Derive the companion filename from --out, not a fixed name. It was fixed, so running this
+        # over a stress split silently overwrote the reported splits' mechanism file with four
+        # unrelated rows - the analysis then described the wrong pairs and nothing complained.
+        mech_out = out.with_name(out.stem.replace("failure_decomposition", "failure_mechanism")
+                                 + out.suffix)
         with mech_out.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=list(mech[0]))
             writer.writeheader()

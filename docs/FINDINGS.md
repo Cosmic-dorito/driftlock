@@ -1845,6 +1845,44 @@ it is a net negative.
 decomposition, and behaves exactly as designed in its target regime. None of that is evidence. The
 paired held-out test is, and it said no.
 
+### 26c. Charging streaks, closed: the peak is destroyed, not demoted ❌
+
+Two further experiments, both cheap, both aimed at the ABSENT bucket that dominates this regime.
+
+**Raising `top_k` does nothing.** `top_k` is the one knob that directly adds candidates, and it had
+only ever been swept on nominal data where the ABSENT bucket is nearly empty:
+
+| split | top_k=10 | top_k=20 | top_k=30 |
+|---|---|---|---|
+| charging streaks | 33.3% | 33.3% | 33.3% |
+| mixed, beyond spec | 46.7% | 46.7% | 46.7% |
+| nominal control | 20.0% | 20.0% | 20.0% |
+
+Flat to the pair, on every split, at three times the candidate budget. **That is a stronger
+statement than the ABSENT bucket alone.** If the true location were merely *demoted* below the cut,
+tripling the pool would recover it. It does not, so the streak is not reordering the correlation
+surface — it is **erasing the peak**. No proposal mechanism that reads the raw image can find a
+maximum that is no longer there.
+
+**And the correction barely restores it.** Instrumenting the candidate pool with `destreak` active:
+
+| | mis-lock | true peak ABSENT from the pool |
+|---|---|---|
+| raw | 33.3% | 23.3% |
+| destreaked | 26.7% | **20.0%** |
+
+One pair of thirty recovered. That also settles a proposal-union design — running the corrected
+image as a *second* candidate source while leaving the raw pipeline untouched, which would have
+sidestepped the regression that killed `destreak` outright. It would import at most one pair of
+recall for a second full candidate-generation pass. Not worth the runtime or the complexity.
+
+**So charging streaks are a stated limitation, not an unsolved to-do.** The chain is complete and
+each link is measured: the failure is upstream of ranking (23.3% ABSENT vs 3.3% OUTSCORED), so no
+selection stage can help; it is not a ranking-threshold problem (top_k flat); and the natural
+correction restores almost none of the lost peaks while regressing the benchmark. Recovering this
+regime needs a representation in which the streak and the signal are separable — which is a research
+direction, not a three-day fix.
+
 ---
 
 ## 27. How much of our own reported difference is real? ⚠️
@@ -1896,6 +1934,73 @@ What this retroactively licenses, and what it does not:
   its marginal rates look.
 * **"Beats the baseline" is not in doubt.** 76.7% → 16.7% on bench and 90.0% → 10.0% on FinFET are
   not 4-point differences.
+
+---
+
+## 28. The nine outscored failures, and why a seventh re-ranker would also fail ⚪
+
+These are the only failures a better selection rule could ever address: the true location was a
+candidate, survived the screen, reached the final comparison, and lost. Nine of them, across 100
+pairs.
+
+| split | error px | margin the truth lost by |
+|---|---|---|
+| sponsor | 14.38 | 0.0035 |
+| sponsor | 14.34 | 0.0108 |
+| sponsor | 21.53 | 0.0094 |
+| sponsor | 64.25 | 0.0105 |
+| sponsor | 43.23 | 0.0114 |
+| sponsor | 19.40 | 0.0053 |
+| bench | 17.70 | 0.0028 |
+| bench | 6.54 | 0.0000 |
+| holdout FinFET | 707.28 | 0.0039 |
+
+**Median error 19.4 px — two to three lattice periods.** Eight of nine land within 65 px, so these
+are *nearby repeats*, not wild misses. The one 707 px outlier is the failure case already visualised
+in `results/failure_case/`.
+
+**Median margin 0.0053, and six of nine lose by under 0.01.** That is the number that matters. The
+sampling noise on a correlation of ρ≈0.9 over a 100×100 template is about 0.002 (§15), so the truth
+is losing by roughly **2.6× the measurement noise of the statistic being used to decide**.
+
+That is the quantitative form of a conclusion the project reached the expensive way. The
+discriminating information *is* present — the margin is not zero, and it is not negative — but it
+sits close enough to the noise floor of ZNCC-on-100×100 that any rule reading that surface must
+resolve a half-percent difference reliably. Six independent criteria were built to try (ADR-0024);
+all six failed; and this says why in one number rather than as a tally of attempts.
+
+**It also bounds what is left.** Nine pairs of 100 is the entire addressable-by-ranking budget, and
+they are the *hardest* nine by construction. A seventh criterion would have to beat six predecessors
+on a margin of 0.005 without regressing the 78 pairs that are currently correct — and the paired
+tests in §27 show that a change of two pairs is not even resolvable at this sample size. We stop
+here, and the stopping is evidence-based rather than a schedule decision.
+
+## 29. Batching the correlations — refuted by microbenchmark ❌
+
+`matchTemplate` is **579 calls and ~199 ms per pair**, about half the runtime, so batching them was
+the obvious remaining runtime lever and was proposed by review.
+
+There is a safe way to do it. The refit correlates one template against ten candidate windows of
+114×114; concatenating those windows into one 114×1140 image lets a single call do all ten. It is
+exactly equivalent for the region each tile owns: the last valid output position in a tile places
+the template's right edge on that tile's final column, so no valid position ever straddles a seam.
+
+Measured over 200 repetitions:
+
+| | time per group of 10 |
+|---|---|
+| ten separate calls | **1.267 ms** |
+| one tiled call | 1.943 ms |
+
+**Tiling is 53% slower.** The reasoning behind it was wrong: it assumed per-call overhead dominates.
+It does not. A 114×1140 input produces 1041 output columns of which only 150 are wanted, so the
+tiled call does roughly seven times the arithmetic to save nine call setups — and at these sizes
+OpenCV is arithmetic-bound, not overhead-bound. The residual max difference of 1.2e-6 confirms the
+two agree numerically; it is purely a throughput question, and the answer is no.
+
+So the correlation count is set by accuracy, not by inefficiency: the grid, `top_k` and `top_n` are
+all at measured plateaus (§23g), and every attempt to compute fewer correlations has cost accuracy.
+There is no free runtime here, which is a more useful thing to know than another unmeasured idea.
 
 ---
 
