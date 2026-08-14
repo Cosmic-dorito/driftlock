@@ -90,12 +90,23 @@ flat criterion with more free parameters.
 > that has ever worked, and why every scoring idea fails. Regenerate with
 > `scripts/oracle_ceiling.py`.
 >
-> **And the refit is not compensating for missing physics** (§36). Asked directly whether the
-> optimiser is using geometric freedom to stand in for an incomplete forward model: an explicit PSF
-> degree of freedom gives the truth +0.0003 more than the winner (real, 7/8, but 3% of the gap), and
-> spatial micro-deformation gives the **winner** more (−0.0004, 4/8) — extra freedom favours the
-> impostor, the same asymmetry as §15d and §23f. There is no large unmodelled acquisition effect
-> left to find.
+> **And the refit is not compensating for missing physics** (§36). Three degrees of freedom were
+> added to the forward model and measured as *differential* gain — truth minus winner:
+>
+> | added freedom | differential |
+> |---|---|
+> | PSF blur | **+0.0003** (7/8) — real, closes 3% |
+> | anisotropic scale + shear | **−0.0004** (4/8) |
+> | line-jitter, quadratic in y | **−0.0310** (2/8) |
+>
+> **Every degree of freedom either helps negligibly or helps the wrong candidate, monotonically.**
+> A candidate that already fits well cannot benefit from extra freedom; one that fits badly can.
+> So the shipped `rigid pose + bounded refit` is not a model we ran out of time to enrich — it is
+> the measured optimum, and every attempt to loosen the bound has cost accuracy.
+>
+> (A review challenged §36b as double-scaling the reference. Checked, not argued:
+> `integrate_reference` returns 1000×1000 — it blurs, it does not resize — and the experiment's warp
+> at ax=sh=0 reproduces `build_template` with max|diff| = 0.000000.)
 >
 > Two claims here were softened after review and should stay that way: the 0.002 IID noise figure is
 > a *scale*, not a calibrated floor (SEM pixels are not independent), and the ceiling is for **rules

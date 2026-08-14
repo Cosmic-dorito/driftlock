@@ -2544,14 +2544,71 @@ one is at the level of the final decision rather than the candidate field.
 ### The answer to the reviewer's question
 
 **The refit is not compensating for missing physics.** It is recovering geometry, and it has taken
-89% of what is there. Of the two plausible missing degrees of freedom, one is worth 3% of the
-remaining gap and the other is negative. There is no large unmodelled acquisition effect for the
+89% of what is there. Of the three plausible missing degrees of freedom (§36c adds the third), one
+is worth 3% of the remaining gap and two are negative. There is no large unmodelled acquisition effect for the
 optimiser to have been silently absorbing.
 
 Which sharpens §35 rather than contradicting it: the 0.065→0.007 closure is real *geometry*
 recovery, not an artefact of the model compensating for itself. And it explains why the shipped
 architecture is shaped the way it is — rigid pose plus per-candidate refit is not an approximation to
 a richer model we failed to build; on this data it is very nearly the whole of what is available.
+
+---
+
+### 36c. Line-jitter correction before correlation — the worst of the three ❌
+
+The last forward-model lever, and the one with the best physical motivation. The generator applies
+per-row shear and jitter; this pipeline's drift stage corrects the *reported coordinate*, not the
+image, so the template is correlated against a patch that is still geometrically distorted.
+Correcting the image first should sharpen the true peak.
+
+Implemented blind and regularised: per-row horizontal offset by 1D correlation against the template
+row, then a **quadratic fit in y** (a scan-drift prior, 3 degrees of freedom, clipped to +/-2 px) so
+noise cannot drive individual rows.
+
+| | |
+|---|---|
+| gain, truth | **−0.0312** |
+| gain, winner | −0.0002 |
+| **differential** | **−0.0310**, truth better in 2/8 |
+| deficit, before → after | +0.0094 → **+0.0404** |
+
+**It widens the gap more than fourfold**, and the mechanism is visible in the asymmetry: the winner
+is essentially unaffected while the truth loses 0.031. The true site is *already well aligned*, so a
+blind per-row estimate has nothing to recover and can only inject noise into a good fit. The
+impostor, already misaligned, has nothing to lose.
+
+### The pattern across all three, which is the actual result
+
+| added degree of freedom | differential | verdict |
+|---|---|---|
+| PSF blur | **+0.0003** (7/8) | real, closes 3% |
+| anisotropic scale + shear | **−0.0004** (4/8) | winner gains more |
+| line-jitter, quadratic in y | **−0.0310** (2/8) | destroys the truth's alignment |
+
+> **Every degree of freedom added to the forward model either helps negligibly or helps the wrong
+> candidate.** The more freedom, the worse the differential — monotonically, across three
+> independent parameterisations.
+
+This is the same asymmetry as §15d (refit-*gain* ranking, 80–92% mis-lock), §23f (why the screen must
+bound the field) and §36b, now measured a fourth time and at the level of the final decision. A
+candidate that already fits well cannot benefit from extra freedom; one that fits badly can. Freedom
+is not neutral — it is a resource that flows to whoever has more mismatch to absorb.
+
+**Which reframes the shipped architecture as a positive design choice rather than a limitation.**
+Rigid pose plus a *bounded* per-candidate refit is not an approximation to a richer model we lacked
+time to build. It is the measured optimum: enough freedom to close 89% of the geometric deficit
+(§35), bounded tightly enough that impostors cannot exploit it. Every attempt to loosen that bound,
+in any direction, has cost accuracy.
+
+### On the code-review challenge to §36b
+
+An external review suggested §36b might be invalid because it passed `integrate_reference(ref, sc)`
+into a warp that also applies `sc`, double-scaling the reference. Checked directly rather than
+argued: `integrate_reference` returns a **1000×1000** array — it box-integrates and does *not*
+resize — and the experiment's warp at `ax = sh = 0` reproduces `build_template(ref, sc, ro)` with
+**max |difference| = 0.000000**. Same forward model as the shipped pipeline, bit-identical. The
+result stands.
 
 ---
 
