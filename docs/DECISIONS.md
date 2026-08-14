@@ -790,6 +790,59 @@ not four-point differences and are not in doubt.
 
 ---
 
+## ADR-0030 · 2026-08-15 · accepted · Every analysis claim needs a committed script, not a print-out
+
+**Decision.** An analysis result may not enter `FINDINGS.md`, `STATE.md`, `HANDOFF.md`, `README.md`
+or the deck unless a committed script under `scripts/` regenerates it into `results/`. Retroactively
+applied: FINDINGS §35b, §35c and §36 were promoted to `scripts/pose_ceiling.py`, and the retraction
+this forced is FINDINGS §37.
+
+**What forced it.** §35 was the submission's headline argument — *at the generator's exact pose the
+true site correlates 0.065 worse than the impostor, and the refit recovers 89% of that*. It was
+measured once in a scratchpad file, printed to a terminal, and copied by hand into four documents.
+The commit message says it was "promoted to `scripts/oracle_ceiling.py`", but only §35a actually
+was; the scratchpad file was later overwritten. Writing the rest down properly re-measured it:
+
+| | published | reimplementation |
+|---|---|---|
+| ZNCC at the **true** location | 0.7661 | **0.7661** ✅ |
+| deficit **after** the refit | +0.0072 | **+0.0072** ✅ |
+| micro-warp differential (§36b) | −0.0004, 4/8 | **−0.0004, 4/8** ✅ |
+| ZNCC at the **winning** location | 0.8615 | **0.7696** ❌ |
+| truth out-correlates the winner | 2/15, p = 0.007 | **7/15, p = 1.000** ❌ |
+| deficit at the **fixed** pose | +0.0654 | **+0.0114** ❌ |
+
+Every truth-side quantity reproduced to the digit; no winner-side quantity did. The cause is a
+single methodological error: **the "winner" score was the maximum of the correlation surface, not
+the score at the location the pipeline chose.** A maximum over ~810,000 positions is selected
+*because* it is the largest, so comparing it against a value at one nominated point is
+upward-biased by construction — it cannot come out any other way, and what it actually reports is
+that the argmax is not at the truth, which is §35a.
+
+**Why neither existing rule caught it.** R2 fails the build on any deck number not present in
+`results/` — but these numbers were never on a slide. R8's red-team pass re-derived the accuracy
+numbers, all of which `evaluate.py` generates — but not the interpretive measurement the argument
+rested on, precisely because that one had no script. The gap was exactly the class of claim that is
+most load-bearing and least mechanised.
+
+**Consequence for what may be claimed.** The corrected result is a statement about *margin*, not
+about direction: at the exact pose the truth (0.7661) and its impostor (0.7696) are statistically
+indistinguishable, and the paired deficit is +0.0114, of which the refit closes about a third. This
+fits the rest of the evidence better than the retracted version did — six re-ranking criteria failed
+because they were resolving a margin of about 0.01, which is a measurement rather than an
+impossibility claim. Withdrawn with it: "these were never selection errors", "no re-ranker could
+ever reach them", "geometry recovers 89%", and §36's "every degree of freedom helps the wrong
+candidate, monotonically" (§36c's sign reverses under reimplementation; §36a and §36b stand).
+
+**Nothing shipped changed.** Accuracy, runtime, configuration, ablation and packaging are untouched:
+20.0 / 16.7 / 10.0, aggregate 16.0%.
+
+**The general rule, which is the point.** *A result with no script is not a result.* The cost of
+mechanising an analysis is minutes; the cost of defending a retracted headline in front of a panel
+is the credibility of everything next to it.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

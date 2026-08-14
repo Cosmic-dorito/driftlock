@@ -2415,7 +2415,21 @@ provides — none of which is available to a submission.
 
 ---
 
-## 35. The oracle ceiling: the truth correlates WORSE, and geometry already recovers 89% of it ✅✅
+## 35. The oracle ceiling: the truth correlates WORSE, and geometry already recovers 89% of it ⚠️
+
+> ## ⚠️ §35b AND §35c ARE RETRACTED. §35a STANDS.
+>
+> An independent reimplementation (`scripts/pose_ceiling.py`, 15 Aug) reproduces the truth side to
+> the digit — 0.7661, 84/100, 70/100, +0.0072 — and **none** of the winner side. The cause is
+> below in **§37**: the "winner" figure was the **maximum of the correlation surface**, not the
+> score at the location the pipeline chose. A maximum over ~810,000 positions exceeds the value at
+> any nominated point almost by construction, so the comparison was upward-biased and restated
+> §35a rather than measuring what §35b claims.
+>
+> Corrected, both sides nominated: truth **0.7661** against **0.7696**, truth ahead in **7/15**,
+> p = **1.000**. The fixed-pose deficit is **+0.0114**, not +0.0654, and the refit closes
+> **36.6%**, not 89.0%. Read §37 instead of the two subsections below; they are kept verbatim
+> because a retracted claim that quietly disappears teaches nobody why it was wrong.
 
 The question that should have been asked first, and was not: **are the remaining failures even
 recoverable?** Every experiment so far assumed they were selection errors. Handing the matcher the
@@ -2555,7 +2569,13 @@ a richer model we failed to build; on this data it is very nearly the whole of w
 
 ---
 
-### 36c. Line-jitter correction before correlation — the worst of the three ❌
+### 36c. Line-jitter correction before correlation — the worst of the three ⚠️
+
+> **⚠️ 36c DOES NOT REPRODUCE, AND THE SIGN REVERSES.** An independent implementation of the same
+> blind per-row estimator measures the differential at **+0.0378 favouring the truth, 7/8**, where
+> this one measured −0.0310 favouring the winner. Two implementations of a blind estimator
+> disagreeing about the sign means the quantity is implementation-dependent, not that one of them
+> found a result. §36a and §36b both reproduce (36b exactly). See §37.
 
 The last forward-model lever, and the one with the best physical motivation. The generator applies
 per-row shear and jitter; this pipeline's drift stage corrects the *reported coordinate*, not the
@@ -2609,6 +2629,123 @@ argued: `integrate_reference` returns a **1000×1000** array — it box-integrat
 resize — and the experiment's warp at `ax = sh = 0` reproduces `build_template(ref, sc, ro)` with
 **max |difference| = 0.000000**. Same forward model as the shipped pipeline, bit-identical. The
 result stands.
+
+---
+
+## 37. §35 does not reproduce: a point value was compared against a maximum ❌
+
+**The rule that caught it was our own:** §35 was promoted to `scripts/oracle_ceiling.py` — but only
+§35a was. §35b, §35c and all of §36 stayed in a scratchpad file that was later overwritten, so the
+project's headline finding was the one number a judge could not regenerate. Writing
+`scripts/pose_ceiling.py` to close that gap re-measured it, and it did not come back the same.
+
+### 37a. What reproduces and what does not
+
+| quantity | published (§35/§36) | reimplementation | verdict |
+|---|---|---|---|
+| shipped correct / oracle correct | 84/100, 70/100 | 84/100, 70/100 | ✅ exact |
+| oracle rescues | 1 of 16 | 1 of 16 | ✅ exact |
+| ZNCC at the **true** location | 0.7661 | **0.7661** | ✅ exact |
+| deficit **after** the refit | +0.0072 | **+0.0072** | ✅ exact |
+| micro-warp differential (§36b) | −0.0004, 4/8 | **−0.0004, 4/8** | ✅ exact |
+| ZNCC at the **winning** location | 0.8615 | **0.7696** | ❌ |
+| truth out-correlates the winner | 2/15, p = 0.007 | **7/15, p = 1.000** | ❌ |
+| deficit at the **fixed** pose | +0.0654 | **+0.0114** | ❌ |
+| fraction the refit closes | 89.0% | **36.6%** | ❌ |
+| line-jitter differential (§36c) | −0.0310, 2/8 | **+0.0378, 7/8** | ❌ sign reversed |
+
+Every truth-side quantity reproduces to the digit. Every winner-side quantity does not. That
+pattern localises the fault precisely, and it is not in the template builder, the pose, or the
+candidate capture — all of which the truth side exercises identically.
+
+### 37b. The cause: a maximum is not a measurement at a location
+
+Scoring the same 15 failures three ways at the same oracle pose:
+
+| where the oracle template is scored | mean ZNCC | truth ahead of it |
+|---|---|---|
+| at the **true** location | 0.7661 | — |
+| at the location the **pipeline chose** | **0.7696** | **7 / 15** |
+| at the **global maximum** of the correlation surface | **0.8915** | 0 / 15 |
+
+The published 0.8615 and 2/15 sit with the surface maximum, not with the pipeline's answer.
+
+**A maximum over ~810,000 positions is selected *because* it is the largest.** Comparing it against
+the value at one nominated point is upward-biased by construction — the comparison cannot come out
+any other way, and it does not become a measurement of the impostor by being labelled "the winning
+location". What it actually says is that the argmax is not at the truth, which is §35a.
+
+*(The reimplementation's own surface maximum is 0.8915 against the published 0.8615, and 0/15
+against 2/15. The residual difference is consistent with the original having excluded a
+neighbourhood of the truth or read the top of the candidate list rather than the raw surface; it
+does not change which of the three columns the published figure belongs to.)*
+
+### 37c. What is true instead — and it is a sharper result, not a weaker one
+
+Both sides nominated, same oracle pose, same 15 failures:
+
+> **At the generator's exact pose the true site and the site the pipeline chose are statistically
+> indistinguishable: 0.7661 against 0.7696, truth ahead in 7 of 15, p = 1.000.**
+
+And paired on the 8 failures where the truth reached the final comparison:
+
+| | deficit (winner − truth) |
+|---|---|
+| at the exact oracle pose | **+0.0114** |
+| after the per-candidate refit | **+0.0072** |
+| **the refit closes** | **36.6%** (reduced in 7/8) |
+
+So the correct statement of the ceiling is about **margin**, not about direction:
+
+* The retracted version said the truth is a *worse* explanation by 0.065, which would have made
+  these pairs unreachable by any rule reading that surface. **That is not what the data says.**
+* What the data says is that the two sites are separated by roughly **0.003 to 0.011** of
+  correlation — the level at which sampling noise and forward-model mismatch live. The truth is not
+  behind; it is *tied*.
+
+This is a better fit to everything else in this document, and it needed no special pleading:
+
+* **Six re-rankers failed** (ADR-0024) because they were asked to resolve a margin of ~0.01. That
+  remains the practical conclusion, and it rests on six direct measurements that are unaffected by
+  this retraction.
+* **The unifying explanation (STATE §6) is strengthened**, not weakened: evidence strong enough to
+  be reliable is shared by the impostor; evidence that separates them is at the noise floor. We can
+  now put a number on "at the noise floor" — about 0.01.
+* **The refit's contribution is real but smaller than claimed**: it closes 36.6% of the fixed-pose
+  deficit, in 7 of 8 pairs.
+
+**What must not be said any more:** that these were "never selection errors", that "no re-ranker
+could ever reach them", or that geometry recovers 89% of anything. What may be said: at the exact
+pose the margin between the truth and its impostor is about 0.01, which is why six criteria failed
+to resolve it, and the refit closes about a third of it.
+
+### 37d. An open lead, flagged rather than buried
+
+The line-jitter differential reversed sign to **+0.0378 favouring the truth in 7/8** (p = 0.070).
+That is **larger than the +0.0114 fixed-pose deficit**, so if it is real it would flip these pairs.
+Three reasons it is not a finding yet: n = 8, it is an *oracle* measurement rather than a pipeline
+stage, and an earlier implementation of the same idea measured the opposite sign. It is recorded
+here as the one live lead, to be settled the only way that counts — implemented in the pipeline and
+measured on all four splits — not quoted as a result.
+
+### 37e. The process failure, stated plainly
+
+Two rules already in `CLAUDE.md` would each have caught this, and neither was applied:
+
+* **R2, no number typed by hand.** These numbers never entered `results/`. They went from a
+  scratchpad print straight into `FINDINGS.md`, `STATE.md`, `HANDOFF.md` and `README.md`. The
+  verifier that fails the build on an untraceable deck number never saw them, because they were
+  never on a slide.
+* **R8, independent re-derivation.** The red-team pass covered the accuracy numbers, which are
+  generated by `evaluate.py`. It did not cover the *interpretive* measurement that the whole
+  argument rested on — precisely because that one had no script.
+
+**A result with no script is not a result.** The fix is mechanical: `scripts/pose_ceiling.py` is
+committed, emits `results/pose_ceiling.csv`, and is listed in the regeneration commands.
+
+**Nothing shipped is affected.** Accuracy, runtime, the configuration and the ablation are all
+untouched — 20.0 / 16.7 / 10.0, aggregate 16.0%. This retraction is entirely about what we may
+claim the remaining 16 failures *mean*.
 
 ---
 

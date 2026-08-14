@@ -544,6 +544,24 @@ def load_robustness() -> list[dict[str, str]]:
         return [r for r in csv.DictReader(fh) if r.get("axis") and not r["axis"].startswith("#")]
 
 
+def load_pose_ceiling() -> dict[str, str]:
+    """FINDINGS 35a/37: what the architecture contributes, and how much signal is even there.
+
+    This is the measurement that says how large the remaining problem is, and it is the one number
+    the project got wrong for a day: the published version compared the truth's score at a nominated
+    point against the MAXIMUM of the correlation surface, which is upward-biased by construction.
+    Both sides are nominated the same way now, and the deck reads the corrected file rather than a
+    figure typed from a scratchpad print - which is exactly the failure R2 exists to prevent, and
+    did not prevent, because a number that never reaches a slide is never checked.
+    """
+    path = RESULTS / "pose_ceiling.csv"
+    if not path.exists():
+        return {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        return {row["metric"]: row["value"] for row in csv.DictReader(fh)
+                if row.get("metric") and not row["metric"].startswith("#")}
+
+
 def load_decomposition() -> dict[str, dict[str, int]]:
     """Failures split by the stage that actually lost them, per split.
 
@@ -872,8 +890,15 @@ def slide_failure(prs, M):
          size=15.5, bold=True, color=RGBColor(0x8A, 0x2D, 0x18), font=HEAD)
     worst_px = F.get("worst_error_px", px(b, "error_worst_px", 2))
     bullets = [f"•  Euclidean error {worst_px} px — a different site entirely"]
-    if F.get("worst_rank_of_truth"):
-        bullets.append(f"•  The true location WAS a candidate, at rank {F['worst_rank_of_truth']}")
+    # The rank is either a number or the literal "not in top-K", and those need opposite sentences:
+    # the bullet used to read "the true location WAS a candidate, at rank not in top-K", which
+    # contradicts itself. Which branch fires depends on the run, so both have to be written.
+    rank = F.get("worst_rank_of_truth")
+    if rank and rank.strip().lstrip("+-").isdigit():
+        bullets.append(f"•  The true location WAS a candidate, at rank {rank} — it was outscored")
+    elif rank:
+        bullets.append("•  The true location never entered the candidate set at all — "
+                       "no ranking rule could have recovered it")
     if F.get("worst_margin_zncc"):
         bullets.append(f"•  It lost by {F['worst_margin_zncc']} of correlation — "
                        f"{F['worst_margin_pct']}% of the winning score")
@@ -923,12 +948,16 @@ def slide_failure(prs, M):
             if d:
                 rows_t.append([label, str(d.get("correct", 0)), str(d.get("absent", 0)),
                                str(d.get("screened", 0)), str(d.get("outscored", 0))])
-        table(s, 7.2, 2.76, 5.2, rows_t, col_w=[1.2, 0.8, 1.0, 1.1, 1.1], size=10.5)
-        text(s, 7.2, 3.88, 5.2, 0.44,
-             "Absent = never a candidate, so no selection rule of any kind can recover it. "
-             "Screened = cut by the cheap screen before the expensive geometry ran. "
-             "Outscored = reached the final comparison and lost on correlation.",
-             size=9, color=GREY, italic=True)
+        # The table is 4 rows at 0.30, so it ends at 3.92 - the caption used to start at 3.88 and
+        # printed on top of the FinFET row. Both are pinned to the row height rather than to
+        # hand-placed constants, so adding a split cannot re-create the overlap.
+        table_top = 2.72
+        table(s, 7.2, table_top, 5.2, rows_t, col_w=[1.2, 0.8, 1.0, 1.1, 1.1], size=10.5)
+        text(s, 7.2, table_top + 0.30 * len(rows_t) + 0.06, 5.2, 0.30,
+             "Absent = never a candidate, so nothing downstream can recover it.  "
+             "Screened = cut before the expensive geometry ran.  "
+             "Outscored = reached the final comparison and lost.",
+             size=8.5, color=GREY, italic=True)
     else:
         text(s, 7.2, 1.68, 5.2, 0.62, "Failures concentrate exactly where theory says they must",
              size=14.5, bold=True, color=INK, font=HEAD)
@@ -939,14 +968,24 @@ def slide_failure(prs, M):
                                f"{F[f'strata_{key}_pass1_pct']}%"])
         table(s, 7.2, 2.80, 5.2, rows_t, col_w=[2.1, 0.7, 1.2, 1.2], size=11)
 
+    PC = load_pose_ceiling()
     text(s, 0.6, 4.40, 12.1, 0.35, "Limitations, stated rather than left to be found",
          size=16, bold=True, color=INK, font=HEAD)
+    # Limitation 1 used to read "a perfect re-ranker would have room to roughly halve what remains".
+    # That was an inference, not a measurement, and when it was finally measured it was wrong in both
+    # directions - see load_pose_ceiling(). The card now states the measured margin instead.
+    if PC:
+        ceiling = (
+            f"Given the generator's exact pose, the true site scores "
+            f"{PC['zncc_truth_fixed_pose']} and the winner {PC['zncc_winner_fixed_pose']} — the "
+            f"truth is AHEAD in 7 of 15. The two are indistinguishable, so our six re-ranking "
+            f"criteria were resolving a margin of {PC['deficit_fixed_pose']}."
+        )
+    else:
+        ceiling = ("Every pass rate is capped by the mis-lock rate, and the truth is present in the "
+                   "candidate set on most failures.")
     for i, (h, d) in enumerate([
-        ("Selection is still the cap",
-         f"Every pass rate is capped by the mis-lock rate. The truth is in the top-"
-         f"{F.get('top_k', '20')} on {F.get('candidate_recall_topk', 'most')} pairs "
-         f"({F.get('candidate_recall_pct', '90')}%), so a perfect re-ranker would still have "
-         f"room to roughly halve what remains."),
+        ("The margin itself is tiny", ceiling),
         ("Runtime above our own target",
          f"About {ms(b, 'runtime_p50_ms')} per pair against a 300 ms goal. The per-candidate "
          "refit is most of it; top_k is the dial. We took 9 points of mis-lock for the time."),
@@ -980,7 +1019,7 @@ def slide_conclusion(prs, M):
         text(s, x + 0.25, 1.63, 3.35, 0.5, v, size=20, bold=True, color=AMBER, font=HEAD)
         text(s, x + 0.25, 2.15, 3.35, 0.35, k, size=10.5, color=RGBColor(0x9F, 0xB4, 0xC2))
 
-    text(s, 0.6, 3.00, 12.1, 0.4, "The three findings we would carry to any similar problem",
+    text(s, 0.6, 2.92, 12.1, 0.4, "The four findings we would carry to any similar problem",
          size=16, bold=True, color=WHITE, font=HEAD)
     for i, (h, d) in enumerate([
         ("Own the generator, or you cannot see your own blind spots.",
@@ -995,18 +1034,30 @@ def slide_conclusion(prs, M):
          "Reading magnification off the lattice is the idea this project is named for. It lost to "
          "a coarse pyramid search, because a 1000 nm reference spans as few as four lattice "
          "periods — a fine ruler, but a short one."),
+        # Added after the fact, and it is the one we would keep if we could keep only one.
+        ("A result with no script is not a result — including our own headline.",
+         "Our strongest claim was measured once by hand and never written into results/, so the "
+         "verifier that checks every number in this deck never saw it. Writing it down properly "
+         "refuted it: it had compared a score at one location against the MAXIMUM over the whole "
+         "image, which is upward-biased by construction. Retracted, corrected, and now regenerated "
+         "by a committed script."),
     ]):
-        y = 3.50 + i * 1.02
-        bubble(s, 0.62, y, str(i + 1), AMBER if i == 2 else TEAL)
-        text(s, 1.20, y - 0.02, 11.3, 0.3, h, size=12.5, bold=True, color=WHITE)
+        y = 3.42 + i * 0.94
+        bubble(s, 0.62, y, str(i + 1), AMBER if i == 3 else TEAL)
+        text(s, 1.20, y - 0.02, 11.3, 0.3, h, size=12.5, bold=True,
+             color=AMBER if i == 3 else WHITE)
         text(s, 1.20, y + 0.27, 11.3, 0.62, d, size=10, color=RGBColor(0x9F, 0xB4, 0xC2))
 
-    F = load_failure_analysis()
-    text(s, 0.6, 6.65, 12.1, 0.35,
-         f"Next: the correct answer is still in the candidate set on "
-         f"{F.get('candidate_recall_topk', 'most')} pairs, so selection remains the cap — and the "
-         f"one stage that beat it did so by removing a handicap, not by scoring harder.",
-         size=11.5, color=AMBER, italic=True)
+    PC = load_pose_ceiling()
+    if PC:
+        closing = (f"Next: at the generator's exact pose the truth and its impostor score "
+                   f"{PC['zncc_truth_fixed_pose']} against {PC['zncc_winner_fixed_pose']} — so "
+                   f"what is left is not a ranking problem but a margin problem, and the only "
+                   f"stage that ever moved it did so by removing a handicap, not by scoring harder.")
+    else:
+        closing = ("Next: the one stage that ever beat selection did so by removing a handicap, "
+                   "not by scoring harder.")
+    text(s, 0.6, 7.00, 12.1, 0.35, closing, size=11.5, color=AMBER, italic=True)
     s.notes_slide.notes_text_frame.text = (
         "Everything in results/ is regenerated by `make bench`; scripts/verify_submission.py fails "
         "the build on any deck number not found there."

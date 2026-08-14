@@ -80,37 +80,51 @@ fresh 151-group set, which picks a null operating point and is *flatter* (1.3 pt
 Four times the data did not sharpen a peak; it showed there is no peak. A model would face the same
 flat criterion with more free parameters.
 
-> ## The headline finding (§35) — read this before proposing anything
+> ## The headline finding (§35a, §37) — read this before proposing anything
 >
-> At the generator's **exact** scale and rotation, the true site correlates **0.0654 WORSE** than the
-> impostor that beats it. These are not near-ties or selection errors: at a fixed pose the search
-> image genuinely resembles the reference more at the wrong location.
+> **⚠️ The previous version of this box was retracted on 15 Aug.** It claimed the truth correlates
+> **0.0654 WORSE** than the impostor and that the refit recovers **89.0%**. Neither reproduced: the
+> "winner" figure was the **maximum of the correlation surface**, not the score at the location the
+> pipeline chose, and a maximum over ~810,000 positions exceeds any nominated point by construction.
+> Cause and full retraction: **FINDINGS §37**. Nothing shipped was affected.
 >
-> **The per-candidate refit recovers 89.0% of that deficit** (paired, same 8 failures), leaving
-> 0.0072 — about 3.6x the correlation sampling noise of ~0.002.
+> **A perfect pose does not rescue these pairs.** Oracle pose plus a plain argmax scores **70/100**
+> against the shipped **84/100** and recovers 1 of 16 failures. Pose estimation error is not the
+> bottleneck. (§35a — reproduced exactly.)
 >
-> So the project spent its effort hunting 0.007 of signal while the governing quantity was 0.065 and
-> geometry had already taken 0.058. That is why "same criterion, better geometry" is the only stage
-> that has ever worked, and why every scoring idea fails. Regenerate with
-> `scripts/oracle_ceiling.py`.
+> **At that pose the truth and its impostor are statistically indistinguishable:**
 >
-> **And the refit is not compensating for missing physics** (§36). Three degrees of freedom were
-> added to the forward model and measured as *differential* gain — truth minus winner:
+> | ZNCC at the exact GT pose, 15 failures | mean | truth ahead |
+> |---|---|---|
+> | at the **true** location | **0.7661** | — |
+> | at the location the **pipeline chose** | **0.7696** | **7/15**, p = **1.000** |
+> | *(global surface maximum — what the retracted figure measured)* | *0.8915* | *0/15* |
 >
-> | added freedom | differential |
-> |---|---|
-> | PSF blur | **+0.0003** (7/8) — real, closes 3% |
-> | anisotropic scale + shear | **−0.0004** (4/8) |
-> | line-jitter, quadratic in y | **−0.0310** (2/8) |
+> Paired on the 8 failures where the truth reached the final comparison, the deficit is **+0.0114**
+> at the oracle pose and **+0.0072** after the refit — the refit closes **36.6%**, in 7 of 8.
 >
-> **Every degree of freedom either helps negligibly or helps the wrong candidate, monotonically.**
-> A candidate that already fits well cannot benefit from extra freedom; one that fits badly can.
-> So the shipped `rigid pose + bounded refit` is not a model we ran out of time to enrich — it is
-> the measured optimum, and every attempt to loosen the bound has cost accuracy.
+> So the available margin is about **0.01 of correlation**. That is why six re-ranking criteria
+> failed to resolve it, and it is a *measured* statement rather than an impossibility claim.
+> Regenerate with `scripts/pose_ceiling.py` → `results/pose_ceiling.csv`.
+>
+> **Extra forward-model freedom buys almost nothing** (§36). Three degrees of freedom added as
+> oracles, measured as *differential* gain — truth minus winner, the only form that changes a
+> decision:
+>
+> | added freedom | differential | status |
+> |---|---|---|
+> | PSF blur | **+0.0000** (7/8) | real, negligible |
+> | anisotropic scale + shear | **−0.0004** (4/8) | ✅ reproduces exactly — the impostor gains more |
+> | line-jitter, quadratic in y | **+0.0378** (7/8) | ❌ sign reverses vs §36c — **unsettled** |
+>
+> The line-jitter differential is the **one live lead** in the project: +0.0378 against a +0.0114
+> deficit would flip these pairs. It is not a finding — n = 8, oracle-only, p = 0.070, and an
+> earlier implementation measured the opposite sign. Settle it in the pipeline on all four splits or
+> leave it alone (§37d).
 >
 > (A review challenged §36b as double-scaling the reference. Checked, not argued:
 > `integrate_reference` returns 1000×1000 — it blurs, it does not resize — and the experiment's warp
-> at ax=sh=0 reproduces `build_template` with max|diff| = 0.000000.)
+> at ax=sh=0 reproduces `build_template` with max|diff| = 0.000000. Re-verified 15 Aug.)
 >
 > Two claims here were softened after review and should stay that way: the 0.002 IID noise figure is
 > a *scale*, not a calibrated floor (SEM pixels are not independent), and the ceiling is for **rules

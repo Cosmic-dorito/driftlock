@@ -49,55 +49,84 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
 
 ## 2. The two findings that carry the submission
 
-### 2a. The oracle ceiling — what the architecture actually contributes (§35)
+### 2a. The oracle ceiling — the margin is ~0.01, and the truth is tied, not behind (§35a, §37)
+
+> **⚠️ Corrected 15 Aug.** An earlier version of this section claimed the truth correlates **0.065
+> worse** than the impostor (2/15, p = 0.007) and that the refit recovers **89%**. That did not
+> reproduce: the "winner" figure was the **maximum of the correlation surface**, not the score at
+> the location the pipeline chose, and a max over ~810,000 positions beats any nominated point by
+> construction. Full retraction and cause in **FINDINGS §37**. The numbers below are the
+> reimplementation's, and they are regenerable.
 
 Given the generator's **exact** `scale_ratio` and `rotation_deg`:
 
-| | ZNCC at the exact GT pose |
-|---|---|
-| at the **true** location | **0.7661** |
-| at the **winning** location | **0.8615** |
-| truth out-correlates the winner in | **2 / 15** (exact two-sided p = 0.007) |
+| | | |
+|---|---|---|
+| shipped pipeline correct | **84 / 100** | |
+| oracle pose + plain argmax | **70 / 100** | recovers 1 of 16 failures, loses 15 it had |
 
-**At a fixed pose the true site correlates *worse* than the impostor by 0.065.** These were never
-selection errors — correlation is maximised elsewhere. An oracle-pose plain argmax scores 70/100
-against the shipped 84/100 and recovers 1 of 16 failures.
+**Pose estimation error is not what loses these pairs** — a perfect pose is *worse* than the shipped
+pipeline, because it has no refit. (§35a, reproduced exactly.)
 
-Strictly paired on the same 8 failures:
+At that exact pose, on the 15 failures, scoring both sides at nominated locations:
+
+| ZNCC at the exact GT pose | mean | truth ahead |
+|---|---|---|
+| at the **true** location | **0.7661** | — |
+| at the location the **pipeline chose** | **0.7696** | **7 / 15**, p = **1.000** |
+| *(at the global surface maximum — what the retracted figure measured)* | *0.8915* | *0 / 15* |
+
+**At the correct pose the true site and its impostor are statistically indistinguishable.** Paired
+on the 8 failures where the truth reached the final comparison:
 
 | | deficit (winner − truth) |
 |---|---|
-| at the exact oracle pose | **+0.0654** |
+| at the exact oracle pose | **+0.0114** |
 | after the per-candidate refit | **+0.0072** |
-| **refit closes** | **89.0%** (gap reduced in 6/8) |
+| **refit closes** | **36.6%** (gap reduced in 7/8) |
 
-> The headline is not "16% mis-lock remains". It is: **at a fixed pose the true site is behind by
-> 0.065; DriftLock's geometry recovers 89% of that.**
+> The headline is not "16% mis-lock remains". It is: **at the correct pose the true site and its
+> impostor are separated by about 0.01 of correlation — the level at which sampling noise and model
+> mismatch live. That is why six re-ranking criteria failed to resolve it.**
 
-Regenerate: `python scripts/oracle_ceiling.py` → `results/oracle_ceiling.csv`.
+Regenerate: `python scripts/pose_ceiling.py` → `results/pose_ceiling.csv`.
 
-*Caveat kept deliberately:* the 0.002 IID correlation standard error is a **scale, not a calibrated
-floor** — SEM pixels are blurred, periodic and interpolated, so effective sample size is far below
-10,000. And the ceiling is for **rules reading the fixed-pose correlation**, not for every
-conceivable method.
+*Two caveats kept deliberately:* correlation sampling noise on these patches is a **scale, not a
+calibrated floor** — SEM pixels are blurred, periodic and interpolated, so the effective sample size
+is far below the pixel count. And this measures **rules reading the fixed-pose correlation**, not
+every conceivable method.
 
-### 2b. Freedom flows to the wrong candidate (§36)
+**Do not say** these were "never selection errors", or that "no re-ranker could ever reach them", or
+that geometry recovers 89% of anything. Those followed from the retracted figure. What the evidence
+supports is that the available margin is ~0.01, and that six criteria aimed at it all failed.
 
-Three degrees of freedom added to the forward model, measured as *differential* gain (truth minus
-winner) on the 8 paired failures:
+### 2b. Extra forward-model freedom buys almost nothing (§36, §37a)
 
-| added freedom | truth | winner | **differential** | truth better in |
-|---|---|---|---|---|
-| PSF blur | +0.0013 | +0.0009 | **+0.0003** | 7/8 (p = 0.070) — closes 3% |
-| anisotropic scale + shear | +0.0010 | +0.0014 | **−0.0004** | 4/8 |
-| line-jitter, quadratic in y | −0.0312 | −0.0002 | **−0.0310** | 2/8 |
+> **⚠️ Corrected 15 Aug.** The earlier claim — "every degree of freedom helps the wrong candidate,
+> **monotonically**" — rested on §36c, whose sign **reverses** under an independent implementation.
+> §36a and §36b reproduce (§36b exactly). The monotone claim is withdrawn.
 
-> **Every degree of freedom either helps negligibly or helps the wrong candidate — monotonically.**
+Three degrees of freedom added to the forward model as *oracles* — never pipeline stages — measured
+as *differential* gain (truth minus winner) on the 8 paired failures. A gain that lifts both
+candidates equally changes no decision and is worth nothing.
 
-A candidate that already fits well cannot benefit from extra freedom; one that fits badly can. This
-is the fourth measurement of that asymmetry (§15d refit-gain at 80–92%, §23f the screen, §36b,
-§36c). **The shipped `rigid pose + bounded refit` is the measured optimum, not an approximation to a
-richer model we lacked time to build.**
+| added freedom | truth | winner | **differential** | truth better in | status |
+|---|---|---|---|---|---|
+| PSF blur | +0.0003 | +0.0002 | **+0.0000** | 7/8 (p = 0.070) | reproduces in sign |
+| anisotropic scale + shear | +0.0010 | +0.0014 | **−0.0004** | 4/8 (p = 1.000) | ✅ reproduces exactly |
+| line-jitter, quadratic in y | −0.0276 | −0.0654 | **+0.0378** | 7/8 (p = 0.070) | ❌ sign reversed vs §36c |
+
+What survives: **PSF blur is real and negligible** (consistent 7/8, differential at the fourth
+decimal), and **spatial micro-deformation helps the impostor more** (−0.0004, exactly reproduced).
+Neither justifies a richer forward model.
+
+**The one live lead in the project.** The line-jitter differential is **+0.0378 against a +0.0114
+deficit** — if real, it flips these pairs. It is not a finding: n = 8, oracle-only, p = 0.070, and
+an earlier implementation measured the opposite sign. Settle it the only way that counts —
+implemented in the pipeline, measured on all four splits — or leave it alone. See §37d.
+
+The shipped `rigid pose + bounded refit` remains the measured optimum among everything actually
+tried; that rests on the ablation, which is unaffected.
 
 ---
 
@@ -176,9 +205,9 @@ overlap, patterns non-monotone).
 ### Forward model
 | direction | result |
 |---|---|
-| PSF blur | +0.0003, closes 3% (§36a) |
-| micro-warp | −0.0004 (§36b) |
-| line-jitter correction | −0.0310 (§36c) |
+| PSF blur | differential at the fourth decimal, 7/8 (§36a) |
+| micro-warp | −0.0004, 4/8 — the impostor gains more (§36b, reproduced exactly) |
+| line-jitter correction | ⚠️ **unsettled** — two implementations disagree on the sign (§36c vs §37d) |
 
 ### Other
 | direction | result |
@@ -212,11 +241,12 @@ margin (H7 ≈ 0.057) is not swamped, then reads an ordinary correlation.
 
 ## 7. What is genuinely left
 
-Nothing algorithmic is queued, and that is a conclusion rather than a schedule artefact.
-
-1. **Determinism test** (PROGRESS 3.8) — still outstanding.
-2. **RGB optical extension** — the explicit scored bonus, never started.
-3. **Deck and demo polish** — where the remaining marks are.
+1. **The line-jitter lead** (§37d) — the only open algorithmic question. A differential of +0.0378
+   favouring the truth, against a +0.0114 deficit, on 8 pairs, from an oracle. Either settle it in
+   the pipeline across all four splits or leave it; do not quote it.
+2. **Determinism test** (PROGRESS 3.8) — still outstanding.
+3. **RGB optical extension** — the explicit scored bonus, never started.
+4. **Deck and demo polish** — where the remaining marks are.
 
 Open user actions: no GitHub remote configured; git identity is repo-local "DriftLock Team".
 
@@ -237,6 +267,13 @@ Open user actions: no GitHub remote configured; git identity is repo-local "Drif
    at max|diff| = 0.000000.
 7. **Derive, never duplicate.** Five stale-constant defects: deck, README, ablation DEFAULT row,
    `failure_mechanism.csv` fixed filename, stress-cache accepting empty manifests.
+8. **A result with no script is not a result.** §35's headline went from a scratchpad print straight
+   into four documents, was never in `results/`, and did not survive reimplementation — the "winner"
+   was a surface **maximum**, not a score at a location (§37). R2 and R8 would each have caught it;
+   neither reaches a number that never entered `results/` and never reached a slide.
+9. **Never compare a nominated value against a maximum.** A max over ~810,000 positions is selected
+   *because* it is largest, so the comparison cannot come out any other way. Both sides of a paired
+   comparison must be nominated the same way.
 
 ---
 
@@ -250,7 +287,8 @@ python scripts/robustness_sweep.py
 python scripts/position_strata.py
 python scripts/failure_decomposition.py
 python scripts/significance.py --baseline-predictions "sponsor=...,bench=...,finfet=..."
-python scripts/oracle_ceiling.py
+python scripts/oracle_ceiling.py       # 35a only
+python scripts/pose_ceiling.py         # 35a + the corrected 35b/35c + 36 -> results/pose_ceiling.csv
 python scripts/run_ablation.py --manifest sponsor=... --manifest bench=... --manifest finfet=...
 python scripts/failure_analysis.py && python scripts/make_failure_case.py --manifest data/bench/manifest.csv
 python scripts/make_results_doc.py && python scripts/make_deck.py

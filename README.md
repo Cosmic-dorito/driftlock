@@ -191,12 +191,17 @@ Failure case with root cause: [`results/failure_case/`](results/failure_case/).
 
 Stated plainly rather than left for a judge to find.
 
-1. **The remaining failures are at a measured ceiling, not a tuning gap.** Given the generator's
-   *exact* scale and rotation, the true site correlates **0.065 worse** than the impostor that beats
-   it — so these are not selection errors, and no tie-break or re-ranker can reach them. The
-   per-candidate refit already recovers **89%** of that deficit, leaving ~0.007, close to the
-   correlation sampling noise of ~0.002. Reproduce with `python scripts/oracle_ceiling.py`; details
-   in [FINDINGS §35](docs/FINDINGS.md).
+1. **The remaining failures sit at a margin of about 0.01 of correlation, not at a tuning gap.**
+   Given the generator's *exact* scale and rotation, the true site scores **0.7661** and the site
+   the pipeline chose scores **0.7696** — the truth is ahead in **7 of 15**, p = **1.000**. At the
+   correct pose the two are *statistically indistinguishable*, and the paired deficit is **+0.0114**,
+   which the per-candidate refit reduces to **+0.0072**. A perfect pose does not rescue them either:
+   an oracle-pose plain argmax scores **70/100** against the shipped **84/100**. Reproduce with
+   `python scripts/pose_ceiling.py`; details in [FINDINGS §35a and §37](docs/FINDINGS.md).
+   *An earlier version of this note claimed a 0.065 deficit and 89% recovery. That did not
+   reproduce — the figure it compared against was the maximum of the correlation surface rather than
+   a score at a location, and a maximum over ~810,000 positions exceeds any nominated point by
+   construction. The retraction is [FINDINGS §37](docs/FINDINGS.md); nothing shipped was affected.*
 2. **Selection is not solved, and the screen is a hard gate.** Every pass rate is capped by the
    mis-lock rate. Each failure is classified by the stage that lost it, in
    [`results/failure_decomposition.csv`](results/failure_decomposition.csv): of the 16 failures
