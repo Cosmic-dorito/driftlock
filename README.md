@@ -215,7 +215,13 @@ Stated plainly rather than left for a judge to find.
 4. **Rotation beyond ±2° and scale outside 9:1–11:1 are not searched.** Both ranges come straight
    from the problem statement; `PipelineConfig.pose_scale_range` / `pose_rotation_range` widen them
    at linear cost.
-5. **Degradations are now stratified — and two of them hurt.**
+5. **Target position does not measurably matter.**
+   [`results/position_strata.csv`](results/position_strata.csv) splits the same 100 evaluated pairs
+   by distance from the field centre (targets span 32–547 px) and by proximity to the frame edge.
+   Every stratum's Wilson interval overlaps every other and the pattern is non-monotone, so no
+   positional dependence is resolvable at this sample size — which is also why the spec's
+   closest-to-centre tie-break cannot help here ([ADR-0021](docs/DECISIONS.md)).
+6. **Degradations are now stratified — and two of them hurt.**
    [`results/robustness.csv`](results/robustness.csv) sweeps 22 operating points across dose, read
    noise, scale, rotation and five degradations, deliberately running *past* the envelope the
    problem statement promises. Accuracy is essentially flat across a 32× dose range and across
@@ -223,13 +229,13 @@ Stated plainly rather than left for a judge to find.
    names explicitly as a possible degradation — and **barrel distortion (43.3%)**, which it does
    not. Scale beyond the promised range is the envelope limit: 16.7% inside 9–11:1, 40.0% at
    8–12:1. This is validation only; nothing is tuned on those seeds.
-6. **Small differences between splits are not resolved, and we say so.**
+7. **Small differences between splits are not resolved, and we say so.**
    [`results/significance.csv`](results/significance.csv) carries Wilson intervals and a paired
    McNemar test. Two stress splits with *identical* generator parameters differing only by seed
    measured 20.0% and 26.7%, so cross-split gaps of a few points are directional only. The headline
    configuration change is quoted as a paired comparison on the same 100 pairs — 0 regressions,
    6 fixes, exact p = 0.031 — because that is the test the design actually supports.
-7. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
+8. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
    implementation failure — that is a different claim from "we tried it and it does not help".
 
 Working assumptions about the evaluation data are tracked as **H1–H10** in [`CLAUDE.md`](CLAUDE.md)

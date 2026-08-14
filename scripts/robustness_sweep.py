@@ -89,6 +89,19 @@ LADDERS: list[tuple[str, str, bool, list[str]]] = [
      ["--salt-pepper-prob", "0.01", "--speckle-sigma", "0.1"]),
     ("other degradation", "beam spot 12 nm (heavy blur)", False, ["--beam-spot-size-nm", "12"]),
     ("other degradation", "barrel distortion", False, ["--barrel-distortion-k", "0.05"]),
+    # Everything at once. Each ladder above moves ONE axis, which is right for diagnosis and wrong
+    # for prediction: the released test set will not politely vary one nuisance at a time. These ask
+    # whether the robustness composes or whether the failures multiply.
+    ("mixed", "spec envelope + 4x noise", False,
+     ["--dose-search", "50", "--rotation-max", "2", "--scale-min", "9", "--scale-max", "11"]),
+    ("mixed", "spec envelope + noise + streaks", False,
+     ["--dose-search", "50", "--rotation-max", "2", "--scale-min", "9", "--scale-max", "11",
+      "--charging-streak-prob", "0.3", "--charging-streak-intensity", "25"]),
+    ("mixed", "everything, beyond spec", False,
+     ["--dose-search", "50", "--detector-noise-sigma-search", "10",
+      "--rotation-max", "3", "--scale-min", "8.5", "--scale-max", "11.5",
+      "--charging-streak-prob", "0.3", "--charging-streak-intensity", "25",
+      "--salt-pepper-prob", "0.01", "--gamma", "0.8", "--vignette-strength", "0.3"]),
 ]
 
 

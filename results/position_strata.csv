@@ -1,0 +1,12 @@
+stratum,n_pairs,mislock_k,mislock_rate,ci95_low,ci95_high,median_err_px
+radius inner,16,1,0.0625,0.0111,0.2833,0.194
+radius mid,36,8,0.2222,0.1172,0.3809,0.349
+radius outer,48,7,0.1458,0.0725,0.2717,0.206
+edge near edge,25,4,0.1600,0.0640,0.3465,0.340
+edge mid,41,5,0.1220,0.0532,0.2554,0.205
+edge central,34,7,0.2059,0.1035,0.3680,0.300
+
+# Pooled over sponsor + bench + holdout_finfet, the same pairs reported in
+# results/metrics_*.csv. No new data: the existing targets already span 32-547 px
+# from the field centre, so position is stratified rather than re-generated.
+# Wilson intervals; overlapping intervals mean the strata are NOT distinguishable.

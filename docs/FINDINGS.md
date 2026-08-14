@@ -1612,6 +1612,37 @@ worth more than another point inside it.
   degradations includes them explicitly, so this is a live risk on the released test set rather than
   a hypothetical one. Row destriping was re-tested against them and does not fix it (§26).
 
+### 24a. Target position — the fourth axis, and it needed no new data ⚪
+
+The spec names four axes and the sweep above covers three. The fourth, **target position**, turned
+out to require no generation at all: the 100 already-evaluated pairs place targets from **32 px to
+547 px** from the field centre. `scripts/position_strata.py` stratifies what exists rather than
+manufacturing more, which matters here — generating one stress split costs more machine time than
+every analysis in this document combined.
+
+Two stratifications, because they probe different mechanisms. Radius from the field centre is where
+barrel, vignetting and the drift model's linear approximation would bite; distance to the nearest
+frame edge is about context available to the correlation window, which radius does not capture.
+
+| stratum | n | mis-lock | 95% CI | median px |
+|---|---|---|---|---|
+| radius, inner | 16 | 6.2% | [1%, 28%] | 0.194 |
+| radius, mid | 36 | 22.2% | [12%, 38%] | 0.349 |
+| radius, outer | 48 | 14.6% | [7%, 27%] | 0.206 |
+| edge, near | 25 | 16.0% | [6%, 35%] | 0.340 |
+| edge, mid | 41 | 12.2% | [5%, 26%] | 0.205 |
+| edge, central | 34 | 20.6% | [10%, 37%] | 0.300 |
+
+**Every interval overlaps every other, and both patterns are non-monotone** — the worst radius band
+is the middle one, not the outer. There is no positional dependence resolvable at this sample size,
+which is the useful answer: it means no positional correction is warranted, and nothing in the field
+geometry is quietly costing accuracy.
+
+It also corroborates ADR-0021 from a second direction. The closest-to-centre tie-break was rejected
+because the benchmark samples targets uniformly, so the deployment prior it needs is absent. This
+adds that accuracy does not vary with position *either* — so even a correctly-calibrated centre rule
+would have nothing to exploit here.
+
 ---
 
 ## 25. Stress testing found a bug in our own generator, not in the localizer ❌ → ✅
@@ -1748,6 +1779,71 @@ exactly and leaves edges intact.
 > silently answers a narrower question than the one it appears to answer. "Stage X does not help"
 > means "stage X does not help *here*". Two of our own negative results were artefacts of that, and
 > both had been recorded with numbers and treated as settled for three days.
+
+### 26a. Composition: do the robustness gains survive being stacked? ✅
+
+Every ladder in §24 moves one axis, which is right for diagnosis and wrong for prediction — the
+released test set will not vary one nuisance at a time. Three combined points:
+
+| point | baseline | **DriftLock** |
+|---|---|---|
+| spec envelope (9–11:1, ±2°) + 4× noise | 73.3% | **23.3%** |
+| the same + charging streaks | 63.3% | **20.0%** |
+| everything, beyond spec (8.5–11.5:1, ±3°, 4× noise, 2× read noise, streaks, impulse, gamma, vignette) | 83.3% | **46.7%** |
+
+**Degradations compose roughly additively; no new failure mode appears.** The 46.7% point is fully
+accounted for by axes already characterised alone — 8.5–11.5:1 straddles the searched scale bracket
+(40.0% at 8–12:1) and ±3° is outside the pose envelope (16.7%). Nothing emerges from the combination
+that was not visible in the parts.
+
+Note the second row is *lower* than charging streaks alone (33.3%). That is not a real effect and is
+not claimed as one: it is a different seed at n=30, and §27 puts the sampling floor at ~13 points.
+
+### 26b. A charging-streak correction, built on the evidence and rejected by it ❌
+
+Under charging streaks the failure mode **inverts** relative to the reported splits:
+
+| split | ABSENT | SCREENED | OUTSCORED |
+|---|---|---|---|
+| the three reported splits | 3 | 4 | **9** |
+| charging streaks | **23.3%** | 6.7% | 3.3% |
+| mixed, beyond spec | **30.0%** | 6.7% | 10.0% |
+
+70% of the streak failures are **ABSENT** — the true location never becomes a candidate. So the
+streak destroys the correlation peak *upstream of top-K*, no re-ranking stage could ever reach those
+pairs, and preprocessing is the only intervention that could work. That is a real, evidence-led
+reason to build one, and it also explains why row destriping was the wrong shape: it does not restore
+the peak, it removes different signal.
+
+`preprocess.destreak` corrects **conditionally**: attenuate the lattice's vertical oscillation first,
+estimate a wide baseline, flag only rows deviating by >4 robust sigmas, and subtract from those rows
+alone. On clean data nothing is flagged.
+
+**A hand-built test caught a design flaw before any of that reached data.** The first version skipped
+the lattice-attenuation step. With word lines every 8 rows the bright rows are a low-duty-cycle spike
+train in the row-mean profile, so a robust baseline sits near the dark level and *every word line*
+reads as a 4-sigma anomaly — the correction erased the lines and left a residual seven times larger
+than the streak. Amplitude cannot separate them; vertical frequency can, since the lattice oscillates
+over a few pixels and a charging band spans tens of rows.
+
+Measured properly, it does exactly what it was built to do and still fails the bar:
+
+| | without | with |
+|---|---|---|
+| charging streaks (n=30) | 33.3% | **26.7%** |
+| nominal control (n=30) | 20.0% | **20.0%** |
+| the 100 reported pairs | 16.0% | **17.0%** — breaks 1, fixes 0 |
+| runtime | — | **+56 ms** |
+
+**Rejected.** The median filter cleared this identical bar with 0 broken, 2 fixed and −3 ms
+(ADR-0027); this breaks one, fixes none, and costs 56 ms. A 2-pair gain well inside the sampling
+floor does not buy a regression on the reported set. Kept unwired with its numbers per R9 — if the
+released data proves streak-heavy it is one line from being enabled, but on the evidence available
+it is a net negative.
+
+*The discipline is the point.* This stage was suggested by review, motivated by our own failure
+decomposition, and behaves exactly as designed in its target regime. None of that is evidence. The
+paired held-out test is, and it said no.
 
 ---
 

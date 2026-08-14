@@ -42,6 +42,94 @@ def row_destripe(img: np.ndarray) -> np.ndarray:
     return work - row_median + float(np.median(row_median))
 
 
+def destreak(img: np.ndarray, sigmas: float = 4.0, baseline_rows: int = 101,
+             lattice_rows: int = 13) -> np.ndarray:
+    """Remove charging streaks WITHOUT removing the horizontal structure they sit on.
+
+    Why :func:`row_destripe` fails, and why this is not the same thing. That function subtracts every
+    row's median unconditionally. On this layout the word lines ARE horizontal, so a legitimate row
+    mean varies strongly and systematically down the image - subtracting it removes the signal along
+    with the artefact. Measured, it costs 20.0% -> 36.7% mis-lock on clean data (FINDINGS 26).
+
+    The artefact is narrower than that treatment. The generator adds ``out[lo:hi, :] += intensity``:
+    a constant offset over a *contiguous band* of rows, leaving every other row untouched. So the
+    corruption is not "each row has an offset", it is "a few rows have an offset", and the
+    correction should be conditional rather than universal:
+
+    1. take the row-mean profile;
+    2. estimate a smooth baseline for it with a wide median filter, which follows the lattice's own
+       slow variation but cannot follow a step;
+    3. flag only rows whose deviation from that baseline exceeds ``sigmas`` robust deviations;
+    4. subtract the deviation from *those rows only*.
+
+    On an image with no streaks nothing is flagged and the input is returned unchanged - not
+    approximately unchanged, but the same array values. That is the property row destriping lacked
+    and the reason it could only ever trade one regime against another.
+
+    Targeted here because the failure decomposition says so: under charging streaks 23.3% of pairs
+    lose the true location before it is ever a candidate, against 3.3% lost at final ranking. The
+    streak destroys the correlation peak upstream of top-K, so no re-ranking stage could reach it.
+
+    **MEASURED AND NOT SHIPPED (14 Aug).** It does what it was built to do and still does not earn
+    its place:
+
+    ==========================  =========  ==========
+    split                       without    with
+    ==========================  =========  ==========
+    charging streaks (n=30)        33.3%      26.7%
+    nominal control (n=30)         20.0%      20.0%
+    100 held-out pairs             16.0%      17.0%
+    ==========================  =========  ==========
+
+    Inert on the clean control, a 2-pair gain on the streaks it targets - and on the 100 reported
+    pairs it **breaks one and fixes none**, for +56 ms. The median filter cleared this same bar with
+    0 broken, 2 fixed and -3 ms, which is why that one ships and this one does not (ADR-0027). A
+    2-pair gain inside the sampling floor does not buy a regression on the reported set.
+
+    Kept, unwired, with its numbers, per R9. If the released data turns out to be streak-heavy this
+    is one line from being enabled - but on the evidence available it is a net negative.
+    """
+    work = img.astype(np.float32)
+    profile = work.mean(axis=1)
+
+    # Attenuate the LATTICE before looking for outliers, or the lattice becomes the outlier.
+    #
+    # The first version of this skipped straight to a robust baseline and flagged deviations from
+    # it. On a layout whose word lines run horizontally with a short pitch, the bright rows are a
+    # low-duty-cycle spike train in the row-mean profile - so a median baseline sits near the dark
+    # level and every word line reads as a 4-sigma anomaly. A hand-built test with lines every 8
+    # rows caught it: the "correction" erased the lines and left a residual seven times larger than
+    # the streak it was removing.
+    #
+    # The two are not separable by amplitude. They ARE separable by vertical frequency: the lattice
+    # oscillates with a period of a few pixels, a charging band spans tens of rows. So average over
+    # several lattice periods first, which cancels the oscillation and preserves the band, and only
+    # then look for departures from a wide baseline.
+    smooth_w = max(3, lattice_rows | 1)
+    kernel = np.ones(smooth_w, dtype=np.float32) / smooth_w
+    smoothed = np.convolve(np.pad(profile, smooth_w // 2, mode="edge"), kernel, mode="valid")
+
+    width = max(3, baseline_rows | 1)
+    pad = width // 2
+    padded = np.pad(smoothed, pad, mode="edge")
+    baseline = np.array([np.median(padded[i:i + width]) for i in range(smoothed.size)],
+                        dtype=np.float32)
+
+    deviation = smoothed - baseline
+    # Median absolute deviation, scaled to be comparable with a standard deviation for Gaussian
+    # data. Robust because the streaked rows are exactly the outliers we must not let set the scale.
+    mad = float(np.median(np.abs(deviation - np.median(deviation))))
+    scale = 1.4826 * mad
+    if scale <= 1e-6:
+        return work
+
+    flagged = np.abs(deviation) > sigmas * scale
+    if not flagged.any():
+        return work
+    correction = np.where(flagged, deviation, 0.0).astype(np.float32)
+    return work - correction[:, None]
+
+
 def generalized_anscombe(
     img: np.ndarray, gain: float = 1.0, sigma: float = 0.0, offset: float = 0.0
 ) -> np.ndarray:

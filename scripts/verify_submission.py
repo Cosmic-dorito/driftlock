@@ -234,7 +234,12 @@ def check_robustness_sweep() -> Result:
     missing = {"noise", "scale", "rotation"} - axes
     if missing:
         return Result(FAIL, f"robustness sweep is missing axes: {sorted(missing)}")
-    return Result(PASS, f"{len(rows)} operating points across {len(axes)} axes")
+    # The spec names FOUR axes and target position is the one that needs no new data - the evaluated
+    # pairs already span 32-547 px from the field centre - so it is stratified rather than swept,
+    # and lives in its own file. Checked here so the deliverable cannot be three-quarters met.
+    if not (REPO_ROOT / "results" / "position_strata.csv").exists():
+        return Result(FAIL, "target-position stratification missing: run scripts/position_strata.py")
+    return Result(PASS, f"{len(rows)} operating points across {len(axes)} axes, plus position")
 
 
 def check_failure_decomposition() -> Result:

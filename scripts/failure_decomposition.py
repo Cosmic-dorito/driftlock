@@ -104,7 +104,19 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default="results/failure_decomposition.csv")
+    # Arbitrary manifests, so a stress split can be decomposed with the same instrument as the
+    # reported ones. "33% mis-lock under charging streaks" does not say whether a preprocessing fix
+    # could help; "the streak failures are ABSENT, not OUTSCORED" does.
+    ap.add_argument("--manifest", action="append",
+                    help="NAME=PATH; repeat. Defaults to the three reported splits.")
     args = ap.parse_args()
+
+    splits = SPLITS
+    if args.manifest:
+        splits = []
+        for entry in args.manifest:
+            name, _, path = entry.partition("=")
+            splits.append((name, path) if path else (Path(entry).parent.name, entry))
 
     import argparse as _ap
     cfg = L.build_config(_ap.Namespace(config="driftlock"))
@@ -115,8 +127,9 @@ def main() -> int:
     print(f"\n  {'split':<10}{'n':>4}{'correct':>9}{'ABSENT':>8}{'SCREENED':>10}{'OUTSCORED':>11}")
     print("  " + "-" * 54)
 
-    for name, folder in SPLITS:
-        manifest = REPO_ROOT / folder / "manifest.csv"
+    for name, folder in splits:
+        candidate = Path(folder)
+        manifest = candidate if candidate.suffix == ".csv" else REPO_ROOT / folder / "manifest.csv"
         counts = {"correct": 0, "absent": 0, "screened": 0, "outscored": 0}
         for row in read_manifest(manifest):
             gt = (float(row["gt_x"]), float(row["gt_y"]))
