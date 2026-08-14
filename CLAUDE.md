@@ -1,11 +1,12 @@
 # DriftLock — shared context
 
-**Applied Materials "Drift-Sense" · SEMICON India Hackathon 2026 · submission deadline 16 Aug 2026.**
+**Applied Materials "Drift-Sense" · SEMICON India Hackathon 2026 · submission deadline 18 Aug 2026.**
 Team of 3, each running Claude Code on their own machine. This file is the shared brain: it is loaded
 automatically on every machine, so nobody has to re-explain the project. **Keep it current.**
 
 Full plan: `docs/PLAN.md`. Requirements: `docs/SPEC.md`. Decisions so far: `docs/DECISIONS.md`.
-Current state: `docs/PROGRESS.md`. Cold start on a new machine: `docs/HANDOFF.md`.
+**Current state: `docs/STATE.md` — read this first.** Live tracker: `docs/PROGRESS.md`.
+Cold start on a new machine: `docs/HANDOFF.md`. Full experiment log: `docs/FINDINGS.md`.
 
 ---
 
