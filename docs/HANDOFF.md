@@ -76,6 +76,23 @@ fresh 151-group set, which picks a null operating point and is *flatter* (1.3 pt
 Four times the data did not sharpen a peak; it showed there is no peak. A model would face the same
 flat criterion with more free parameters.
 
+> ## The stopping condition, with a mechanism (§34)
+>
+> **Any evidence strong enough to be reliable is shared by the impostor (it is periodic), and any
+> evidence that distinguishes them is too weak to be reliable (it is the aperiodic fingerprint).**
+>
+> Every negative in this project is one horn of that. Six re-rankers, the centre tie-break, basin
+> coherence and leave-cell-out generalisation all leaned on evidence the impostor satisfies equally
+> — measured: an impostor's geometry predicts withheld internal cells *better* than the truth's
+> (0.8981 vs 0.8893, truth wins 5/18). PADM, consensus residual, residual tie-break and PCAF all
+> tried to isolate evidence too faint to survive dose 200. A periodic impostor is not a bad fit that
+> got lucky; it is a **genuinely correct geometric explanation of the whole footprint** — that is
+> what "periodic" means. Internal consistency cannot separate them because both are consistent.
+>
+> This is why "same criterion, better geometry" is the only stage that has ever worked (ADR-0024).
+> The pipeline does not try to tell candidates apart; it reduces geometric mismatch so the small
+> real margin (H7 ≈ 0.057) is not swamped, then reads the ordinary correlation.
+
 **Do not try to isolate the aperiodic fingerprint (settled 15 Aug, §33).** Four independent
 attempts now: Fourier masking (PADM), candidate-consensus averaging, gated residual tie-break, and
 spatial cell-folding with a robust median prototype. The last is the cleanest test — re-scoring the

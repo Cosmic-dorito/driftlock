@@ -2305,8 +2305,10 @@ Four independent attempts have now tried to isolate this signal:
 | residual tie-break (§20b) | gated to statistical ties | 20.0% → 25.0% |
 | **PCAF, this section** | **spatial cell-folding, robust median** | **26 broken to fix 1** |
 
-> **The aperiodic fingerprint cannot be isolated without destroying more signal than it recovers.**
-> Its existence is not in question; its *separability at this dose and footprint* is settled.
+> **This residual representation destroys more signal than it recovers.** §34 supersedes the
+> stronger claim originally made here: this test estimated the lattice separately for template and
+> patch, so it refutes cell-folded residual correlation rather than every use of aperiodic
+> information. The general statement, reached properly, is in §34.
 
 That is more useful than "residual scoring does not work", because it says what would have to change
 for it to work: more photons, a larger footprint, or a representation that uses the periodic
@@ -2334,6 +2336,82 @@ different decision rule, so it was measured:
 a larger tuning set then rejected — this is uniform. Multiplicity has now been tried as a score, as
 a blend weight and as a filter; it has the strongest marginal separation of any feature measured
 (d = 1.098) and is unusable in all three roles.
+
+---
+
+## 34. Internal consistency cannot separate them, because the impostor is also consistent ❌✅
+
+§33's conclusion was too strong and an external reviewer was right to say so. The PCAF test
+estimated the lattice **independently** for the template and for the patch, so the two residuals
+could sit in different coordinate frames before being correlated — a real flaw, and it means that
+experiment refutes *that representation*, not every use of aperiodic information. The finding is
+softened accordingly.
+
+The reviewer's alternative is the opposite philosophy and deserved a proper test: do not remove the
+periodic component, use the footprint's internal redundancy to check whether **one** geometry
+explains the **whole** site. Two experiments, both avoiding the alignment flaw by construction.
+
+### 34a. Cellwise consistency at a fixed pose ❌
+
+Split the aligned footprint into 4×4 blocks and correlate block by block — same template, same pose,
+no subtraction and no lattice estimation. On 18 failures where the truth is present but outranked:
+
+| statistic | truth | winner | truth better in |
+|---|---|---|---|
+| global (by construction the truth loses) | 0.9106 | 0.9187 | 0/18 |
+| mean block | 0.8709 | 0.8771 | 3/18 |
+| **worst block** | 0.7798 | 0.7759 | **6/18** |
+| block spread (lower better) | 0.0422 | 0.0495 | **7/18** |
+
+The *means* favour the truth on worst-block and spread, which looks encouraging — but per pair it
+wins only 6 and 7 times out of 18, **below chance**. The favourable averages are a few outliers.
+
+### 34b. Leave-cell-out geometric generalisation ❌ — and it fails backwards
+
+The stronger form. Fit the pose using only half the blocks (a checkerboard, so both halves span the
+whole field), then score the **withheld** half under that pose. A periodic impostor was predicted to
+be a coincidence of the bulk whose fitted geometry would predict the rest less well.
+
+| | held-out-half score |
+|---|---|
+| truth | 0.8893 |
+| **winning impostor** | **0.8981** |
+| truth better in | **5 / 18** (two-sided exact p = 0.096) |
+
+**The impostor generalises better than the truth**, in 13 of 18 cases. Not noise around zero — it
+leans, weakly, in the direction opposite to the hypothesis.
+
+### The reason, and it unifies every negative in this document
+
+The prediction assumed a periodic impostor is a *bad fit that got lucky on the bulk*. It is not. On a
+lattice that genuinely repeats, an impostor at a lattice offset is a **genuinely correct geometric
+explanation of the entire footprint** — correct scale, correct rotation, correct drift, consistent
+across every internal region. That is what "periodic" means. It is the right answer to the wrong
+question.
+
+So internal consistency cannot separate them, because **both candidates are internally consistent**.
+There is nothing inconsistent about the impostor to detect.
+
+That closes the family, and the closure is mutually exclusive rather than merely empirical:
+
+> **Any evidence strong enough to be reliable is shared by the impostor (it is periodic), and any
+> evidence that distinguishes them is too weak to be reliable (it is the aperiodic fingerprint).**
+
+Every negative result in this document is one horn of that dilemma. The six re-rankers, the centre
+tie-break, basin coherence and LCLOV all leaned on evidence the impostor satisfies equally. PADM,
+consensus residual, residual tie-break and PCAF all tried to isolate evidence too faint to survive
+the noise at dose 200. There is no third source of information in a 100×100 footprint of a
+repeating lattice.
+
+**What the shipped architecture does is the only thing left**, and it is now clear why it works: it
+does not try to tell the candidates apart at all. It reduces *geometric mismatch* so that the small
+real margin — H7's ~0.057 — is not swamped by model error, then reads the ordinary correlation. That
+is why "same criterion, better geometry" is the only stage that has ever helped here (ADR-0024), and
+why every attempt at a different criterion has failed.
+
+**This is a stopping condition with a mechanism, not a schedule.** Recovering the remaining failures
+requires more photons, a larger footprint, or reference content beyond the 100×100 the problem
+provides — none of which is available to a submission.
 
 ---
 
