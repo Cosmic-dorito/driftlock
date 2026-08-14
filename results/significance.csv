@@ -1,0 +1,11 @@
+scope,mislock_k,n,mislock_rate,ci95_low,ci95_high
+sponsor,8,40,0.2000,0.1050,0.3476
+bench,5,30,0.1667,0.0734,0.3356
+finfet,3,30,0.1000,0.0346,0.2562
+aggregate,16,100,0.1600,0.1010,0.2442
+paired_vs_baseline,0,100,6,0.0312,strictly dominant (no regressions)
+
+# Wilson score intervals; normal-approximation intervals go negative at n=30.
+# For scope=paired_vs_baseline: mislock_k=b, mislock_rate=c, ci95_low=exact p.
+# Two parameter-identical stress splits differing only by seed measured 20.0%
+# and 33.3% at n=30 - the sampling floor for reading any single split.

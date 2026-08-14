@@ -16,6 +16,7 @@ analysis, the reasoning, the negative results - stays hand-written.
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import subprocess
 import sys
@@ -67,8 +68,30 @@ def load_runtime() -> dict[tuple[str, str], str]:
     with path.open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             if row.get("split") and not row["split"].startswith("#"):
-                out[(row["split"], row["config"])] = f"{float(row['p50_ms']):.0f} ms"
+                cell = f"{float(row['p50_ms']):.0f} ms"
+                # The x-baseline ratio is the machine-independent figure and is quoted alongside.
+                # This laptop throttles ~3x over a long session for identical code, and across three
+                # states in one day the ratio held at 18-20 while the milliseconds moved 400 -> 1262.
+                if row.get("x_baseline") and row["config"] == "driftlock":
+                    with contextlib.suppress(ValueError):
+                        cell += f" ({float(row['x_baseline']):.0f}x base)"
+                out[(row["split"], row["config"])] = cell
     return out
+
+
+def runtime_is_representative() -> bool:
+    """Whether the last benchmark ran on a machine whose control was in normal range.
+
+    benchmark_runtime.py records this. Absolute milliseconds measured on a throttled machine are a
+    property of that afternoon, not of the method, and saying so is cheaper than being asked.
+    """
+    path = RESULTS / "runtime.csv"
+    if not path.exists():
+        return True
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("# absolute_ms_representative,"):
+            return line.split(",", 1)[1].strip().startswith("yes")
+    return True
 
 
 def load_screen_recall() -> dict[str, dict[str, str]]:
@@ -219,11 +242,19 @@ def build_readme_block() -> str:
         f"OpenCV {env.get('opencv_version', '?')}, {env.get('cv2_threads', '?')} thread(s).",
         "",
         "**Timing method:** runtimes come from `scripts/benchmark_runtime.py`, which interleaves the "
-        "splits round-robin and discards a warm-up. Measured inside the accuracy run instead, this "
-        "machine's thermal drift lands on whichever split runs last — that produced 1228/1190/354 ms "
-        "for identical code in one batch. Developed on macOS and re-measured on Windows for this "
-        "submission; the accuracy numbers reproduce to the digit across both.",
+        "splits round-robin and discards a warm-up. The **x-baseline** figure is the one to compare "
+        "across machines: this laptop throttles by up to 3x for identical code over a long session "
+        "and does not recover on idling, and across three states in one day the absolute p50 moved "
+        "400 -> 630 -> 1262 ms while the ratio to the baseline held at 20.0, 18.5 and 18.8. The "
+        "baseline is therefore run as a control in the same interleaved pass.",
         "",
+        *([] if runtime_is_representative() else [
+            "> ⚠️ **The absolute milliseconds in this table were measured on a throttled machine** "
+            "— the baseline control read far above its quiet-machine value — and are not "
+            "representative. The x-baseline ratios are unaffected. Re-run "
+            "`scripts/benchmark_runtime.py` on a rested machine before quoting the p50 figures.",
+            "",
+        ]),
         README_END,
     ])
 

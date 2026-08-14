@@ -295,6 +295,47 @@ stale deck. Both fixed (FINDINGS §23h).
 
 ---
 
+## Stage 9 — Stress testing, and what it found ✅ (14 Aug, win-2)
+
+> Current numbers live in the generated headline in `docs/RESULTS.md`.
+
+Searching the problem statement for deliverables we were not producing turned up a graded one:
+*"Results across multiple noise levels, target positions, scales and rotations."* Every number in
+`results/` came from a single operating point. Building that sweep (`scripts/robustness_sweep.py`,
+22 points, validation-only seeds) then produced three findings, only one of which was about the
+localizer.
+
+| | held-out mis-lock |
+|---|---|
+| start of the day | 22.0% |
+| **end of the day** | **16.0%** (20.0 / 16.7 / 10.0 across sponsor / bench / FinFET) |
+
+Paired against the configuration it replaced, on the same 100 pairs: **0 regressions, 6 fixes,
+exact McNemar p = 0.031.** Strictly dominant and significant.
+
+**1. A stage rejected in the one regime where it could not work.** The median filter was recorded as
+"no effect" (§3) and sat off for three days — measured on splits with `salt_pepper_prob = 0`. In its
+actual regime it is worth 16.7% → 6.7%, costs −3 ms, and breaks 0 of 100 held-out pairs. Shipped
+(ADR-0027). Row destriping got the same fair re-test and stays off, confirmed harmful.
+
+**2. The sweep found a bug in our generator, not our localizer.** Barrel distortion read 53.3%
+mis-lock with a *median error of 9.09 px* — the wrong shape for a mis-lock. The residual pointed
+radially inward on 97% of pairs and fitted `a·r²` at R² = 0.811. Ground truth had been computed
+before barrel was applied, so the label described a different image than the one saved. Fixed with a
+solved inverse map and a hand-derived test; median fell to 1.19 px (ADR-0028). No reported number
+moved — `barrel_distortion_k` defaults to 0.
+
+**3. Our own mechanism claim was refuted, for the second time.** §23f predicted that in an outscored
+failure the winning impostor travelled further in pose. Measured: 0 of 9, winners travel *less*.
+The A/B/C/D ablation stands; the explanation does not, and is marked rather than rewritten.
+
+Also: `results/significance.csv` now generates Wilson intervals and the paired test, after the sweep
+accidentally ran the nominal configuration twice and got 20.0% and 26.7% from identical parameters
+(ADR-0029). And the ablation's DEFAULT row now derives from `localize.py::build_config` — it had
+silently drifted the moment the shipped config changed.
+
+---
+
 ## Stage 7 — Stretch, all flag-gated
 
 Stop wherever time runs out; each is independently shippable.

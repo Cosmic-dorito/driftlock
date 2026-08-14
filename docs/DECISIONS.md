@@ -688,6 +688,108 @@ artefact of this implementation, exactly as §22's correction hedged. It is now 
 
 ---
 
+## ADR-0027 · 2026-08-14 · accepted · The median filter ships, having been rejected in the wrong regime
+
+**Decision.** `median_filter=True` in the shipped configuration.
+
+**Why it was off.** FINDINGS §3 measured it as "no effect" and it stayed off for three days. That
+measurement was taken on our nominal splits, where `salt_pepper_prob = 0`. **A stage that removes
+impulse noise was evaluated only on data containing none**, so the best it could have scored was
+"no effect" — which is exactly what it scored, and the number was treated as settled.
+
+**Measured, with the regime present** (validation seeds, disjoint from every reporting split):
+
+| config | nominal (control) | salt-and-pepper | charging streaks |
+|---|---|---|---|
+| off (previous default) | 20.0% | 16.7% | 36.7% |
+| **on** | **20.0%** | **6.7%** | 33.3% |
+
+And paired on the 100 held-out pairs: **breaks 0, fixes 2**, held-out mis-lock 18.0% → 16.0%,
+runtime delta **−3 ms** measured interleaved, i.e. free.
+
+**Why this is not tuning on the benchmark (R5).** The decision rests on the impulse-noise column,
+measured on validation-only seeds, plus a check that it regresses nothing. The 2-pair held-out gain
+is inside the sampling noise established in ADR-0029 and is reported, not relied on. Had it broken
+even one held-out pair the trade would have been arguable; breaking zero of 100 makes it not.
+
+**Why it is worth taking for two pairs.** It is free, it is provably harmless here, and the spec
+names salt-and-pepper explicitly among possible degradations while stating that the released test
+set uses parameters we have not seen. A stage worth 10 points in a regime the evaluator may include
+and 0 points otherwise is a good trade at zero cost.
+
+**Row destriping stays off**, re-tested in the same way: catastrophic on clean data (20.0% → 36.7%,
+confirming ADR-0011) and worth one pair on the streaks it was written for. It removes horizontal
+word lines along with the streaks.
+
+**What would change our mind.** Evidence that the evaluation data contains no impulse noise at all,
+which would make this a free no-op rather than a free hedge — in which case it may as well stay,
+since it costs nothing either way.
+
+---
+
+## ADR-0028 · 2026-08-14 · accepted · Ground truth must pass through every geometric stage, not most of them
+
+**Decision.** `pipeline.py` maps ground truth through barrel distortion via
+`imaging.barrel_map_point` before recording it. Covered by a hand-derived asymmetric test.
+
+**The bug.** `barrel_distortion` is written the way `cv2.remap` requires: for each **output** pixel
+it names the **source** pixel to sample. That is the inverse of the path a feature travels. Ground
+truth was computed through scale and rotation and stopped there, because barrel is applied later
+inside `detector_chain`. So the label described the pre-distortion frame while the saved image showed
+the distorted one.
+
+**How it surfaced.** Not by inspection — by the robustness sweep returning 53.3% mis-lock at
+`k = 0.05` with a **median error of 9.09 px**. That median is the tell: a real mis-lock is tens to
+hundreds of pixels off, so 9 px is a systematic offset, not a wrong lattice repeat. One measurement
+confirmed it: the residual pointed radially **inward on 97% of pairs** and fitted `a·r²` with
+**R² = 0.811**. Inward, radial and quadratic is barrel's own signature.
+
+**Why it matters beyond the fix.** Reported unexamined, that row would have appeared in our own
+submission as a measured weakness of the localizer. It was a mislabelled dataset. Anyone using our
+generator for distortion robustness would have inherited it silently, since nothing else in the
+pipeline cross-checks the label against the image.
+
+**Blast radius: none.** `barrel_distortion_k` defaults to 0, so `bench`, `dev` and `holdout_finfet`
+are unaffected and no reported number moves.
+
+**The rule this generalises to.** Ground truth is not a by-product of the geometry; it is a *parallel
+render* of it, and every stage that moves pixels must move the label. The reference/search
+acquisitions already share this property for scale, rotation and drift — barrel was the one stage
+applied after the coordinate was frozen, which is precisely why nobody noticed.
+
+---
+
+## ADR-0029 · 2026-08-14 · accepted · Report paired tests and Wilson intervals, not bare proportions
+
+**Decision.** `scripts/significance.py` generates confidence intervals and a paired McNemar test into
+`results/significance.csv`. Differences of 2–4 points between splits are reported as directional, not
+as resolved.
+
+**What forced it.** The stress sweep accidentally ran the nominal configuration twice — `s02` and
+`s06` share an identical generator parameter set, verified by diffing every manifest column, and
+differ only in seed. They measured **20.0%** and **26.7%** (and 20.0% vs 33.3% before ADR-0027).
+Two samples of the same distribution, n = 30, six to thirteen points apart. Every "X is 3 points
+better than Y" in this project needed re-reading against that.
+
+**The two questions are different, and conflating them cut against us.** Marginal intervals are wide
+(aggregate 18.0%, 95% CI [11.7%, 26.7%]). But our own configuration comparisons run on the *same
+pairs*, where 78 of 100 are correct under both — so the paired test is far more powerful:
+
+| screened-wide vs narrow, same 100 pairs | |
+|---|---|
+| narrow correct, screened wrong (b) | **0** |
+| screened correct, narrow wrong (c) | **4** |
+| exact McNemar two-sided | **p = 0.125** |
+
+**Strictly dominant, and not significant at 0.05.** Both halves get reported. Four discordant pairs
+all falling one way is the best available outcome at this sample size and still only reaches 0.125;
+believing the mechanism does not change that arithmetic.
+
+**What this does not undermine.** 76.7% → 16.7% on bench and 90.0% → 10.0% on held-out FinFET are
+not four-point differences and are not in doubt.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

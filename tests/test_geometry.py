@@ -147,3 +147,35 @@ class TestGroundTruthConsistency:
             )
             assert cx == pytest.approx(float(row["gt_x"]), abs=1e-9)
             assert cy == pytest.approx(float(row["gt_y"]), abs=1e-9)
+
+
+def test_barrel_map_point_is_the_inverse_of_the_remap():
+    """The GT transform must undo exactly what cv2.remap does, not merely resemble it.
+
+    Hand-derived, per R4. barrel_distortion tells remap: output pixel p samples source
+    c + (p - c)(1 + k*rn_p^2). So a feature at source s appears at the p solving that equation.
+    Pick p first, compute the s it implies by hand, then require barrel_map_point(s) == p.
+
+    Asymmetric on purpose: a point on a diagonal with different x and y offsets cannot pass if the
+    axes are swapped or if only one is normalised.
+    """
+    import numpy as np
+
+    from src.synth.imaging import barrel_map_point
+
+    size, k = 1000, 0.05
+    c = (size - 1) / 2.0
+    px, py = c + 300.0, c - 120.0          # deliberately not symmetric, not on an axis
+    nx, ny = (px - c) / c, (py - c) / c
+    factor = 1.0 + k * (nx * nx + ny * ny)
+    sx, sy = c + (px - c) * factor, c + (py - c) * factor
+
+    got_x, got_y = barrel_map_point(sx, sy, (size, size), k)
+    assert np.isclose(got_x, px, atol=1e-6), f"x: {got_x} != {px}"
+    assert np.isclose(got_y, py, atol=1e-6), f"y: {got_y} != {py}"
+
+    # Content moves INWARD under barrel (k > 0): that sign was the whole bug.
+    assert abs(got_x - c) < abs(sx - c)
+    assert abs(got_y - c) < abs(sy - c)
+    # k = 0 must be exactly the identity, including for the centre pixel.
+    assert barrel_map_point(123.4, 567.8, (size, size), 0.0) == (123.4, 567.8)

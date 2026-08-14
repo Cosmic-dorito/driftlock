@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+import localize as _cli  # noqa: E402
 from src.driftlock.io import (  # noqa: E402
     euclidean_error,
     load_grayscale,
@@ -33,6 +35,8 @@ from src.driftlock.io import (  # noqa: E402
     resolve_manifest_path,
 )
 from src.driftlock.match import PipelineConfig, localize  # noqa: E402
+
+build_config = _cli.build_config
 
 MISLOCK_PX = 5.0
 
@@ -66,16 +70,20 @@ def ladder() -> list[PipelineConfig]:
         PipelineConfig(label="+ per-candidate pose refit, narrow",
                        subpixel=True, drift_correction=True, pose_search=True,
                        top_k=10, candidate_refit=True, refit_steps=2),
-        # The refit's cost is correlation count, not template construction: candidates arrive
-        # top_k-per-POSE, so a dense grid over all 60 is 1500 correlations per pair. Screening with
-        # the cheap narrow grid first and spending the dense budget on the survivors is both
-        # faster and more accurate than the unscreened dense grid - the wide sweep is now centred
-        # on a pose the narrow pass already corrected. See ADR-0025.
-        PipelineConfig(label="** + screened wide refit  [DEFAULT] **",
-                       subpixel=True, drift_correction=True, pose_search=True,
-                       top_k=10, candidate_refit=True, refit_steps=5,
-                       refit_scale_span=0.03, refit_rotation_span=1.5,
-                       refit_screen_steps=2, refit_screen_top_n=10),
+        # The DEFAULT row is READ FROM localize.py, never restated here.
+        #
+        # It used to be a hand-written PipelineConfig duplicating the shipped one, and it drifted
+        # the moment the shipped config changed: enabling the median filter left this table
+        # reporting the previous configuration under the word DEFAULT, on all three splits, with no
+        # warning. A duplicated constant is a stale constant; deriving it makes the drift
+        # impossible rather than merely unlikely.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                label="** + screened wide refit + median  [DEFAULT] **"),
+        # The same configuration with the median filter removed, so the table shows what that stage
+        # is actually worth on data where its target degradation is absent - which is the whole
+        # point of FINDINGS section 26.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                median_filter=False, label="   the DEFAULT minus the median filter"),
 
         # --- measured negative results, kept per R9 ---
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),
@@ -104,7 +112,8 @@ def ladder() -> list[PipelineConfig]:
                        subpixel=True, drift_correction=True, pose_search=True,
                        top_k=20, ml_rescore=True),
         PipelineConfig(label="+ row destripe  [HARMFUL]", row_destripe=True),
-        PipelineConfig(label="+ median filter  [no effect here]", median_filter=True),
+        PipelineConfig(label="+ median filter on baseline  [no effect WITHOUT impulse noise]",
+                       median_filter=True),
         PipelineConfig(label="+ Anscombe A1  [no effect on argmax]", anscombe=True),
         PipelineConfig(label="+ ECC affine  [never converges]", ecc_affine=True),
     ]

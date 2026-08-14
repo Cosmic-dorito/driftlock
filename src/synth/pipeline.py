@@ -211,6 +211,16 @@ def generate_sample(seed: int, params: GenerationParams) -> Sample:
     gt_x, gt_y = imaging.canvas_to_search_coords(
         cx, cy, SEARCH_SIZE_PX, scale, rotation, search_centre
     )
+    # ...and then through every geometric stage that runs AFTER the sampling, or the label describes
+    # a different image than the one we saved. Barrel distortion is applied inside detector_chain,
+    # so a ground truth stopping here sits in the pre-distortion frame while the content has moved.
+    # Caught by the robustness sweep: at k=0.05 the localizer's residual pointed radially inward on
+    # 97% of pairs and grew as r^2, which is the distortion's own signature, not a matching error.
+    # See ADR-0028 and FINDINGS section 25.
+    if params.barrel_distortion_k:
+        gt_x, gt_y = imaging.barrel_map_point(
+            gt_x, gt_y, (SEARCH_SIZE_PX, SEARCH_SIZE_PX), params.barrel_distortion_k
+        )
 
     box = REFERENCE_SIZE_PX / scale
     ambiguity = _ambiguity_level(built, cx, cy)

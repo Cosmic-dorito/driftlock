@@ -17,7 +17,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 22.5% | 46.7% | 60.0% |
 | + pose: pyramid | 27.5% | 26.7% | 33.3% |
 | + per-candidate pose refit, narrow | 25.0% | 23.3% | 16.7% |
-| ** + screened wide refit  [DEFAULT] ** | 22.5% | 16.7% | 13.3% |
+| ** + screened wide refit + median  [DEFAULT] ** | 20.0% | 16.7% | 10.0% |
+|    the DEFAULT minus the median filter | 22.5% | 16.7% | 13.3% |
 | + top-K=20 alone (no re-rank) | 25.0% | 76.7% | 90.0% |
 | + top-K + PADM + centre rule  [OVERFIT] | 27.5% | 70.0% | 73.3% |
 | + wide dense refit, unscreened  [slower AND worse] | 22.5% | 20.0% | 16.7% |
@@ -25,7 +26,7 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + coarse-level consensus re-rank  [HARMFUL] | 62.5% | 73.3% | 36.7% |
 | + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 22.5% | 36.7% | 50.0% |
 | + row destripe  [HARMFUL] | 35.0% | 90.0% | 90.0% |
-| + median filter  [no effect here] | 25.0% | 70.0% | 70.0% |
+| + median filter on baseline  [no effect WITHOUT impulse noise] | 25.0% | 70.0% | 70.0% |
 | + Anscombe A1  [no effect on argmax] | 25.0% | 73.3% | 90.0% |
 | + ECC affine  [never converges] | 25.0% | 76.7% | 90.0% |
 
@@ -40,7 +41,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 0.246 | 0.892 | 89.289 |
 | + pose: pyramid | 0.297 | 0.365 | 0.316 |
 | + per-candidate pose refit, narrow | 0.297 | 0.343 | 0.313 |
-| ** + screened wide refit  [DEFAULT] ** | 0.275 | 0.337 | 0.201 |
+| ** + screened wide refit + median  [DEFAULT] ** | 0.251 | 0.342 | 0.220 |
+|    the DEFAULT minus the median filter | 0.275 | 0.337 | 0.201 |
 | + top-K=20 alone (no re-rank) | 1.102 | 326.905 | 359.893 |
 | + top-K + PADM + centre rule  [OVERFIT] | 1.105 | 174.810 | 295.865 |
 | + wide dense refit, unscreened  [slower AND worse] | 0.269 | 0.365 | 0.267 |
@@ -48,7 +50,7 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + coarse-level consensus re-rank  [HARMFUL] | 15.893 | 121.000 | 0.636 |
 | + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 0.276 | 0.482 | 23.225 |
 | + row destripe  [HARMFUL] | 1.252 | 399.489 | 339.311 |
-| + median filter  [no effect here] | 1.102 | 310.853 | 332.057 |
+| + median filter on baseline  [no effect WITHOUT impulse noise] | 1.102 | 310.853 | 332.057 |
 | + Anscombe A1  [no effect on argmax] | 1.102 | 314.086 | 362.880 |
 | + ECC affine  [never converges] | 1.102 | 326.905 | 359.893 |
 
@@ -63,7 +65,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 77.5% | 53.3% | 30.0% |
 | + pose: pyramid | 70.0% | 70.0% | 63.3% |
 | + per-candidate pose refit, narrow | 72.5% | 73.3% | 80.0% |
-| ** + screened wide refit  [DEFAULT] ** | 75.0% | 76.7% | 83.3% |
+| ** + screened wide refit + median  [DEFAULT] ** | 77.5% | 76.7% | 83.3% |
+|    the DEFAULT minus the median filter | 75.0% | 76.7% | 83.3% |
 | + top-K=20 alone (no re-rank) | 40.0% | 10.0% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 40.0% | 16.7% | 10.0% |
 | + wide dense refit, unscreened  [slower AND worse] | 75.0% | 73.3% | 80.0% |
@@ -71,7 +74,7 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 26.7% | 56.7% |
 | + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 75.0% | 56.7% | 50.0% |
 | + row destripe  [HARMFUL] | 32.5% | 0.0% | 6.7% |
-| + median filter  [no effect here] | 40.0% | 13.3% | 6.7% |
+| + median filter on baseline  [no effect WITHOUT impulse noise] | 40.0% | 13.3% | 6.7% |
 | + Anscombe A1  [no effect on argmax] | 40.0% | 10.0% | 3.3% |
 | + ECC affine  [never converges] | 40.0% | 10.0% | 3.3% |
 
@@ -86,7 +89,8 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 72.5% | 33.3% | 16.7% |
 | + pose: pyramid | 67.5% | 63.3% | 56.7% |
 | + per-candidate pose refit, narrow | 67.5% | 63.3% | 63.3% |
-| ** + screened wide refit  [DEFAULT] ** | 70.0% | 63.3% | 66.7% |
+| ** + screened wide refit + median  [DEFAULT] ** | 72.5% | 63.3% | 70.0% |
+|    the DEFAULT minus the median filter | 70.0% | 63.3% | 66.7% |
 | + top-K=20 alone (no re-rank) | 17.5% | 3.3% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 20.0% | 6.7% | 6.7% |
 | + wide dense refit, unscreened  [slower AND worse] | 70.0% | 60.0% | 63.3% |
@@ -94,7 +98,7 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + coarse-level consensus re-rank  [HARMFUL] | 37.5% | 20.0% | 50.0% |
 | + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 70.0% | 53.3% | 43.3% |
 | + row destripe  [HARMFUL] | 17.5% | 0.0% | 3.3% |
-| + median filter  [no effect here] | 17.5% | 3.3% | 6.7% |
+| + median filter on baseline  [no effect WITHOUT impulse noise] | 17.5% | 3.3% | 6.7% |
 | + Anscombe A1  [no effect on argmax] | 17.5% | 3.3% | 3.3% |
 | + ECC affine  [never converges] | 17.5% | 3.3% | 3.3% |
 
@@ -102,24 +106,25 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 
 | Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 19 | 19 | 19 |
-| + sub-pixel DFT (A9) | 26 | 25 | 25 |
-| + blind drift correction | 50 | 50 | 50 |
-| + sub-pixel + drift | 56 | 57 | 56 |
-| + pose: spectral lattice  [LESS ACCURATE] | 355 | 354 | 354 |
-| + pose: pyramid | 193 | 191 | 198 |
-| + per-candidate pose refit, narrow | 282 | 284 | 290 |
-| ** + screened wide refit  [DEFAULT] ** | 408 | 422 | 426 |
-| + top-K=20 alone (no re-rank) | 21 | 22 | 21 |
-| + top-K + PADM + centre rule  [OVERFIT] | 203 | 203 | 202 |
-| + wide dense refit, unscreened  [slower AND worse] | 608 | 620 | 637 |
-| + centre rule on the default  [prior absent here] | 409 | 422 | 427 |
-| + coarse-level consensus re-rank  [HARMFUL] | 204 | 206 | 208 |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 313 | 316 | 317 |
-| + row destripe  [HARMFUL] | 29 | 29 | 30 |
-| + median filter  [no effect here] | 23 | 23 | 23 |
-| + Anscombe A1  [no effect on argmax] | 50 | 50 | 51 |
-| + ECC affine  [never converges] | 24 | 26 | 28 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 18 | 30 | 75 |
+| + sub-pixel DFT (A9) | 36 | 49 | 142 |
+| + blind drift correction | 69 | 71 | 190 |
+| + sub-pixel + drift | 95 | 95 | 260 |
+| + pose: spectral lattice  [LESS ACCURATE] | 451 | 1138 | 1110 |
+| + pose: pyramid | 305 | 692 | 714 |
+| + per-candidate pose refit, narrow | 467 | 962 | 933 |
+| ** + screened wide refit + median  [DEFAULT] ** | 662 | 1358 | 1240 |
+|    the DEFAULT minus the median filter | 650 | 1365 | 1199 |
+| + top-K=20 alone (no re-rank) | 39 | 88 | 76 |
+| + top-K + PADM + centre rule  [OVERFIT] | 276 | 643 | 560 |
+| + wide dense refit, unscreened  [slower AND worse] | 972 | 2045 | 1818 |
+| + centre rule on the default  [prior absent here] | 641 | 1355 | 1162 |
+| + coarse-level consensus re-rank  [HARMFUL] | 317 | 761 | 640 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 450 | 1125 | 1032 |
+| + row destripe  [HARMFUL] | 39 | 111 | 89 |
+| + median filter on baseline  [no effect WITHOUT impulse noise] | 32 | 100 | 76 |
+| + Anscombe A1  [no effect on argmax] | 70 | 175 | 132 |
+| + ECC affine  [never converges] | 43 | 105 | 88 |
 
 ## Reading this table
 

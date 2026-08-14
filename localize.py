@@ -170,6 +170,9 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         drift_correction=True,
         pose_search=True,
         top_k=10,
+        # Impulse-noise removal (14 Aug). Free, and only measurable where impulse noise exists -
+        # which is why it was wrongly rejected. See ADR-0027 and FINDINGS section 26.
+        median_filter=True,
         candidate_refit=True,
         # Screened wide refit (13 Aug, win-2). See ADR-0025 and FINDINGS section 23.
         refit_steps=5,

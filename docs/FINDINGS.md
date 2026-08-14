@@ -1474,6 +1474,12 @@ asymmetry sets a limit on how *widely* geometric freedom may be distributed — 
 harm appears between top_n=20 (18.0%) and no pruning at all (20.0%), and why the accuracy plateau
 over top_n ∈ {6, 10, 15, 20} is a plateau rather than a monotone trend.
 
+> ⚠️ **The paragraph above is a hypothesis, and its central prediction has since been tested and
+> failed.** See §25c. The A/B/C/D ablation stands — bounding the field is what helps — but *"because
+> impostors travel further in pose"* does not survive direct measurement, and is the **second**
+> mechanism this section has proposed and had to withdraw. The ablation is the finding; the
+> explanation is not. Both are left standing here, marked, rather than quietly rewritten.
+
 **Why this correction is worth more than the explanation it replaces.** "Coarse geometric
 preconditioning" is a nicer story and would have gone in the deck unchallenged. It predicts C ≈ B.
 C = A. Publishing the measured mechanism instead costs a good slide and buys a claim that survives
@@ -1507,7 +1513,7 @@ retained recall rather than on the tie (§23d).
 landing on a plateau is itself the finding: this configuration is at a local optimum in its
 parameters, and further accuracy will not come from tuning them.
 
-### 23h. Two packaging defects found while re-verifying ❌ → ✅
+### 23i. Two packaging defects found while re-verifying ❌ → ✅
 
 `verify_submission.py --strict` failed on three untraceable deck numbers. The cause was
 `solution_presentation.rebuilt.pptx` — a fallback `make_deck.py` writes when the real deck is locked
@@ -1518,6 +1524,248 @@ It also exposed a live bug: `package_submission.py` selected the deck with
 `next(REPO_ROOT.glob("*.pptx"))`, and glob order is not guaranteed. **The submission zip could have
 shipped the stale fallback deck**, silently, with a plausible filename and a complete-looking
 archive. Now selected by exact name.
+
+---
+
+## 24. The robustness sweep — a required deliverable we were not producing ✅ (14 Aug)
+
+Searching the problem statement for what it actually asks for turned up a graded deliverable with
+no corresponding artefact:
+
+> *"Results across multiple noise levels, target positions, scales and rotations."*
+
+Every number in `results/` came from three splits at **one operating point**. That answers "how good
+is it" and not "where does it break" — and the spec separately states that the released test data
+uses parameters we have not seen, at higher noise. A single-point result cannot distinguish a method
+that degrades gracefully from one that falls off a cliff just outside the tested envelope.
+
+`scripts/robustness_sweep.py` now measures 22 operating points. Seeds come from a band disjoint from
+`bench`, `dev` and `holdout_finfet` by construction: this is **validation, never tuning** (R5). The
+ladders deliberately run *past* the promised envelope, because the shape of the failure outside it is
+worth more than another point inside it.
+
+| axis | point | in spec | baseline | **DriftLock** | median px |
+|---|---|---|---|---|---|
+| dose | 800 (4× nominal) | ✔ | 60.0% | **13.3%** | 0.251 |
+| dose | 200 **nominal** | ✔ | 73.3% | **20.0%** | 0.363 |
+| dose | 50 (4× noisier) | ✘ | 73.3% | **16.7%** | 0.207 |
+| dose | 25 (8× noisier) | ✘ | 90.0% | **16.7%** | 0.334 |
+| read σ | 5 **nominal** | ✔ | 86.7% | **26.7%** | 0.337 |
+| read σ | 20 (4×) | ✘ | 80.0% | **6.7%** | 0.232 |
+| scale | 10:1 fixed | ✔ | 43.3% | **16.7%** | 0.304 |
+| scale | 9–11:1 **spec** | ✔ | 86.7% | **16.7%** | 0.294 |
+| scale | 8–12:1 | ✘ | 83.3% | **40.0%** | 0.705 |
+| rotation | 0° / ±1° / ±2° **spec** | ✔ | 63–80% | **10.0% at all three** | 0.19–0.36 |
+| rotation | ±3° | ✘ | 86.7% | **16.7%** | 0.299 |
+| rotation | ±5° | ✘ | 96.7% | **26.7%** | 0.596 |
+| other | gamma 0.7 + vignette 0.4 | ✘ | 70.0% | **13.3%** | 0.378 |
+| other | charging streaks | ✘ | 90.0% | **33.3%** | 0.939 |
+| other | salt-and-pepper + speckle | ✘ | 73.3% | **6.7%** | 0.338 |
+| other | beam spot 12 nm | ✘ | 73.3% | **10.0%** | 0.330 |
+
+**What it says.**
+
+* **Noise is not the problem.** Across a 32× dose range the rate moves between 13.3% and 23.3% —
+  inside the sampling noise established in §27. The baseline moves 60% → 90% over the same range.
+  Read noise likewise. Whatever limits this method, it is not photon or detector statistics, which
+  is consistent with §15's finding that the ranking is limited by model mismatch rather than noise.
+* **Rotation is flat inside the envelope and degrades smoothly outside it.** 10.0% at 0°, ±1° and
+  ±2° — the same number three times — then 16.7% at ±3° and 26.7% at ±5°. Graceful, not a cliff.
+* **Scale is the binding axis.** 16.7% inside the promised 9–11:1, **40.0%** at 8–12:1. The pose
+  bracket is built for the spec's range and does not extend itself; this is the honest edge of the
+  envelope and is now stated rather than left to be discovered.
+* **Charging streaks are the worst named degradation** at 33.3%. The sponsor's list of possible
+  degradations includes them explicitly, so this is a live risk on the released test set rather than
+  a hypothetical one. Row destriping was re-tested against them and does not fix it (§26).
+
+---
+
+## 25. Stress testing found a bug in our own generator, not in the localizer ❌ → ✅
+
+The barrel-distortion point came back at **53.3% mis-lock, median error 9.09 px**, by far the worst
+in the sweep. A median of 9 px is the tell: a genuine mis-lock lands tens to hundreds of pixels away.
+9 px is not a wrong lattice repeat, it is a **systematic offset**.
+
+### 25a. The diagnosis, which took one measurement
+
+If the error is a distortion the model does not invert, it must be radial and grow with radius.
+Measured on the 30 barrel pairs:
+
+| quantity | value |
+|---|---|
+| cos(error vector, radial direction) | **−0.829** |
+| error points *inward* | **97% of pairs** |
+| fit of error to `a·r²` (non-mislocked pairs) | **R² = 0.811** |
+| implied error at r = 100 px / 400 px | 0.40 px / 14.10 px |
+
+Inward, radial, quadratic in radius. That is barrel distortion's own signature, arriving in the
+residual of a localizer that has no barrel term.
+
+### 25b. Root cause: `cv2.remap` runs backwards, and the label did not
+
+`barrel_distortion` is written the way `remap` requires — for each **output** pixel it names the
+**source** pixel to sample, `source = c + (p − c)(1 + k·r_p²)`. That is the *inverse* of the path a
+feature actually travels. Meanwhile `pipeline.py` computed ground truth through scale and rotation
+and stopped, because barrel is applied later inside `detector_chain`.
+
+So the ground truth described the pre-distortion frame while the saved image showed the distorted
+one. **The dataset was mislabelled, and the sweep read it as a 53.3% failure of the localizer.**
+Reported as-is, it would have been a stated weakness of our method that was actually a defect in our
+data.
+
+Fixed by `imaging.barrel_map_point`, which solves the map rather than reusing the expression — a
+fixed-point iteration, since the closed form runs the wrong way. `tests/test_geometry.py` covers it
+with a **hand-derived asymmetric case**: pick the output point, compute by hand the source it
+implies, require the function to recover the output. It also asserts the *inward* sign, which was
+the whole bug, and that `k = 0` is exactly the identity.
+
+**Only datasets generated with `barrel_distortion_k ≠ 0` were affected.** `bench`, `dev` and
+`holdout_finfet` all use the default of 0, so no reported number moves.
+
+**Result after the fix**, same seeds, same localizer:
+
+| | mis-lock | median error |
+|---|---|---|
+| before (mislabelled GT) | 53.3% | **9.085 px** |
+| after | 43.3% | **1.192 px** |
+
+The median falls by 7.6×, which is the diagnosis confirming itself — a systematic radial offset
+disappears when the label is placed in the frame the image was actually rendered in. The mis-lock
+rate falls much less, and that residual is **real**: at `k = 0.05` barrel warps the 100×100 footprint
+by more than a global affine template can express, so the lattice selection genuinely suffers. That
+is now an honest limitation of the localizer instead of a bug wearing a limitation's clothes. It is
+also the worst point in the entire sweep, and barrel distortion is *not* among the degradations the
+problem statement names — unlike charging streaks, which are, and which sit at 33.3%.
+
+### 25c. The same instrumentation refuted our own mechanism claim ❌
+
+`scripts/failure_decomposition.py` was written to answer two questions, and the second was aimed at
+§23f's explanation of why the screen works: *a wide pose search rewards periodic impostors more than
+the true candidate*. That predicts something checkable — in a failure where the truth reached the
+final comparison and lost, the winning impostor should have **travelled further in pose**.
+
+Measured on the 9 such failures, travel normalised by the refit's own search span:
+
+| | winner | truth |
+|---|---|---|
+| mean pose travel | **0.224** | 0.281 |
+| winner travelled further | **0 of 9 failures** | |
+| median score margin the truth lost by | 0.0053 | |
+
+The winner travels **less**, in every single case. Under a fair coin that is p ≈ 0.004.
+
+*A correction to the correction:* the first version of this measurement recorded
+`abs(rotation_deg)` — the final absolute pose, not displacement from the starting pose — and called
+it "travel". It did not measure the quantity it was named after, so its result meant nothing. The
+entry pose is now stamped on each candidate before the screen runs and travel is a real difference.
+**A test that does not measure what its variable is named after is worse than no test**, because it
+produces a number that looks like evidence.
+
+So §23f's explanation joins §23c's on the refuted pile. What survives is the ablation itself:
+bounding the field helps (18.0% against 20.0%), re-scoring alone does nothing, pruning alone is
+worse than nothing. The mechanism consistent with *all* of it — impostors do not need more freedom,
+there merely need to be more of them — is a multiple-comparisons effect: the maximum over many
+candidates' independently-optimised scores is upward-biased, and that bias grows with the *number*
+of competitors rather than with any one competitor's excursion. **That is a hypothesis and is
+labelled as one.** Two mechanisms have already been asserted here and withdrawn; a third assertion
+would be worth less than the honest statement that the ablation is solid and the explanation is not.
+
+---
+
+## 26. Two components were rejected in the one regime where they could not work ⚪ → ✅
+
+§3 recorded the median filter as "no effect" and §4 recorded row destriping as "actively harmful".
+Both conclusions were drawn on the nominal splits — where `salt_pepper_prob = 0` and
+`charging_streak_prob = 0`. **A component that removes a degradation was evaluated only on data
+containing none of it**, so it could do nothing but destroy signal. The sweep supplied the missing
+regime.
+
+| config | nominal (control) | salt-and-pepper | charging streaks |
+|---|---|---|---|
+| neither (shipped) | 20.0% | 16.7% | 36.7% |
+| **+ 3×3 median** | **20.0%** | **6.7%** | 33.3% |
+| + row destripe | **36.7%** | 23.3% | 33.3% |
+
+**Row destriping stays off.** It is catastrophic on clean data (20.0% → 36.7%, confirming §4) and its
+gain on the streaks it was written for is one pair — inside noise. It removes horizontal word lines
+along with the streaks, and on this layout that is most of the signal.
+
+**The median filter ships.** On the 100 held-out pairs it is *strictly* non-harmful, paired:
+
+| | value |
+|---|---|
+| pairs it breaks | **0 of 100** |
+| pairs it fixes | 2 |
+| held-out mis-lock | 18.0% → **16.0%** |
+| sponsor / bench / FinFET | 22.5→**20.0%** / 16.7→16.7% / 13.3→**10.0%** |
+| runtime cost, interleaved | **−3 ms** (i.e. none) |
+
+The 2-pair held-out gain is *not* the justification and is well inside noise (§27). The justification
+is the impulse-noise column: **16.7% → 6.7%**, on validation-only seeds, for a degradation the spec
+names explicitly and a released test set stated to use parameters we have not seen. A stage that is
+free, provably harmless on 100 held-out pairs, and worth 10 points in a regime the evaluator may
+include is worth taking on those grounds alone.
+
+The mechanism is not subtle, which is why it deserved a fair test: impulse pixels are *unbounded*
+outliers and correlation has no defence against them, while a 3×3 median removes them essentially
+exactly and leaves edges intact.
+
+> **The general lesson, and it is not about medians:** an ablation run at a single operating point
+> silently answers a narrower question than the one it appears to answer. "Stage X does not help"
+> means "stage X does not help *here*". Two of our own negative results were artefacts of that, and
+> both had been recorded with numbers and treated as settled for three days.
+
+---
+
+## 27. How much of our own reported difference is real? ⚠️
+
+The sweep accidentally ran the nominal configuration **twice**: `s02` and `s06` draw from an
+identical generator parameter set — verified by diffing every manifest column — and differ only in
+seed. They measured **20.0%** and **26.7%** mis-lock. Earlier, before the median filter, the same
+pair measured 20.0% and 33.3%.
+
+That is the sampling floor, and it is not small. `scripts/significance.py` now generates it:
+
+| scope | rate | Wilson 95% CI |
+|---|---|---|
+| sponsor | 20.0% (8/40) | [10.5%, 34.8%] |
+| bench | 16.7% (5/30) | [7.3%, 33.6%] |
+| holdout FinFET | 10.0% (3/30) | [3.5%, 25.6%] |
+| **aggregate** | **16.0% (16/100)** | **[10.1%, 24.4%]** |
+
+Wilson rather than the textbook normal approximation, which at n = 30 and p ≈ 0.13 extends below
+zero and is therefore not a probability.
+
+**But the marginal intervals answer the wrong question for our own comparisons, and they answer it
+pessimistically.** Comparing two configurations by their overall rates discards the fact that both
+ran on the *same pairs*. The paired comparison of the screened-wide configuration against the narrow
+one it replaced:
+
+| | value |
+|---|---|
+| narrow correct, screened wrong (b) | **0** |
+| screened correct, narrow wrong (c) | **6** |
+| both correct / both wrong | 78 / 16 |
+| exact McNemar two-sided | **p = 0.031** |
+
+**Strictly dominant — zero regressions on 100 pairs — and significant at 0.05.** It is worth
+recording that this was *not* true earlier in the same day: at 4 discordant pairs the identical
+comparison gave p = 0.125, and the honest report then was "dominant but unresolved". Two more
+discordant pairs, both falling the same way, moved it across. That is how thin the evidence is at
+this sample size, and it is the reason the paired test is quoted rather than the marginal rates —
+which still overlap heavily and would have shown nothing either way.
+
+What this retroactively licenses, and what it does not:
+
+* **Across-split differences of 2–4 points are not resolved.** Every such claim in this document
+  should be read as directional. The two identically-parameterised splits differing by 6.7 points
+  are the calibration.
+* **Within-split paired comparisons are much stronger than the marginal intervals suggest**, because
+  the pair-level correlation is enormous — 78 of 100 pairs are correct under both configurations.
+  The A/B/C/D mechanism ablation (§23f) is of this kind and is correspondingly more trustworthy than
+  its marginal rates look.
+* **"Beats the baseline" is not in doubt.** 76.7% → 16.7% on bench and 90.0% → 10.0% on FinFET are
+  not 4-point differences.
 
 ---
 

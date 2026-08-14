@@ -165,12 +165,12 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 
 | Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | Runtime p50 |
 |---|---|---|---|---|---|---|---|
-| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 20 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **22.5%** | **0.275** | **75.0%** | **70.0%** | 90.0% | 407 ms |
-| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 20 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.337** | **76.7%** | **63.3%** | 86.7% | 388 ms |
-| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 20 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **13.3%** | **0.201** | **83.3%** | **66.7%** | 90.0% | 388 ms |
+| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 72 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **20.0%** | **0.251** | **77.5%** | **72.5%** | 90.0% | 1340 ms (19x base) |
+| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 69 ms |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.342** | **76.7%** | **63.3%** | 86.7% | 1252 ms (18x base) |
+| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 69 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **10.0%** | **0.220** | **83.3%** | **70.0%** | 90.0% | 1232 ms (18x base) |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
 
@@ -180,7 +180,9 @@ Two different things are being measured and should not be averaged together. On 
 
 **Hardware:** Windows 11 (AMD64) · Intel64 Family 6 Model 170 Stepping 4, GenuineIn. **Python version:** 3.14.3, OpenCV 5.0.0, 22 thread(s).
 
-**Timing method:** runtimes come from `scripts/benchmark_runtime.py`, which interleaves the splits round-robin and discards a warm-up. Measured inside the accuracy run instead, this machine's thermal drift lands on whichever split runs last — that produced 1228/1190/354 ms for identical code in one batch. Developed on macOS and re-measured on Windows for this submission; the accuracy numbers reproduce to the digit across both.
+**Timing method:** runtimes come from `scripts/benchmark_runtime.py`, which interleaves the splits round-robin and discards a warm-up. The **x-baseline** figure is the one to compare across machines: this laptop throttles by up to 3x for identical code over a long session and does not recover on idling, and across three states in one day the absolute p50 moved 400 -> 630 -> 1262 ms while the ratio to the baseline held at 20.0, 18.5 and 18.8. The baseline is therefore run as a control in the same interleaved pass.
+
+> ⚠️ **The absolute milliseconds in this table were measured on a throttled machine** — the baseline control read far above its quiet-machine value — and are not representative. The x-baseline ratios are unaffected. Re-run `scripts/benchmark_runtime.py` on a rested machine before quoting the p50 figures.
 
 <!-- END GENERATED README RESULTS -->
 
@@ -192,12 +194,14 @@ Failure case with root cause: [`results/failure_case/`](results/failure_case/).
 Stated plainly rather than left for a judge to find.
 
 1. **Selection is not solved, and the screen is a hard gate.** Every pass rate is capped by the
-   mis-lock rate (22.5% / 16.7% / 13.3%). The true location survives to the candidate stage on
-   97.5% / 90.0% / 96.7% of pairs and survives the screen on 90.0% / 86.7% / 90.0% — so it is
-   usually *available* and simply out-scored, but on a minority of pairs it is already gone before
-   any selection rule runs. Both numbers are reported in the results table rather than assumed.
-   **Six** re-ranking criteria were built, measured and rejected; all six are in the ablation with
-   their numbers, and the single principle they establish is in [ADR-0024](docs/DECISIONS.md).
+   mis-lock rate. Each failure is classified by the stage that lost it, in
+   [`results/failure_decomposition.csv`](results/failure_decomposition.csv): of the 16 failures
+   across 100 pairs, **3 were never candidates at all** (no selection rule can recover those),
+   **4 were cut by the screen** before the expensive geometry ran, and **9 reached the final
+   comparison and lost on correlation**. Only the last group is addressable by better ranking, and
+   **six** re-ranking criteria were built, measured and rejected trying — all six are in the
+   ablation with their numbers, and the principle they establish is
+   [ADR-0024](docs/DECISIONS.md).
 2. **Runtime is above our own 300 ms target** (see the p50 column in the table above — this
    sentence deliberately does not restate the figure, because a hand-typed copy of a generated
    number is exactly what goes stale). This is a deliberate, measured trade:
@@ -211,10 +215,21 @@ Stated plainly rather than left for a judge to find.
 4. **Rotation beyond ±2° and scale outside 9:1–11:1 are not searched.** Both ranges come straight
    from the problem statement; `PipelineConfig.pose_scale_range` / `pose_rotation_range` widen them
    at linear cost.
-5. **Barrel distortion, astigmatism, charging streaks, speckle and salt-and-pepper are modelled by
-   our generator but not stratified in the reported results.** The sponsor's defaults leave them at
-   zero, so they are untested rather than proven harmless.
-6. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
+5. **Degradations are now stratified — and two of them hurt.**
+   [`results/robustness.csv`](results/robustness.csv) sweeps 22 operating points across dose, read
+   noise, scale, rotation and five degradations, deliberately running *past* the envelope the
+   problem statement promises. Accuracy is essentially flat across a 32× dose range and across
+   0°/±1°/±2° of rotation. The two soft spots are **charging streaks (33.3%)** — which the spec
+   names explicitly as a possible degradation — and **barrel distortion (43.3%)**, which it does
+   not. Scale beyond the promised range is the envelope limit: 16.7% inside 9–11:1, 40.0% at
+   8–12:1. This is validation only; nothing is tuned on those seeds.
+6. **Small differences between splits are not resolved, and we say so.**
+   [`results/significance.csv`](results/significance.csv) carries Wilson intervals and a paired
+   McNemar test. Two stress splits with *identical* generator parameters differing only by seed
+   measured 20.0% and 26.7%, so cross-split gaps of a few points are directional only. The headline
+   configuration change is quoted as a paired comparison on the same 100 pairs — 0 regressions,
+   6 fixes, exact p = 0.031 — because that is the test the design actually supports.
+7. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
    implementation failure — that is a different claim from "we tried it and it does not help".
 
 Working assumptions about the evaluation data are tracked as **H1–H10** in [`CLAUDE.md`](CLAUDE.md)

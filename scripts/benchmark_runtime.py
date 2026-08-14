@@ -41,6 +41,10 @@ import localize as L  # noqa: E402
 from src.driftlock.io import load_grayscale, read_manifest, resolve_manifest_path  # noqa: E402
 from src.driftlock.match import localize  # noqa: E402
 
+# The baseline's p50 on a quiet machine, measured repeatedly. It is a fixed, simple computation,
+# so its runtime is a proxy for how fast this machine currently is - which makes it a control.
+BASELINE_QUIET_MS = 22.0
+
 SPLITS = [
     ("sponsor", "data/_sponsor/verify/manifest.csv"),
     ("bench", "data/bench/manifest.csv"),
@@ -94,21 +98,46 @@ def main() -> int:
                 localize(ref, search, config)
                 timings[name][label].append((time.perf_counter() - start) * 1000.0)
 
-    print(f"\n  {'split':<12}{'config':<12}{'p50 ms':>9}{'p95 ms':>9}{'n':>5}")
+    print(f"\n  {'split':<12}{'config':<12}{'p50 ms':>9}{'p95 ms':>9}{'n':>5}{'x base':>8}")
     out_rows = []
     for name, per_config in timings.items():
+        base_p50 = (np.median(per_config["baseline"]) if per_config.get("baseline") else float("nan"))
         for label, values in per_config.items():
             if not values:
                 continue
             arr = np.array(values)
+            ratio = np.median(arr) / base_p50 if base_p50 == base_p50 and base_p50 > 0 else float("nan")
             print(f"  {name:<12}{label:<12}{np.median(arr):>9.0f}{np.percentile(arr, 95):>9.0f}"
-                  f"{len(arr):>5}")
+                  f"{len(arr):>5}{ratio:>8.1f}")
             out_rows.append({
                 "split": name, "config": label, "n": len(arr),
                 "p50_ms": f"{np.median(arr):.1f}",
                 "p95_ms": f"{np.percentile(arr, 95):.1f}",
                 "mean_ms": f"{arr.mean():.1f}",
+                "x_baseline": f"{ratio:.2f}",
             })
+
+    # The baseline is a CONTROL, and reporting it alongside is not decoration.
+    #
+    # This machine thermally throttles after a long session and does not recover on idling - a
+    # documented 3x drift for identical code (FINDINGS 19). Measured across three machine states in
+    # one day, the absolute numbers moved 20 -> 34 -> 67 ms for the baseline and 400 -> 630 -> 1262
+    # for ours, while the RATIO held at 20.0, 18.5, 18.8. The ratio is the machine-independent
+    # quantity; the milliseconds are a property of this laptop's thermal state at one moment.
+    #
+    # So the absolute figure is only quotable when the control is near its own best, and this gate
+    # says so out loud rather than letting a throttled number be written into results/ and then
+    # into the deck.
+    all_base = [v for per in timings.values() for v in per.get("baseline", [])]
+    base_median = float(np.median(all_base)) if all_base else float("nan")
+    suspect = base_median > BASELINE_QUIET_MS * 1.5
+    if suspect:
+        print(f"\n  ** WARNING: baseline control at {base_median:.0f} ms against a quiet-machine "
+              f"{BASELINE_QUIET_MS:.0f} ms.")
+        print("     The machine is throttled or loaded; the absolute milliseconds below are NOT "
+              "representative.")
+        print("     The x-baseline column is unaffected. Re-run when the control returns to "
+              "normal before quoting p50.")
 
     env = {
         "platform": f"{platform.system()} {platform.release()} ({platform.machine()})",
@@ -118,13 +147,15 @@ def main() -> int:
         "cv2_threads": cv2.getNumThreads(),
         "method": ("interleaved round-robin across splits, "
                    f"{args.warmup} warm-up calls discarded, median of per-pair perf_counter"),
+        "baseline_control_ms": f"{base_median:.1f}",
+        "absolute_ms_representative": "no - machine throttled" if suspect else "yes",
     }
 
     out = REPO_ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["split", "config", "n", "p50_ms", "p95_ms",
-                                                "mean_ms"])
+                                                "mean_ms", "x_baseline"])
         writer.writeheader()
         writer.writerows(out_rows)
         fh.write("\n")

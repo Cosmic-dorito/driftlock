@@ -1,11 +1,11 @@
 # HANDOFF — cold start on a new machine
 
-## ⏩ RESUME HERE — state as of 14 Aug 2026
+## ⏩ RESUME HERE — state as of 14 Aug 2026 (evening)
 
 **The submission is COMPLETE, VERIFIED and PACKAGED.** Everything below is optional improvement
 work. If time runs out right now, ship what is in `dist/`.
 
-* `scripts/verify_submission.py --strict` → **17 passed, 0 failed, 0 pending**
+* `scripts/verify_submission.py --strict` → **19 passed, 0 failed, 0 pending**
 * 36 tests pass · ruff clean · `dist/drift-lock-submission.zip` builds and reproduces bit-identically
   from a clean extract
 * Deadline **16 Aug 2026**
@@ -14,17 +14,22 @@ work. If time runs out right now, ship what is in `dist/`.
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | p50 |
 |---|---|---|---|---|---|
-| sponsor (40) | 22.5% | 0.275 | 75.0% | 70.0% | 407 ms |
-| bench (30, ours) | 16.7% | 0.337 | 76.7% | 63.3% | 388 ms |
-| holdout FinFET (30) | 13.3% | 0.201 | 83.3% | 66.7% | 388 ms |
+| sponsor (40) | 20.0% | 0.251 | 77.5% | 72.5% | see results/runtime.csv |
+| bench (30, ours) | 16.7% | 0.342 | 76.7% | 63.3% | see results/runtime.csv |
+| holdout FinFET (30) | 10.0% | 0.220 | 83.3% | 66.7% | see results/runtime.csv |
 
-Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **18/100 = 18.0%** (was 22.0%).
+Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **16/100 = 16.0%** (was 22.0% two days ago).
+
+Paired against the previous configuration on the same 100 pairs: **0 regressions, 6 fixes, exact
+McNemar p = 0.031** (`results/significance.csv`). Quote the paired test, not the marginal rates -
+the Wilson intervals overlap and would show nothing either way.
 
 ### Shipped configuration (`localize.py::build_config`)
 
 ```python
 PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                pose_search=True, top_k=10, candidate_refit=True,
+               median_filter=True,
                refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
                refit_screen_steps=2, refit_screen_top_n=10)
 ```
@@ -42,23 +47,27 @@ gave 18.0% held-out at 427 ms. Full story in FINDINGS §23.
 
 **The submission is in a better state than it has ever been and is complete.**
 
-**14 Aug: the two most promising remaining knobs were swept and both are flat.** `top_k` ∈
-{10, 15, 20, 30} all give 18.0% held-out (5 gives 19.0%); `top_n` ∈ {6, 10, 15, 20} all give 18.0%.
-This configuration sits at a local optimum in its own parameters — further accuracy will not come
-from tuning them (FINDINGS §23g). Also settled: the screen's mechanism is *not* better
-initialisation (that explanation was published, then measured and refuted — §23f).
+**Parameter tuning is exhausted.** `top_k` ∈ {10, 15, 20, 30} and `top_n` ∈ {6, 10, 15, 20} are all
+flat (§23g). This configuration is at a local optimum in its own parameters.
+
+**Where the remaining 16 failures actually are** (`results/failure_decomposition.csv`, 100 pairs):
+
+| stage that lost it | count | can a better ranker fix it? |
+|---|---|---|
+| never a candidate | 3 | no |
+| cut by the screen | 4 | no — the wide stage never sees it |
+| outscored at the final comparison | 9 | in principle, but six criteria have failed |
 
 Remaining ideas, in rough order of expected value:
 
-1. **Recall is the cap, and it is now a reported metric.** The true candidate is absent from the
-   pool entirely on 2.5 / 10.0 / 3.3% of pairs (sponsor / bench / FinFET) and is lost at the screen
-   on 10.0 / 13.3 / 10.0%. bench is the outlier worth understanding: 16.7% mis-lock against 10%
-   irrecoverable means most of its failures are *already lost before selection runs*, which is a
-   different problem from the one six re-rankers failed at.
-2. **Runtime, not accuracy.** Nothing below risks accuracy. The refit window is already
-   a local ROI (template + 2×7 px), but the ~1000 remaining per-pair `matchTemplate` calls are
-   small and overhead-dominated, so batching them is the open lever. Do not reach for FFT without
-   benchmarking — the windows are 114×114 and setup cost may exceed the arithmetic.
+1. **The two soft spots the sweep found.** Charging streaks 33.3% and barrel distortion 43.3%
+   (`results/robustness.csv`). Charging streaks matter more: the spec names them explicitly as a
+   possible degradation, barrel it does not. Row destriping does NOT fix them (§26) — it removes
+   the word lines too.
+2. **Runtime, not accuracy.** The refit window is already a local ROI (template + 2×7 px), but the
+   ~1000 remaining per-pair `matchTemplate` calls are small and overhead-dominated, so batching is
+   the open lever. Do not reach for FFT without benchmarking — the windows are 114×114 and setup
+   cost may exceed the arithmetic.
 3. Determinism test (PROGRESS 3.8), still outstanding.
 4. RGB optical extension — the explicit scored bonus, never started.
 
@@ -87,6 +96,10 @@ FINDINGS §22:
 penalty (no gain at any setting), centre rule as a default (the benchmark samples targets uniformly,
 so the deployment prior it needs is absent — ADR-0021).
 
+**Also settled (14 Aug):** row destriping stays off — re-tested *with* charging streaks present and
+it still only bought one pair, while costing 20.0% → 36.7% on clean data (§26). The median filter,
+by contrast, was rejected in the wrong regime and now ships (ADR-0027).
+
 **Also measured and settled (13 Aug):** widening the refit span beyond ±3%/±1.5° does not help
 (±5%/±2° is 19.0% against 18.0%); sampling it denser than 5 steps does not help (7 steps is 19.0%
 and 603 ms); narrowing to ±2%/±1° does not help (19.0%). The screen's `top_n` is flat over
@@ -94,9 +107,14 @@ and 603 ms); narrowing to ±2%/±1° does not help (19.0%). The screen's `top_n`
 
 ### Housekeeping notes
 
-* Runtime numbers must come from `scripts/benchmark_runtime.py` (interleaves splits, discards
-  warm-up). Measured inside an accuracy run, this machine's thermal drift lands on whichever split
-  runs last — it produced 1228/1190/354 ms for identical code in one batch.
+* ⚠️ **RE-RUN `scripts/benchmark_runtime.py` ON A RESTED MACHINE BEFORE SUBMITTING.** The runtime
+  currently in `results/` was measured on a thermally throttled laptop and the generated docs say so
+  in a visible warning. The benchmark now runs the baseline as a **control** and refuses to certify
+  absolute milliseconds when that control sits far above its quiet-machine value of ~22 ms. Accuracy
+  is unaffected — only the p50 column.
+* The **x-baseline ratio is the machine-independent figure**: across three machine states in one day
+  the absolute p50 moved 400 → 630 → 1262 ms while the ratio held at 20.0, 18.5, 18.8. Quote the
+  ratio when comparing across hardware; quote milliseconds only from a certified run.
 * `docs/RESULTS.md` and `README.md` results blocks are **generated** by
   `scripts/make_results_doc.py`. Never hand-edit them; the verifier fails the build if they go stale.
 * After any change: `make test`, `scripts/make_results_doc.py`, `scripts/make_deck.py`,

@@ -6,12 +6,12 @@ Pairs evaluated: **40**
 
 | Metric | Value |
 |---|---|
-| Mis-lock rate (>5 px) | **22.5%** (9 pairs) |
-| Median error | 0.275 px |
-| Mean error | 9.438 px |
-| p95 error | 57.876 px |
+| Mis-lock rate (>5 px) | **20.0%** (8 pairs) |
+| Median error | 0.251 px |
+| Mean error | 7.531 px |
+| p95 error | 44.278 px |
 | Worst-case error | 95.17 px |
-| Median error, correctly-located pairs only | 0.195 px |
+| Median error, correctly-located pairs only | 0.192 px |
 
 > The error distribution is bimodal: a correctly-located pair is off by about a pixel, a mis-located one by tens or hundreds. The mis-lock rate is therefore reported separately - a single average would hide the failure mode this problem is about.
 
@@ -19,19 +19,19 @@ Pairs evaluated: **40**
 
 | Threshold | Pass rate |
 |---|---|
-| 5 px | 77.5% |
-| 4 px | 77.5% |
-| 2 px | 77.5% |
-| 1 px | 75.0% |
-| sub-pixel (0.5 px) | 70.0% |
+| 5 px | 80.0% |
+| 4 px | 80.0% |
+| 2 px | 80.0% |
+| 1 px | 77.5% |
+| sub-pixel (0.5 px) | 72.5% |
 
 ## Runtime
 
 | Metric | Value |
 |---|---|
-| Median (p50) | 369.8 ms |
-| p95 | 434.2 ms |
-| Mean | 379.9 ms |
+| Median (p50) | 374.3 ms |
+| p95 | 436.2 ms |
+| Mean | 380.3 ms |
 
 ## Environment
 
@@ -48,16 +48,16 @@ Pairs evaluated: **40**
 
 | Group | n | Median err (px) | Mis-lock rate | Pass@1px |
 |---|---|---|---|---|
-| 272..378 | 10 | 0.956 | 40% | 50% |
-| 378..709 | 10 | 0.234 | 10% | 90% |
-| 56.9..272 | 10 | 0.297 | 20% | 80% |
-| 709..909 | 10 | 0.194 | 20% | 80% |
+| 272..378 | 10 | 0.520 | 30% | 60% |
+| 378..709 | 10 | 0.218 | 10% | 90% |
+| 56.9..272 | 10 | 0.296 | 20% | 80% |
+| 709..909 | 10 | 0.192 | 20% | 80% |
 
 ## Stratified by `gt_y`
 
 | Group | n | Median err (px) | Mis-lock rate | Pass@1px |
 |---|---|---|---|---|
-| 124..333 | 10 | 0.219 | 40% | 60% |
-| 333..455 | 10 | 0.347 | 30% | 70% |
-| 455..687 | 10 | 0.283 | 20% | 70% |
-| 687..928 | 10 | 0.264 | 0% | 100% |
+| 124..333 | 10 | 0.192 | 30% | 70% |
+| 333..455 | 10 | 0.358 | 30% | 70% |
+| 455..687 | 10 | 0.274 | 20% | 70% |
+| 687..928 | 10 | 0.244 | 0% | 100% |

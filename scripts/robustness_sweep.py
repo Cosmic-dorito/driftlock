@@ -28,9 +28,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -91,6 +93,12 @@ LADDERS: list[tuple[str, str, bool, list[str]]] = [
 
 
 def generate(split: str, flags: list[str], pairs: int, seed: int, arch: str) -> Path:
+    """Generate one stress split, or return the cached manifest if it already exists.
+
+    Each pair paints a 10000x10000 canvas at 1 nm/px, so generation - not localization - dominates
+    this sweep by roughly ten to one. The manifest is written last by generate_dataset.py, so its
+    presence is a safe completion marker: a half-generated split has no manifest and regenerates.
+    """
     out = STRESS_DIR / split / "manifest.csv"
     if out.exists():
         return out
@@ -100,6 +108,68 @@ def generate(split: str, flags: list[str], pairs: int, seed: int, arch: str) -> 
     subprocess.run(cmd, check=True, cwd=REPO_ROOT,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return out
+
+
+GEN_PEAK_GB = 1.2               # measured working set of one generator process
+
+
+def default_jobs() -> int:
+    """Parallelism sized by FREE MEMORY, not by core count.
+
+    Sizing this to cores was a mistake worth recording. Each generator paints a 10000x10000 canvas
+    at 1 nm/px - 400 MB for the array alone, and roughly 1.2 GB peak once blur, warp and noise
+    intermediates exist. Choosing `cpu_count // 3` gave 6 workers on a 22-thread laptop with 4.7 GB
+    free: about 7 GB of canvases against 4.7 GB available, plus six OpenCV runtimes each defaulting
+    to all 22 threads. The machine paged and became unusable while the sweep made almost no progress.
+
+    Cores tell you how fast one worker runs. Memory tells you how many can exist at once. For a
+    workload whose unit of work is a 100-megapixel image, the second is the binding constraint.
+    """
+    budget = 2                                        # conservative fallback
+    try:                                              # psutil is not a dependency; do not add one
+        import ctypes
+
+        class _Status(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong),
+                        ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong),
+                        ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+        status = _Status()
+        status.dwLength = ctypes.sizeof(_Status)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            # Leave a third of free memory for the rest of the machine - this runs on someone's
+            # laptop while they are using it, not on a dedicated box.
+            free_gb = status.ullAvailPhys / (1024 ** 3)
+            budget = max(1, int((free_gb * 0.66) // GEN_PEAK_GB))
+    except Exception:
+        pass
+    return max(1, min(budget, (os.cpu_count() or 4) // 4))
+
+
+def generate_all(ladders, pairs: int, arch: str, jobs: int) -> None:
+    """Generate every missing split up front, in parallel.
+
+    Splits are independent and each carries its own seed, so running them concurrently cannot change
+    a single pixel - determinism is per-split by construction. Scoring stays sequential afterwards,
+    because a runtime column measured under N-way contention would be meaningless.
+    """
+    todo = [(f"s{i:02d}", flags, SEED_BASE + i * 1000)
+            for i, (_, _, _, flags) in enumerate(ladders)
+            if not (STRESS_DIR / f"s{i:02d}" / "manifest.csv").exists()]
+    if not todo:
+        return
+    print(f"  generating {len(todo)} split(s) with {jobs} worker(s)...")
+    done = 0
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        futures = {pool.submit(generate, s, f, pairs, seed, arch): s for s, f, seed in todo}
+        for future in as_completed(futures):
+            future.result()                      # re-raise generator failures rather than skip them
+            done += 1
+            print(f"    [{done}/{len(todo)}] {futures[future]}", flush=True)
 
 
 def score(manifest: Path, config) -> dict:
@@ -132,15 +202,19 @@ def main() -> int:
     ap.add_argument("--pairs", type=int, default=30)
     ap.add_argument("--arch", default="dram", choices=["dram", "finfet"])
     ap.add_argument("--out", default="results/robustness.csv")
+    ap.add_argument("--jobs", type=int, default=default_jobs(),
+                    help="parallel generator processes; scoring stays sequential")
     args = ap.parse_args()
 
     import argparse as _ap
     cfg = L.build_config(_ap.Namespace(config="driftlock"))
     base = L.build_config(_ap.Namespace(config="baseline"))
 
+    generate_all(LADDERS, args.pairs, args.arch, args.jobs)
+
     rows = []
     print(f"\n  {'axis':<20}{'point':<30}{'env':>5}{'base':>8}{'ours':>8}{'median':>9}{'ms':>7}")
-    print("  " + "-" * 87)
+    print("  " + "-" * 87, flush=True)
     for index, (axis, label, in_env, flags) in enumerate(LADDERS):
         split = f"s{index:02d}"
         manifest = generate(split, flags, args.pairs, SEED_BASE + index * 1000, args.arch)

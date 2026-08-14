@@ -1,8 +1,8 @@
 # Failure case — worst pair on this split
 
-Pair `8` from `data/bench/manifest.csv`. Every number below is computed by `scripts/make_failure_case.py`.
+Pair `17` from `data/bench/manifest.csv`. Every number below is computed by `scripts/make_failure_case.py`.
 
-![failure](failure_8.png)
+![failure](failure_17.png)
 
 Green is the prediction, red the truth, orange the runners-up with their scores.
 
@@ -10,18 +10,16 @@ Green is the prediction, red the truth, orange the runners-up with their scores.
 
 | Quantity | Value |
 |---|---|
-| Euclidean error | **511.68 px** |
-| Predicted centre | (626.13, 611.47) |
-| True centre | (629.48, 99.80) |
-| Winning ZNCC | 0.8823 |
-| Magnification / rotation of this pair | 10.921 / -0.39° |
+| Euclidean error | **504.38 px** |
+| Predicted centre | (160.35, 445.00) |
+| True centre | (656.83, 356.09) |
+| Winning ZNCC | 0.8500 |
+| Magnification / rotation of this pair | 10.240 / +0.07° |
 | Ambiguity level (from the generator) | med |
 
-## Root cause: candidate RANKING
+## Root cause: candidate GENERATION
 
-The true location **was** among the candidates, at rank **16** with ZNCC 0.8595. It lost to a lattice-equivalent position by a margin of **0.0228** (2.58% of the winning score), while sitting 18.0 px away from it.
-
-This is the failure mode the problem statement is really about, and the numbers state it precisely: the correct answer is available and the evidence separating it from an impostor is far smaller than the noise on the score. Verified independently as H7/H8 — the aperiodic fingerprint exists (impostor margin median 0.057) but on the real correlation surface the winner-versus-rival margin is a median of 0.016.
+The true location is **not present anywhere in the top 120 candidates** — the nearest candidate to ground truth is 28.8 px away. No re-ranking could have recovered this pair, because the right answer was never on the list. That points at the pose or the forward model, not at the scoring.
 
 ## Why this is hard, in one sentence
 

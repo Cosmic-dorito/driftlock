@@ -74,6 +74,15 @@ def _instrumented(search, reference, candidates, build_template, correlation_sur
             i for i, c in enumerate(candidates) if (c.x - gx) ** 2 + (c.y - gy) ** 2 <= NEAR_PX ** 2
         ]
         STATE["pool_size"] = len(candidates)
+        # Stamp each candidate's ENTRY pose so travel can be measured later.
+        #
+        # The first version of this recorded abs(rotation_deg) at the end and called it "pose
+        # travel". That is the final absolute pose, not displacement from where the candidate
+        # started - so it did not measure the quantity it was named after, and the "refutation" it
+        # produced meant nothing. Candidate objects are mutated in place by the refit rather than
+        # rebuilt, so a value stashed here survives to the end and the difference is real travel.
+        for c in candidates:
+            c.extra["pose_in"] = (float(c.scale), float(c.rotation_deg))
 
     out = _original_refit_once(search, reference, candidates, build_template, correlation_surface,
                                span, rot_span, steps, margin, pose_penalty)
@@ -132,11 +141,23 @@ def main() -> int:
             if bucket == "outscored" and STATE.get("final") and STATE.get("winner") is not None:
                 truth = STATE["final"][0][1]
                 winner = STATE["winner"]
+
+                def travel(c) -> float:
+                    """Distance moved in pose space, from the bracket pose to the refitted one.
+
+                    Scale and rotation are different units, so they are normalised by the refit's
+                    own search span before combining - a full-span move on either axis counts as 1.
+                    """
+                    s0, r0 = c.extra.get("pose_in", (c.scale, c.rotation_deg))
+                    ds = (c.scale - s0) / max(s0 * cfg.refit_scale_span, 1e-9)
+                    dr = (c.rotation_deg - r0) / max(cfg.refit_rotation_span, 1e-9)
+                    return float((ds * ds + dr * dr) ** 0.5)
+
                 mech.append({
                     "split": name, "id": row["id"],
                     "score_margin": float(winner.score - truth.score),
-                    "winner_pose_travel": float(abs(winner.rotation_deg)),
-                    "truth_pose_travel": float(abs(truth.rotation_deg)),
+                    "winner_pose_travel": travel(winner),
+                    "truth_pose_travel": travel(truth),
                     "winner_scale": float(winner.scale), "truth_scale": float(truth.scale),
                     "error_px": float(error),
                 })

@@ -2,12 +2,10 @@ metric,value
 split,bench
 n_pairs,30
 n_failures,5
-worst_id,8
-worst_error_px,511.68
+worst_id,17
+worst_error_px,504.38
 worst_ambiguity,med
-worst_rank_of_truth,16
-worst_margin_zncc,0.0228
-worst_margin_pct,2.58
+worst_rank_of_truth,not in top-K
 candidate_recall_topk,28/30
 candidate_recall_pct,93.3
 top_k,20

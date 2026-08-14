@@ -210,6 +210,17 @@ Two rules that have each been learned the hard way and cost real time when ignor
    conclusion twice here (ADR-0012, ADR-0021).
 2. **Do not re-rank candidates by a new criterion.** Six attempts, six failures (ADR-0024). The only
    selection stage that ever worked re-scores by the *same* criterion at a better geometry.
+3. **Evaluate a stage in the regime it targets.** "Stage X does not help" only ever means "not
+   *here*". The median filter sat off for three days on a "no effect" measured against data with
+   zero impulse noise; in the regime it was written for it is worth 10 points and costs nothing
+   (ADR-0027). Two of our own negative results were artefacts of a single operating point.
+4. **Ground truth must pass through every geometric stage, not most of them.** It is a parallel
+   render of the geometry, not a by-product. Barrel distortion was applied after the coordinate was
+   frozen, so the label described a different image than the one saved — and the stress sweep read
+   it as a 53.3% failure of the localizer (ADR-0028).
+5. **Quote paired comparisons, and quote the sample size.** Two splits with identical generator
+   parameters and different seeds measured 20.0% and 26.7%. Differences of 2–4 points between splits
+   are directional only; within-split paired tests are far stronger (ADR-0029).
 
 ## Current gate
 
