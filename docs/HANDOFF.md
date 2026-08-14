@@ -76,6 +76,14 @@ fresh 151-group set, which picks a null operating point and is *flatter* (1.3 pt
 Four times the data did not sharpen a peak; it showed there is no peak. A model would face the same
 flat criterion with more free parameters.
 
+**Do not try to isolate the aperiodic fingerprint (settled 15 Aug, §33).** Four independent
+attempts now: Fourier masking (PADM), candidate-consensus averaging, gated residual tie-break, and
+spatial cell-folding with a robust median prototype. The last is the cleanest test — re-scoring the
+final candidate list by residual-ZNCC takes truth-at-rank-1 from **85/93 to 60/93**, reversing one
+failure and breaking twenty-six. The signal is real (H7: margin ~0.057) but it is small and rides on
+the periodic component that carries all the SNR; removing that leaves the fingerprint with nothing
+to stabilise it. **The lattice must stay in place for identity, not just for geometry.**
+
 **Do not retry:** multi-basin pose refinement (§22, 26.0%), pose interpolation (§21c, 27.0%),
 pose-regime routing (§21a), pose-excursion penalty (§20a), or any seventh scoring criterion
 (ADR-0024). All have been proposed again by external review since being measured and refuted.

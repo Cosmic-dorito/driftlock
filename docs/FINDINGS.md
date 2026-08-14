@@ -2263,6 +2263,80 @@ There is no free runtime here, which is a more useful thing to know than another
 
 ---
 
+## 33. The aperiodic fingerprint, isolated spatially — and the rule it finally establishes ❌
+
+External review's strongest remaining proposal: correlation is dominated by the periodic structure
+that every repeat shares, so estimate that common mode from the lattice and compare only what
+remains. Explicitly *not* PADM, which masked periodic energy in the Fourier domain — this folds the
+patch into its own cells spatially and subtracts a robust per-pixel median prototype.
+
+Implemented exactly as specified, with no tuning and no pipeline change: for each pair, re-score the
+final candidate list by residual-ZNCC and ask whether the truth moves above the current winner.
+
+| | truth at rank 1 | mean rank of truth |
+|---|---|---|
+| plain ZNCC | **85 / 93** | 0.44 |
+| aperiodic residual | **60 / 93** | 0.89 |
+
+| | |
+|---|---|
+| failures it reverses | **1** |
+| correct answers it breaks | **26** |
+
+**Twenty-six broken to fix one.** Not a marginal loss — the residual is far worse than the signal it
+was meant to purify.
+
+### Why, and this is the general rule
+
+The mechanism is the one that sank PADM, and seeing it a fourth time makes it a principle rather
+than an anecdote. The aperiodic fingerprint **is** real: H7 measured a strictly positive
+true-versus-impostor margin of about 0.057 from the random-walk line placement. But it is a *small*
+signal riding on a *large* one, and at dose 200 the periodic component carries essentially all of
+the usable SNR. Subtracting it does not leave the fingerprint — it leaves the fingerprint plus every
+bit of noise and forward-model mismatch, now with nothing large enough to stabilise the correlation
+against them.
+
+Four independent attempts have now tried to isolate this signal:
+
+| attempt | how it isolated the residual | result |
+|---|---|---|
+| PADM (ADR-0012) | Fourier lattice-harmonic mask | overfit; hurt both held-out splits |
+| candidate-consensus residual (§15b) | average across candidate patches | mixed, then catastrophic after refit |
+| residual tie-break (§20b) | gated to statistical ties | 20.0% → 25.0% |
+| **PCAF, this section** | **spatial cell-folding, robust median** | **26 broken to fix 1** |
+
+> **The aperiodic fingerprint cannot be isolated without destroying more signal than it recovers.**
+> Its existence is not in question; its *separability at this dose and footprint* is settled.
+
+That is more useful than "residual scoring does not work", because it says what would have to change
+for it to work: more photons, a larger footprint, or a representation that uses the periodic
+structure to *stabilise* the comparison rather than removing it. The current architecture already
+does the last of those — the lattice is a ruler for geometry and is left in place for identity,
+which is the right way round.
+
+### Basin coherence — the same feature, a third way of using it ❌
+
+§32 showed multiplicity fails as a blended score. Review proposed using it as a *filter* instead —
+keep only coherent candidates, then take the best ZNCC among survivors. That is a genuinely
+different decision rule, so it was measured:
+
+| filter | dev2 (151) | held-out (93) |
+|---|---|---|
+| *baseline, no filter* | **94.7%** | **91.4%** |
+| multiplicity >= 3 | 92.7% | 88.2% |
+| multiplicity >= 4 | 94.0% | 87.1% |
+| multiplicity >= 6 | 94.0% | 89.2% |
+| pose_spread <= 0.02 | 88.1% | 88.2% |
+| pose_spread <= 0.01 | 59.6% | 66.7% |
+| mult >= 4 AND spread <= 0.02 | 91.4% | 86.0% |
+
+**Every filter is worse than no filter, on both sets.** Unlike the blend — which had one lucky point
+a larger tuning set then rejected — this is uniform. Multiplicity has now been tried as a score, as
+a blend weight and as a filter; it has the strongest marginal separation of any feature measured
+(d = 1.098) and is unusable in all three roles.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken
