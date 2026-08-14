@@ -67,3 +67,4 @@ desktop.ini
 # Stale fallback deck written by make_deck.py when the real one is locked by an open
 # PowerPoint/LibreOffice window. Never a deliverable; it is stale as soon as the real deck rebuilds.
 *.rebuilt.pptx
+data/_stress/

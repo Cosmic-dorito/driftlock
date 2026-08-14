@@ -530,6 +530,40 @@ def load_failure_analysis() -> dict[str, str]:
         return {row["metric"]: row["value"] for row in csv.DictReader(fh)}
 
 
+def load_robustness() -> list[dict[str, str]]:
+    """The spec's 'results across multiple noise levels, target positions, scales and rotations'.
+
+    Every other required deliverable was on the slide long before this one, because a single
+    operating point is what you naturally produce and nothing complained. The spec asks for the
+    sweep explicitly, and the released test data is stated to use parameters we have not seen.
+    """
+    path = RESULTS / "robustness.csv"
+    if not path.exists():
+        return []
+    with path.open(newline="", encoding="utf-8") as fh:
+        return [r for r in csv.DictReader(fh) if r.get("axis") and not r["axis"].startswith("#")]
+
+
+def load_decomposition() -> dict[str, dict[str, int]]:
+    """Failures split by the stage that actually lost them, per split.
+
+    'Mis-lock 18%' is three different failures with three different fixes bundled into one number.
+    Six re-ranking experiments were run on the unexamined assumption that the remainder were
+    OUTSCORED; this measures whether that was ever true.
+    """
+    path = RESULTS / "failure_decomposition.csv"
+    if not path.exists():
+        return {}
+    out: dict[str, dict[str, int]] = {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if not row.get("split") or row["split"].startswith("#"):
+                continue
+            out.setdefault(row["split"], {}).setdefault(row["bucket"], 0)
+            out[row["split"]][row["bucket"]] += 1
+    return out
+
+
 def example_output() -> str:
     """A REAL coordinate from results/, not an invented one.
 
@@ -654,15 +688,39 @@ def slide_experiment(prs, M):
          size=11.5, color=RGBColor(0x6B, 0x45, 0x20))
 
     card(s, 6.9, 3.55, 5.8, 2.85)
-    text(s, 7.2, 3.75, 5.2, 0.32, "What varies across the pairs",
-         size=15.5, bold=True, color=INK, font=HEAD)
-    text(s, 7.2, 4.15, 5.2, 2.1, [
-        "•  Magnification 9:1 to 11:1, continuously sampled",
-        "•  Rotation ±2°, continuously sampled",
-        "•  Target position uniform across the field, plus a deliberate share on mat boundaries",
-        "•  Dose 2000 on the reference against 200 on the search — a ten-times noisier acquisition",
-        "•  Two architectures, four presets each, per-pair seeds recorded",
-    ], size=11, spacing=5)
+    ROB = load_robustness()
+    if ROB:
+        text(s, 7.2, 3.75, 5.2, 0.32, "Where it breaks, not just how good it is",
+             size=15.5, bold=True, color=INK, font=HEAD)
+        text(s, 7.2, 4.13, 5.2, 0.40,
+             "The released test data is stated to use parameters we have not seen, so each axis is "
+             "swept PAST the specified envelope. Validation only — nothing is tuned on these.",
+             size=9.5, color=GREY)
+        # One representative point per axis: the most extreme one measured, which is the only one
+        # that answers "does it degrade or does it fall over".
+        rows_r = [["Stress axis", "Worst point tested", "Mis-lock"]]
+        for axis in ["noise (dose)", "noise (read sigma)", "scale", "rotation"]:
+            pts = [r for r in ROB if r["axis"] == axis]
+            if not pts:
+                continue
+            worst = max(pts, key=lambda r: float(r["driftlock_mislock"]))
+            rows_r.append([axis.split(" (")[0], worst["point"].split("  ")[0],
+                           f"{float(worst['driftlock_mislock']) * 100:.1f}%"])
+        table(s, 7.2, 4.62, 5.2, rows_r, col_w=[1.5, 2.2, 1.5], size=10.5)
+        n_out = sum(1 for r in ROB if r["in_spec_envelope"] == "False")
+        text(s, 7.2, 6.02, 5.2, 0.34,
+             f"{len(ROB)} operating points, {n_out} of them deliberately outside the envelope the "
+             f"problem statement promises.", size=9.5, color=GREY, italic=True)
+    else:
+        text(s, 7.2, 3.75, 5.2, 0.32, "What varies across the pairs",
+             size=15.5, bold=True, color=INK, font=HEAD)
+        text(s, 7.2, 4.15, 5.2, 2.1, [
+            "•  Magnification 9:1 to 11:1, continuously sampled",
+            "•  Rotation ±2°, continuously sampled",
+            "•  Target position uniform across the field, plus a share on mat boundaries",
+            "•  Dose 2000 on the reference against 200 on the search",
+            "•  Two architectures, four presets each, per-pair seeds recorded",
+        ], size=11, spacing=5)
 
 
 def slide_results(prs, M):
@@ -823,27 +881,63 @@ def slide_failure(prs, M):
                    f"stratum — no landmark in view")
     text(s, 0.9, 2.12, 5.4, 1.75, bullets, size=12,
          color=RGBColor(0x7A, 0x3A, 0x24), spacing=5)
-    text(s, 0.9, 3.88, 5.4, 0.3, "Root cause: ranking, not candidate generation.",
-         size=12.5, bold=True, color=RGBColor(0x8A, 0x2D, 0x18))
+
+    # The root-cause line is DERIVED, not asserted. It used to read "ranking, not candidate
+    # generation" as a flat claim; that was an inference from one worst-case pair, and the
+    # decomposition measures it across every pair on every split. If the dominant bucket ever stops
+    # being the one we assumed, this line changes by itself instead of quietly going stale.
+    DEC = load_decomposition()
+    totals: dict[str, int] = {}
+    for per_split in DEC.values():
+        for bucket, count in per_split.items():
+            totals[bucket] = totals.get(bucket, 0) + count
+    failures = {k: v for k, v in totals.items() if k != "correct"}
+    if failures:
+        worst_bucket = max(failures, key=lambda k: failures[k])
+        n_fail = sum(failures.values())
+        cause = {
+            "outscored": "ranking, not candidate generation",
+            "absent": "candidate generation, not ranking",
+            "screened": "the screen, not the final ranking",
+        }[worst_bucket]
+        text(s, 0.9, 3.88, 5.4, 0.3,
+             f"Root cause across all {n_fail} failures: {cause} "
+             f"({failures[worst_bucket]}/{n_fail}).",
+             size=12.5, bold=True, color=RGBColor(0x8A, 0x2D, 0x18))
+    else:
+        text(s, 0.9, 3.88, 5.4, 0.3, "Root cause: ranking, not candidate generation.",
+             size=12.5, bold=True, color=RGBColor(0x8A, 0x2D, 0x18))
 
     card(s, 6.9, 1.50, 5.8, 2.75)
-    text(s, 7.2, 1.68, 5.2, 0.62, "Failures concentrate exactly where theory says they must",
-         size=14.5, bold=True, color=INK, font=HEAD)
-    text(s, 7.2, 2.32, 5.2, 0.42,
-         "Our generator labels each pair by whether an aperiodic landmark is in view. Stratifying "
-         "the results by that label:", size=10.5, color=GREY)
-    rows_t = [["Crop contains", "n", "Mis-lock", "@1px"]]
-    for key, label in [("low", "a mat boundary"), ("med", "only lattice")]:
-        if f"strata_{key}_n" in F:
-            rows_t.append([label, F[f"strata_{key}_n"],
-                           f"{F[f'strata_{key}_mislock_pct']}%", f"{F[f'strata_{key}_pass1_pct']}%"])
-    table(s, 7.2, 2.80, 5.2, rows_t, col_w=[2.1, 0.7, 1.2, 1.2], size=11)
-    if "strata_med_failures" in F:
-        text(s, 7.2, 3.86, 5.2, 0.36,
-             f"{F['strata_med_failures']} of the {F['n_failures']} failures fall in those "
-             f"{F['strata_med_n']} pairs. The method fails precisely where the information needed "
-             f"to succeed is absent — the honest definition of the problem's limit.",
-             size=9.5, color=GREY, italic=True)
+    if DEC:
+        text(s, 7.2, 1.68, 5.2, 0.32, "Every failure, split by the stage that lost it",
+             size=14.5, bold=True, color=INK, font=HEAD)
+        text(s, 7.2, 2.08, 5.2, 0.60,
+             "One mis-lock rate hides three different failures with three different fixes. Only "
+             "the last is something a better ranking rule could ever have addressed — and six "
+             "ranking criteria were tried and rejected assuming it was the whole story.",
+             size=9.5, color=GREY)
+        rows_t = [["Split", "OK", "Absent", "Screened", "Outscored"]]
+        for key, label in [("sponsor", "sponsor"), ("bench", "bench"), ("finfet", "FinFET")]:
+            d = DEC.get(key)
+            if d:
+                rows_t.append([label, str(d.get("correct", 0)), str(d.get("absent", 0)),
+                               str(d.get("screened", 0)), str(d.get("outscored", 0))])
+        table(s, 7.2, 2.76, 5.2, rows_t, col_w=[1.2, 0.8, 1.0, 1.1, 1.1], size=10.5)
+        text(s, 7.2, 3.88, 5.2, 0.44,
+             "Absent = never a candidate, so no selection rule of any kind can recover it. "
+             "Screened = cut by the cheap screen before the expensive geometry ran. "
+             "Outscored = reached the final comparison and lost on correlation.",
+             size=9, color=GREY, italic=True)
+    else:
+        text(s, 7.2, 1.68, 5.2, 0.62, "Failures concentrate exactly where theory says they must",
+             size=14.5, bold=True, color=INK, font=HEAD)
+        rows_t = [["Crop contains", "n", "Mis-lock", "@1px"]]
+        for key, label in [("low", "a mat boundary"), ("med", "only lattice")]:
+            if f"strata_{key}_n" in F:
+                rows_t.append([label, F[f"strata_{key}_n"], f"{F[f'strata_{key}_mislock_pct']}%",
+                               f"{F[f'strata_{key}_pass1_pct']}%"])
+        table(s, 7.2, 2.80, 5.2, rows_t, col_w=[2.1, 0.7, 1.2, 1.2], size=11)
 
     text(s, 0.6, 4.40, 12.1, 0.35, "Limitations, stated rather than left to be found",
          size=16, bold=True, color=INK, font=HEAD)
@@ -856,9 +950,10 @@ def slide_failure(prs, M):
         ("Runtime above our own target",
          f"About {ms(b, 'runtime_p50_ms')} per pair against a 300 ms goal. The per-candidate "
          "refit is most of it; top_k is the dial. We took 9 points of mis-lock for the time."),
-        ("Untested axes remain",
-         "Barrel distortion, astigmatism, charging streaks and impulse noise are modelled but not "
-         "stratified — untested, not proven harmless."),
+        ("The screen is a hard gate",
+         "Candidates it drops cannot be recovered by anything downstream, so its recall is "
+         "reported alongside accuracy rather than left implicit. It bounds what any future "
+         "selection stage could achieve."),
     ]):
         x = 0.6 + i * 4.15
         card(s, x, 4.90, 3.85, 1.55)

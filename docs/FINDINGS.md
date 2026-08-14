@@ -1054,6 +1054,31 @@ on the evaluator's machine.
 The CPU-only path stays. This is exactly why R1 and R3 exist: a confident claim about a source is not
 a fact until someone opens the source.
 
+**Re-raised on 14 Aug by a second external review, and settled definitively.** The claim came back
+with a citation this time, so both sources were opened rather than argued about:
+
+| Source | Says |
+|---|---|
+| `reference/AMAT_DriftSense_ProblemStatement.pdf`, all 7 pages | **zero** occurrences of "H100", "GPU" or "CUDA". The only "hardware" mentions require *us* to state ours: *"Runtime per image pair, with hardware, Python version and timing method."* |
+| The cited hackathon page, fetched | *"…used AS-IS by KLA's benchmarking team to measure your model's quality scores and inference time on the H100 GPU"* — inside the section for the **KLA track, Problem Statement 1 (AI-Based Restoration of Degraded Images)**. For the Applied Materials Drift-Sense track, no GPU is named. |
+
+So the H100 is real, and it belongs to a **different problem statement in the same hackathon**. The
+sentence is quotable and looks decisive, which is exactly what makes it dangerous second-hand.
+
+The consequences of having followed it would have been severe and one-directional: our own
+constraints require the submission to run with **no network access, no model downloads, and weights
+committed in-repo**, and `torch` must remain optional (`pip uninstall torch` leaves every graded
+command working). A CUDA dependency, or a multi-hundred-megabyte learned matcher fetched at build
+time, trades a working submission for a faster one on hardware nobody has told us we get.
+
+**Decision: CPU-only stands, `torch` stays optional, no GPU work.** Recorded at this length because
+the claim has now cost time twice, and the next person to raise it should be able to close it in one
+minute rather than one afternoon.
+
+*Sharper form of the general rule:* **a citation that is accurate about the wrong scope is more
+dangerous than one that is simply wrong**, because checking it superficially confirms it. The
+question to ask is never "does the source say this?" but "does the source say this *about us*?"
+
 ---
 
 ## 19. A 4x speedup with bit-identical results ✅

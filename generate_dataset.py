@@ -61,6 +61,8 @@ def build_params(args: argparse.Namespace) -> GenerationParams:
         rotation_deg_max=args.rotation_max,
         architectures=tuple(args.architectures),
         dose_reference=args.dose_reference, dose_search=args.dose_search,
+        detector_noise_sigma_ref=args.detector_noise_sigma_ref,
+        detector_noise_sigma_search=args.detector_noise_sigma_search,
         shear_amplitude_px=args.shear_amplitude_px,
         drift_jitter_px=args.drift_jitter_px,
         gamma=args.gamma, vignette_strength=args.vignette_strength,
@@ -100,6 +102,13 @@ def main(argv: list[str] | None = None) -> int:
     n = p.add_argument_group("dose and noise")
     n.add_argument("--dose-reference", type=float, default=2000.0)
     n.add_argument("--dose-search", type=float, default=200.0)
+    # Exposed so the robustness sweep can vary BOTH halves of the Poisson-Gaussian model
+    # independently. Dose sets the shot-noise term (variance proportional to signal); this sets the
+    # read-noise term (variance constant). They degrade an image differently - shot noise hurts the
+    # bright contacts most, read noise hurts the dark background - so a sweep over dose alone would
+    # only cover one of the two axes the spec asks about.
+    n.add_argument("--detector-noise-sigma-ref", type=float, default=2.0)
+    n.add_argument("--detector-noise-sigma-search", type=float, default=5.0)
     n.add_argument("--speckle-sigma", type=float, default=0.0)
     n.add_argument("--salt-pepper-prob", type=float, default=0.0)
 

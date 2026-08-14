@@ -217,6 +217,45 @@ def check_failure_case() -> Result:
     return Result(PASS, "failure case visualized and explained")
 
 
+def check_robustness_sweep() -> Result:
+    """Spec deliverable: 'Results across multiple noise levels, target positions, scales and
+    rotations.'
+
+    This was missing for most of the project's life, which is why it is a check and not a habit.
+    Every other required deliverable had a verifier line; this one did not, so nothing complained
+    that all reported numbers came from a single operating point.
+    """
+    path = REPO_ROOT / "results" / "robustness.csv"
+    if not path.exists():
+        return Result(PENDING, "run scripts/robustness_sweep.py")
+    with path.open(newline="", encoding="utf-8") as fh:
+        rows = [r for r in csv.DictReader(fh) if r.get("axis") and not r["axis"].startswith("#")]
+    axes = {r["axis"].split(" ")[0] for r in rows}
+    missing = {"noise", "scale", "rotation"} - axes
+    if missing:
+        return Result(FAIL, f"robustness sweep is missing axes: {sorted(missing)}")
+    return Result(PASS, f"{len(rows)} operating points across {len(axes)} axes")
+
+
+def check_failure_decomposition() -> Result:
+    """Not a spec item - our own. Failure analysis is 10% of the score, and a single mis-lock rate
+    does not say which STAGE lost each pair. Fails if the buckets go missing or stop covering the
+    reported splits, since the deck quotes them.
+    """
+    path = REPO_ROOT / "results" / "failure_decomposition.csv"
+    if not path.exists():
+        return Result(PENDING, "run scripts/failure_decomposition.py")
+    with path.open(newline="", encoding="utf-8") as fh:
+        rows = [r for r in csv.DictReader(fh) if r.get("split") and not r["split"].startswith("#")]
+    buckets = {r["bucket"] for r in rows}
+    if not {"correct", "absent", "screened", "outscored"} & buckets:
+        return Result(FAIL, "failure decomposition has no recognised buckets")
+    splits = {r["split"] for r in rows}
+    if len(splits) < 3:
+        return Result(FAIL, f"decomposition covers only {sorted(splits)}; needs all three splits")
+    return Result(PASS, f"{len(rows)} pairs classified across {len(splits)} splits")
+
+
 def check_citations_complete() -> Result:
     """Rule R1 + spec checklist: 'At least 2-3 credible public sources are cited.'
 
@@ -365,6 +404,8 @@ CHECKS = [
     ("Pass rates at 5/4/2/1 px reported", check_metrics_reported),
     ("Runtime, hardware, timing method", check_runtime_reported),
     ("Failure case shown and explained", check_failure_case),
+    ("Noise/scale/rotation sweep reported", check_robustness_sweep),
+    ("Failures split by losing stage", check_failure_decomposition),
     ("Citations complete and verified (R1)", check_citations_complete),
     ("Deck numbers traceable to results (R2)", check_ppt_numbers_traceable),
     ("RESULTS.md generated and current (R2)", check_results_doc_is_current),
