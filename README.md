@@ -165,12 +165,12 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 
 | Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | Runtime p50 |
 |---|---|---|---|---|---|---|---|
-| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 72 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **20.0%** | **0.251** | **77.5%** | **72.5%** | 90.0% | 1340 ms (19x base) |
-| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 69 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.342** | **76.7%** | **63.3%** | 86.7% | 1252 ms (18x base) |
-| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 69 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **10.0%** | **0.220** | **83.3%** | **70.0%** | 90.0% | 1232 ms (18x base) |
+| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 67 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **20.0%** | **0.251** | **77.5%** | **72.5%** | 90.0% | 1311 ms (19x base) |
+| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 67 ms |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.342** | **76.7%** | **63.3%** | 86.7% | 1204 ms (18x base) |
+| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 72 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **10.0%** | **0.220** | **83.3%** | **70.0%** | 90.0% | 1189 ms (17x base) |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
 

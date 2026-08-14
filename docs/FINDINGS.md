@@ -1105,6 +1105,40 @@ That brings the pipeline to our own 300 ms target, from 4× over it, without tra
 accuracy. The lesson generalises: **profile before optimising, and before assuming which stage is
 expensive** — the intuition here was wrong by an order of magnitude.
 
+### 19a. The benchmark heats the machine it is measuring (14 Aug) ⚠️
+
+Two further methodological faults surfaced when runtime was re-measured on a laptop that had been
+running generation for hours.
+
+**The baseline is a control, and it was being discarded.** It performs a fixed, simple computation,
+so its runtime is a direct proxy for how fast this machine currently is. Measured across three
+states in one day:
+
+| machine state | baseline p50 | DriftLock p50 | **ratio** |
+|---|---|---|---|
+| quiet | 20 ms | 400 ms | **20.0×** |
+| loaded | 34 ms | 630 ms | **18.5×** |
+| throttled | 67 ms | 1262 ms | **18.8×** |
+
+The absolute figures move by 3×; the ratio does not. `benchmark_runtime.py` now records the ratio and
+**refuses to certify absolute milliseconds** when the control sits more than 50% above its
+quiet-machine value, writing `absolute_ms_representative` into `results/runtime.csv`. The generated
+README and RESULTS blocks read that flag and print a visible warning rather than quoting a number
+that is a property of one afternoon's thermal state.
+
+**The ratio's denominator was itself noisy.** Dividing each split's median by *that split's own*
+baseline median seemed natural and was wrong: the baseline does the same work on every split, so its
+per-split medians differ only by sampling noise, and a noisy denominator injects exactly the noise
+the ratio exists to remove. On a recovering machine that produced ratios of **13.5 / 25.4 / 22.7**
+for three splits whose true cost is identical to within a few percent — which would have been
+published as sponsor running twice as fast as bench. Pooling the denominator across all 36 baseline
+samples restores 19.1 / 17.6 / 17.4.
+
+**And the measurement is self-heating.** Running the benchmark on a rested machine drives the
+baseline from 36 ms back to 67 ms within the run. On this hardware the absolute number is close to
+unobtainable during an active session, which is not a reason to quote it anyway — it is the reason
+the ratio is the reported quantity and the gate exists.
+
 ---
 
 ## 20. Six re-ranking attempts, one rule ✅ (the strongest conclusion in the project)

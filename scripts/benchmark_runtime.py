@@ -98,10 +98,21 @@ def main() -> int:
                 localize(ref, search, config)
                 timings[name][label].append((time.perf_counter() - start) * 1000.0)
 
+    # The ratio divides by the baseline median over the WHOLE run, not each split's own.
+    #
+    # Per-split denominators looked natural and were wrong: the baseline does essentially identical
+    # work on every split, so its per-split medians differ only by noise, and dividing by a noisy
+    # denominator injects that noise into the ratio it was supposed to remove. Measured on a
+    # recovering machine, per-split ratios read 13.5 / 25.4 / 22.7 for three splits whose true cost
+    # is the same to within a few percent - which would have appeared in the table as sponsor being
+    # twice as fast as bench. Pooling the denominator uses all 36 baseline samples instead of 12.
+    all_base_values = [v for per in timings.values() for v in per.get("baseline", [])]
+    pooled_base = float(np.median(all_base_values)) if all_base_values else float("nan")
+
     print(f"\n  {'split':<12}{'config':<12}{'p50 ms':>9}{'p95 ms':>9}{'n':>5}{'x base':>8}")
     out_rows = []
     for name, per_config in timings.items():
-        base_p50 = (np.median(per_config["baseline"]) if per_config.get("baseline") else float("nan"))
+        base_p50 = pooled_base
         for label, values in per_config.items():
             if not values:
                 continue
@@ -128,8 +139,7 @@ def main() -> int:
     # So the absolute figure is only quotable when the control is near its own best, and this gate
     # says so out loud rather than letting a throttled number be written into results/ and then
     # into the deck.
-    all_base = [v for per in timings.values() for v in per.get("baseline", [])]
-    base_median = float(np.median(all_base)) if all_base else float("nan")
+    base_median = pooled_base
     suspect = base_median > BASELINE_QUIET_MS * 1.5
     if suspect:
         print(f"\n  ** WARNING: baseline control at {base_median:.0f} ms against a quiet-machine "

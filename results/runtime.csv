@@ -1,10 +1,10 @@
 split,config,n,p50_ms,p95_ms,mean_ms,x_baseline
-sponsor,driftlock,12,1340.2,1462.3,1300.6,18.73
-sponsor,baseline,12,71.6,77.4,70.9,1.00
-bench,driftlock,12,1251.9,1368.8,1257.3,18.06
-bench,baseline,12,69.3,124.9,79.1,1.00
-finfet,driftlock,12,1231.6,1429.0,1259.1,17.78
-finfet,baseline,12,69.3,80.4,68.7,1.00
+sponsor,driftlock,12,1311.2,1406.5,1291.8,19.15
+sponsor,baseline,12,67.2,75.6,67.0,0.98
+bench,driftlock,12,1204.3,1459.0,1230.3,17.59
+bench,baseline,12,67.3,76.7,67.6,0.98
+finfet,driftlock,12,1189.3,1403.7,1224.4,17.37
+finfet,baseline,12,71.6,77.8,70.7,1.05
 
 # platform,Windows 11 (AMD64)
 # processor,Intel64 Family 6 Model 170 Stepping 4, GenuineIntel
@@ -12,5 +12,5 @@ finfet,baseline,12,69.3,80.4,68.7,1.00
 # opencv_version,5.0.0
 # cv2_threads,22
 # method,interleaved round-robin across splits, 3 warm-up calls discarded, median of per-pair perf_counter
-# baseline_control_ms,70.2
+# baseline_control_ms,68.5
 # absolute_ms_representative,no - machine throttled
