@@ -2007,6 +2007,67 @@ on a margin of 0.005 without regressing the 78 pairs that are currently correct 
 tests in §27 show that a change of two pairs is not even resolvable at this sample size. We stop
 here, and the stopping is evidence-based rather than a schedule decision.
 
+## 30. The spec's centre tie-break, done properly — and the reason nothing can win a tie ❌✅
+
+The problem statement licenses one selection rule explicitly: *"If several valid matches exist,
+select the one whose centre is closest to the search-image centre."* ADR-0021 rejected it as a
+**default**. This tests the narrow, spec-faithful version — fire it *only* when candidates are
+statistically indistinguishable — which is the strongest form of the idea and the one an external
+review ranked as the highest-value remaining experiment.
+
+**The audit that made it look promising.** Comparing the true location against the winning impostor
+on distance-to-centre, across the nine outscored failures: the truth is closer in **6 of 9**. An
+apparent free +3.
+
+**It does not survive implementation.** Sweeping the tie gate over every threshold, applying the rule
+to the full tied set (all candidates within τ of the top score), on the 100 held-out pairs:
+
+| gate τ | fires | flips | **fixes** | breaks | net |
+|---|---|---|---|---|---|
+| 0.000 | 32 | 0 | **0** | 0 | 0 |
+| 0.002 | 65 | 4 | **0** | 2 | −2 |
+| 0.005 | 83 | 17 | **0** | 6 | −6 |
+| 0.010 | 95 | 25 | **0** | 9 | −9 |
+| 0.020 | 97 | 44 | **0** | 26 | −26 |
+| 1.000 (ungated) | 100 | 74 | **0** | 57 | −57 |
+
+**Zero fixes at every threshold.** Not "a poor trade" — the rule never once recovers a failure, at
+any setting, while breaking up to 57 correct pairs.
+
+### The mechanism, which is the actually valuable part
+
+Final rank of the *true* candidate across the 15 held-out failures:
+
+| | count |
+|---|---|
+| rank ≤ 2 | **0** |
+| rank ≤ 3 | 1 |
+| rank ≤ 5 | 4 |
+| rank ≤ 10 | 8 |
+| absent from the top 20 entirely | **7** |
+
+> **The truth is never the runner-up.** In every failure it sits at rank 3 or worse, or is not in the
+> candidate set at all.
+
+That single fact explains far more than this experiment:
+
+* **Why the centre rule cannot help.** A tie-break selects among *near-equal scorers*. The tied set
+  is populated by other impostors; the true candidate is not in it. The 6-of-9 audit was measuring
+  the wrong thing — truth-versus-winner *position* says nothing about whether the truth is reachable
+  through the *ranking*.
+* **Why six re-ranking criteria failed** (ADR-0024). They re-order a list in which the truth is
+  third or worse. A criterion strong enough to lift it past two or more impostors would have to be
+  far better than a tie-break, not marginally different from ZNCC.
+* **It re-scales §28's headroom.** The median margin of 0.0053 is truth-versus-*winner*, and at least
+  one other impostor sits between them. Recovering these pairs is not winning a coin flip; it is
+  overtaking a queue.
+
+**The rule stays implemented and off** (`centre_rule=True`), unchanged from ADR-0021 — the checklist
+asks that it exist, and it does. What is new is that we can now say *why* it cannot pay here, from a
+rank distribution rather than from a rate.
+
+---
+
 ## 29. Batching the correlations — refuted by microbenchmark ❌
 
 `matchTemplate` is **579 calls and ~199 ms per pair**, about half the runtime, so batching them was

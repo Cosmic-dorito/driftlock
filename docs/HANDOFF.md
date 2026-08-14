@@ -89,8 +89,14 @@ FINDINGS §22:
 > You cannot reconstruct an optimum from samples that do not resolve it.
 
 **Also refuted:** pose-regime routing (best-pose-only is 30.0% vs 20.0% merged), pose-excursion
-penalty (no gain at any setting), centre rule as a default (the benchmark samples targets uniformly,
-so the deployment prior it needs is absent — ADR-0021).
+penalty (no gain at any setting), centre rule as a default (ADR-0021) **and as a gated tie-break**
+— swept over every threshold it scores **zero fixes** and up to 57 breaks (§30).
+
+> **The single most useful fact about the remaining failures: the true candidate is NEVER the
+> runner-up.** In all 15 held-out failures it ranks 3rd or worse, and in 7 of them it is absent from
+> the top 20. Any idea of the form "break the tie between the top two" is dead on arrival — the tied
+> set is populated by other impostors. This is also why six re-ranking criteria failed: they re-order
+> a list the truth is not near the top of.
 
 **Also settled (14 Aug), charging streaks are a limitation and not a to-do.** The failure inverts
 there — 23.3% ABSENT against 3.3% OUTSCORED — so it is signal recovery, not ranking. `top_k` is flat
