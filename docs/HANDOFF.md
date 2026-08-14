@@ -93,10 +93,15 @@ penalty (no gain at any setting), centre rule as a default (ADR-0021) **and as a
 — swept over every threshold it scores **zero fixes** and up to 57 breaks (§30).
 
 > **The single most useful fact about the remaining failures: the true candidate is NEVER the
-> runner-up.** In all 15 held-out failures it ranks 3rd or worse, and in 7 of them it is absent from
+> runner-up, and it is buried among DISTINCT rivals.** In all 15 held-out failures it ranks 3rd or worse, and in 7 of them it is absent from
 > the top 20. Any idea of the form "break the tie between the top two" is dead on arrival — the tied
 > set is populated by other impostors. This is also why six re-ranking criteria failed: they re-order
-> a list the truth is not near the top of.
+> a list the truth is not near the top of. Cross-pose deduplication was measured too — 3.8 of the
+> screen's 10 slots really are spent on duplicate sites (60 candidates, only 33.8 distinct
+> positions) — and removing that waste changes accuracy **not at all** (§31b). So the ranks above
+> the truth hold different plausible sites, not copies of one. Multi-cell context is arithmetically
+> unavailable: the reference is 1000 nm across in total and already spans ~163 lattice cells, so a
+> 100x100 ZNCC IS the multi-cell check (§31a).
 
 **Also settled (14 Aug), charging streaks are a limitation and not a to-do.** The failure inverts
 there — 23.3% ABSENT against 3.3% OUTSCORED — so it is signal recovery, not ranking. `top_k` is flat

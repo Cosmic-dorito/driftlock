@@ -142,6 +142,12 @@ class PipelineConfig:
     refit_screen_top_n: int = 10
     refit_screen_scale_span: float = 0.006
     refit_screen_rotation_span: float = 0.30
+    # Suppress candidates the pose bracket found more than once. NMS runs inside each pose's
+    # surface but not across poses, so one site can enter the refit once per pose - measured, 60
+    # candidates at only 33.8 distinct positions, with 3.8 of the screen's 10 slots going to
+    # duplicates. Must stay well inside one lattice pitch (6.4 px word, 9.6 px bit at 10:1) or it
+    # would merge genuinely adjacent repeats. 0 disables.
+    refit_screen_dedup_px: float = 0.0
 
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation

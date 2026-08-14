@@ -2068,6 +2068,77 @@ rank distribution rather than from a rate.
 
 ---
 
+## 31. Two structural ideas aimed at the buried truth — one impossible, one flat ❌
+
+§30 reframed the problem: the truth is not a near-miss to be tie-broken, it is buried at rank 3+ or
+absent. External review proposed two structural attacks. Both were checked before being built, which
+is the only reason neither cost a day.
+
+### 31a. Multi-cell contextual verification — not available, by arithmetic ❌
+
+The proposal: compare the candidate's *surroundings* against the reference's surroundings, on the
+theory that two periodic cells can look identical locally while sitting in different neighbourhoods.
+
+It cannot be done, and the reason is a two-line calculation rather than an experiment. The reference
+is 1000×1000 px at 1 nm/px — **1000 nm across, which is the whole of it.** There is no reference
+content outside its own footprint to build a context window from. Expanding the *search* window is
+free, but there would be nothing to correlate it against.
+
+Worse for the idea, the context is already inside the template:
+
+| | |
+|---|---|
+| word-line pitch 64 nm | reference spans **15.6** word lines |
+| bit-line pitch 96 nm | reference spans **10.4** bit lines |
+| | ≈ **163 lattice cells per template** |
+
+A 100×100 ZNCC is *already* multi-cell verification over roughly 163 cells. "Add context" describes
+what the matcher does today.
+
+### 31b. Cross-pose candidate deduplication — a real defect that does not convert ⚪
+
+The second proposal was lattice-aware candidate diversity. As stated it is self-defeating — in a
+periodic array *every* candidate is lattice-congruent to every other, so deduplicating on lattice
+congruence would collapse the entire set. But measuring for it found a genuine defect underneath.
+
+`extract_peaks` applies non-maximum suppression **inside each pose's correlation surface**, and the
+candidates from every pose in the bracket are then merged **with no suppression across poses**. One
+physical site therefore enters the refit once per pose that found it:
+
+| | measured on bench |
+|---|---|
+| candidates entering the refit | 60 |
+| **distinct positions among them** | **33.8** |
+| distinct positions in the top 10 after the screen | **6.2** |
+| **expensive slots spent on duplicates** | **3.8 of 10** |
+
+Median *minimum* pairwise distance in the top 10 is **0.0 px** — exact copies. Nearly two fifths of
+the screen's budget was being spent re-refining the same sites, which is a real inefficiency and
+looked like a direct explanation for the rank distribution: the ranks above the truth occupied by
+copies of one impostor rather than by distinct rivals.
+
+Deduplicating after the screen (tolerance well inside one lattice pitch, so adjacent repeats are
+never merged):
+
+| dedup tolerance | off | 2 px | 3 px | 5 px |
+|---|---|---|---|---|
+| dev | 12.5% | 15.0% | 15.0% | 15.0% |
+| sponsor | 20.0% | 20.0% | 20.0% | 20.0% |
+| bench | 16.7% | 16.7% | 16.7% | 16.7% |
+| holdout FinFET | 10.0% | 10.0% | 10.0% | 10.0% |
+| **held-out** | **16.0%** | 16.0% | 16.0% | 16.0% |
+
+**Flat on every held-out split, and dev regresses.** The freed slots are filled by whatever the
+screen ranked 11th to 20th, and the truth is not there either.
+
+So the correction to §30's picture is sharper than the picture itself: **the truth is buried among
+*distinct* rivals, not among duplicates of one.** Removing 3.8 wasted slots per pair changes nothing,
+which means the ranks above the true candidate are genuinely occupied by different plausible sites
+that all out-score it. That is a harder problem than the duplicate story suggested, and it is the
+honest one. The flag stays at 0.
+
+---
+
 ## 29. Batching the correlations — refuted by microbenchmark ❌
 
 `matchTemplate` is **579 calls and ~199 ms per pair**, about half the runtime, so batching them was

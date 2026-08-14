@@ -109,10 +109,38 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
         # Handing +/-3% and +/-1.5 deg to 60 candidates gives 59 impostors 25 chances each to find a
         # flattering pose. The screen BOUNDS how much geometric freedom the field collectively gets,
         # and the narrow refit is what makes a top-10 cut trustworthy enough to take beforehand.
+        # Spend the screen's slots on DISTINCT sites.
+        #
+        # extract_peaks applies non-maximum suppression inside each pose's correlation surface, but
+        # candidates from every pose in the bracket are then merged with no suppression ACROSS
+        # poses. The same physical site therefore enters the refit once per pose that found it.
+        # Measured on bench: 60 candidates arrive at 33.8 distinct positions, and the top 10 after
+        # the screen hold only 6.2 - so **3.8 of the 10 expensive slots go to duplicates**.
+        #
+        # That is not merely wasted compute. The failure analysis (FINDINGS 30) found the true
+        # candidate is never the runner-up and sits at rank 3+ or outside the pool entirely; part of
+        # the reason is that the ranks above it are occupied by COPIES of one impostor rather than
+        # by distinct rivals. Deduplicating here converts wasted slots into hypotheses.
+        #
+        # Done AFTER the screen, not before: the screen re-scores at a corrected pose, so positions
+        # are more trustworthy here, and keeping the best-scoring copy is then meaningful. The
+        # tolerance stays well inside one lattice pitch (6.4 px word / 9.6 px bit at 10:1) so
+        # genuinely adjacent repeats are never merged.
+        dedup_px = getattr(config, "refit_screen_dedup_px", 0.0)
+        if dedup_px > 0.0:
+            kept: list = []
+            for cand in candidates:                      # already sorted by score, best first
+                if all((cand.x - k.x) ** 2 + (cand.y - k.y) ** 2 > dedup_px * dedup_px
+                       for k in kept):
+                    kept.append(cand)
+                else:
+                    deferred.append(cand)
+            candidates = kept
+
         if len(candidates) > screen_n:
             # The losers are kept, not dropped: they still carry their screened score, and
             # downstream stages (ambiguity index, confidence radius) read the whole candidate set.
-            candidates, deferred = candidates[:screen_n], candidates[screen_n:]
+            candidates, deferred = candidates[:screen_n], deferred + candidates[screen_n:]
 
     for pass_index in range(passes):
         scale_span = span * (shrink ** pass_index)
