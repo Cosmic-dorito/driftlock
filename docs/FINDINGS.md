@@ -2415,6 +2415,84 @@ provides — none of which is available to a submission.
 
 ---
 
+## 35. The oracle ceiling: the truth correlates WORSE, and geometry already recovers 89% of it ✅✅
+
+The question that should have been asked first, and was not: **are the remaining failures even
+recoverable?** Every experiment so far assumed they were selection errors. Handing the matcher the
+generator's own recorded `scale_ratio` and `rotation_deg` settles it.
+
+### 35a. A perfect pose does not rescue them
+
+Template built at the exact ground-truth pose, one plain correlation over the whole search image, no
+pose search, no refit, no screen:
+
+| | |
+|---|---|
+| shipped pipeline correct | **84 / 100** |
+| oracle pose + plain argmax | **70 / 100** |
+| shipped failures the oracle recovers | **1 of 16** |
+
+The oracle is *worse than the shipped pipeline* — and it recovers one failure out of sixteen. Pose
+estimation error is not what is losing these pairs.
+
+### 35b. At the true location, the image genuinely looks less like the reference
+
+The sharper form. At the exact ground-truth pose, correlate the template at the **true** location and
+at the **winning** location:
+
+| | ZNCC at the exact GT pose |
+|---|---|
+| at the TRUE location | **0.7661** |
+| at the WINNING location | **0.8615** |
+| truth out-correlates the winner in | **2 / 15** (exact two-sided p = 0.007) |
+
+**The winner beats the truth by 0.0955 at a pose that is correct by construction.** These are not
+near-ties that a better tie-break could resolve, and not selection errors. At a fixed global pose the
+search image simply resembles the reference *more* at the impostor's location than at the true one.
+
+*(The oracle template carries exact scale and rotation but no drift model. Drift correction in this
+pipeline adjusts the reported coordinate rather than the image, so it cannot affect this
+correlation, and the residual per-row shear across a 100 px patch is about 0.15 px — far too small to
+account for a 0.096 gap.)*
+
+### 35c. And this is what the refit is actually doing
+
+Strictly paired — the same 8 failures, measured both ways:
+
+| | deficit (winner − truth) |
+|---|---|
+| at a fixed pose, exact GT scale and rotation | **+0.0654** |
+| after the per-candidate refit | **+0.0072** |
+| **fraction of the deficit the refit closes** | **89.0%** |
+| gap reduced in | 6 / 8 pairs |
+
+**The per-candidate refit recovers 89% of a deficit nobody had measured.** It takes a 0.065
+disadvantage — which no scoring rule could overcome — and reduces it to 0.007, roughly 3.6x the
+correlation sampling noise of ~0.002.
+
+### Why this explains every negative in this document
+
+The project has spent its effort hunting for **0.007** of signal while the quantity that actually
+governs the outcome is **0.065**, and geometry had already taken 0.058 of it.
+
+* **"Same criterion, better geometry" is the only stage that has ever worked** (ADR-0024) because
+  reducing geometric mismatch is the only lever with any leverage. That was an empirical rule; it is
+  now a measured one.
+* **Six re-ranking criteria failed** because they were competing for a residual near the noise floor.
+* **Isolating the aperiodic fingerprint failed** (§33) because the periodic component is what the
+  refit uses to close the 0.058; removing it discards the mechanism.
+* **Leave-cell-out generalisation failed** (§34) because at a fixed pose the impostor is a genuinely
+  better explanation — that is exactly what 0.8615 against 0.7661 means.
+
+**This is a ceiling with a mechanism.** The remaining 0.007 is not a slack to be tuned away; it is
+what is left after the only effective lever has been pulled 89% of the way, and it sits close enough
+to the measurement floor that no rule reading this surface can reliably resolve it.
+
+The honest headline is not "16% mis-lock remains". It is: **at a fixed pose the true site is behind
+by 0.065; DriftLock's geometry recovers 89% of that, and the remainder is at the noise floor.**
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken

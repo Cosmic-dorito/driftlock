@@ -76,6 +76,20 @@ fresh 151-group set, which picks a null operating point and is *flatter* (1.3 pt
 Four times the data did not sharpen a peak; it showed there is no peak. A model would face the same
 flat criterion with more free parameters.
 
+> ## The headline finding (§35) — read this before proposing anything
+>
+> At the generator's **exact** scale and rotation, the true site correlates **0.0654 WORSE** than the
+> impostor that beats it. These are not near-ties or selection errors: at a fixed pose the search
+> image genuinely resembles the reference more at the wrong location.
+>
+> **The per-candidate refit recovers 89.0% of that deficit** (paired, same 8 failures), leaving
+> 0.0072 — about 3.6x the correlation sampling noise of ~0.002.
+>
+> So the project spent its effort hunting 0.007 of signal while the governing quantity was 0.065 and
+> geometry had already taken 0.058. That is why "same criterion, better geometry" is the only stage
+> that has ever worked, and why every scoring idea fails. Regenerate with
+> `scripts/oracle_ceiling.py`.
+>
 > ## The stopping condition, with a mechanism (§34)
 >
 > **Any evidence strong enough to be reliable is shared by the impostor (it is periodic), and any

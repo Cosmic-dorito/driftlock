@@ -191,7 +191,13 @@ Failure case with root cause: [`results/failure_case/`](results/failure_case/).
 
 Stated plainly rather than left for a judge to find.
 
-1. **Selection is not solved, and the screen is a hard gate.** Every pass rate is capped by the
+1. **The remaining failures are at a measured ceiling, not a tuning gap.** Given the generator's
+   *exact* scale and rotation, the true site correlates **0.065 worse** than the impostor that beats
+   it — so these are not selection errors, and no tie-break or re-ranker can reach them. The
+   per-candidate refit already recovers **89%** of that deficit, leaving ~0.007, close to the
+   correlation sampling noise of ~0.002. Reproduce with `python scripts/oracle_ceiling.py`; details
+   in [FINDINGS §35](docs/FINDINGS.md).
+2. **Selection is not solved, and the screen is a hard gate.** Every pass rate is capped by the
    mis-lock rate. Each failure is classified by the stage that lost it, in
    [`results/failure_decomposition.csv`](results/failure_decomposition.csv): of the 16 failures
    across 100 pairs, **3 were never candidates at all** (no selection rule can recover those),
@@ -200,7 +206,7 @@ Stated plainly rather than left for a judge to find.
    **six** re-ranking criteria were built, measured and rejected trying — all six are in the
    ablation with their numbers, and the principle they establish is
    [ADR-0024](docs/DECISIONS.md).
-2. **Runtime is above our own 300 ms target** (see the p50 column in the table above — this
+3. **Runtime is above our own 300 ms target** (see the p50 column in the table above — this
    sentence deliberately does not restate the figure, because a hand-typed copy of a generated
    number is exactly what goes stale). This is a deliberate, measured trade: the narrow-refit
    configuration is faster for +4 points of held-out mis-lock, and is reachable by config
@@ -214,20 +220,20 @@ Stated plainly rather than left for a judge to find.
    because the control alone has a blind spot — a 19 ms baseline completes inside the CPU's boost
    window while a 400 ms call does not, so on this laptop the first heavy run after idle read 1.6×
    slow with a perfectly clean control ([FINDINGS §19b](docs/FINDINGS.md)).
-3. **Drift correction assumes a square frame.** The two-axis cancellation uses
+4. **Drift correction assumes a square frame.** The two-axis cancellation uses
    `S_row + S_col·(H−1)/(W−1)`; it is exact for the 1000×1000 images the spec defines and
    approximate otherwise.
-4. **Rotation beyond ±2° and scale outside 9:1–11:1 are not searched.** Both ranges come straight
+5. **Rotation beyond ±2° and scale outside 9:1–11:1 are not searched.** Both ranges come straight
    from the problem statement; `PipelineConfig.pose_scale_range` / `pose_rotation_range` widen them
    at linear cost.
-5. **No positional dependence was detectable in this 100-pair sample.**
+6. **No positional dependence was detectable in this 100-pair sample.**
    [`results/position_strata.csv`](results/position_strata.csv) splits the same 100 evaluated pairs
    by distance from the field centre (targets span 32–547 px) and by proximity to the frame edge.
    Every stratum's Wilson interval overlaps every other and the pattern is non-monotone. That is a
    statement about what this sample can resolve, not a proof that position is irrelevant — the
    intervals are wide. It is also why the spec's closest-to-centre tie-break cannot help here
    ([ADR-0021](docs/DECISIONS.md)).
-6. **Degradations are now stratified — and two of them hurt.**
+7. **Degradations are now stratified — and two of them hurt.**
    [`results/robustness.csv`](results/robustness.csv) sweeps 22 operating points across dose, read
    noise, scale, rotation and five degradations, deliberately running *past* the envelope the
    problem statement promises. Accuracy is essentially flat across a 32× dose range and across
@@ -243,13 +249,13 @@ Stated plainly rather than left for a judge to find.
    correlation peak is **erased rather than demoted**. An artifact-aware correction was built and
    measured: it recovers one absent peak in thirty and regresses the primary benchmark, so it is
    not shipped ([FINDINGS §26](docs/FINDINGS.md)).
-7. **Small differences between splits are not resolved, and we say so.**
+8. **Small differences between splits are not resolved, and we say so.**
    [`results/significance.csv`](results/significance.csv) carries Wilson intervals and a paired
    McNemar test. Two stress splits with *identical* generator parameters differing only by seed
    measured 20.0% and 26.7%, so cross-split gaps of a few points are directional only. The headline
    configuration change is quoted as a paired comparison on the same 100 pairs — 0 regressions,
    6 fixes, exact p = 0.031 — because that is the test the design actually supports.
-8. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
+9. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
    implementation failure — that is a different claim from "we tried it and it does not help".
 
 Working assumptions about the evaluation data are tracked as **H1–H10** in [`CLAUDE.md`](CLAUDE.md)
