@@ -106,15 +106,26 @@ LADDERS: list[tuple[str, str, bool, list[str]]] = [
 
 
 def generate(split: str, flags: list[str], pairs: int, seed: int, arch: str) -> Path:
-    """Generate one stress split, or return the cached manifest if it already exists.
+    """Generate one stress split, or return the cached manifest if it is COMPLETE.
 
     Each pair paints a 10000x10000 canvas at 1 nm/px, so generation - not localization - dominates
-    this sweep by roughly ten to one. The manifest is written last by generate_dataset.py, so its
-    presence is a safe completion marker: a half-generated split has no manifest and regenerates.
+    this sweep by roughly ten to one, which is why the cache exists at all.
+
+    The completeness test counts rows, and that is not fussiness. An earlier version of this checked
+    only that the manifest FILE existed, on the stated belief that generate_dataset.py writes it
+    last. It does not: the file is opened before the first pair and rows are appended as they are
+    produced, so it exists from the first second of a run. An interrupted split would therefore have
+    been cached as finished and SCORED ON A HANDFUL OF PAIRS, reported as if it were thirty.
+
+    Every point in the published sweep was verified to have 30 images and 30 manifest rows, so
+    nothing reported was affected - but it held by luck rather than by the check.
     """
     out = STRESS_DIR / split / "manifest.csv"
     if out.exists():
-        return out
+        with out.open(newline="", encoding="utf-8") as fh:
+            complete = sum(1 for _ in csv.reader(fh)) - 1 >= pairs
+        if complete:
+            return out
     cmd = [sys.executable, str(REPO_ROOT / "generate_dataset.py"),
            "--num-samples", str(pairs), "--split", split, "--seed", str(seed),
            "--output-dir", str(STRESS_DIR.parent / "_stress"), "--architectures", arch, *flags]
@@ -170,9 +181,16 @@ def generate_all(ladders, pairs: int, arch: str, jobs: int) -> None:
     a single pixel - determinism is per-split by construction. Scoring stays sequential afterwards,
     because a runtime column measured under N-way contention would be meaningless.
     """
+    def incomplete(split: str) -> bool:
+        path = STRESS_DIR / split / "manifest.csv"
+        if not path.exists():
+            return True
+        with path.open(newline="", encoding="utf-8") as fh:
+            return sum(1 for _ in csv.reader(fh)) - 1 < pairs
+
     todo = [(f"s{i:02d}", flags, SEED_BASE + i * 1000)
             for i, (_, _, _, flags) in enumerate(ladders)
-            if not (STRESS_DIR / f"s{i:02d}" / "manifest.csv").exists()]
+            if incomplete(f"s{i:02d}")]
     if not todo:
         return
     print(f"  generating {len(todo)} split(s) with {jobs} worker(s)...")

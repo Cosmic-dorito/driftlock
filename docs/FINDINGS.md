@@ -2139,7 +2139,65 @@ honest one. The flag stays at 0.
 
 ---
 
-## 29. Batching the correlations — refuted by microbenchmark ❌
+## 32. The separability oracle: strong new evidence exists, and we cannot select on it ⚠️
+
+External review proposed a learned hard-negative verifier over the candidate set. Before training
+anything, the right question is the one that gates the build: **is there information in cheap
+candidate features that ZNCC is not already using?** If a classifier with full access to those
+features cannot beat the ZNCC ordering, no CNN over the same information will either.
+
+Features are all inference-available and free — they fall out of machinery that already runs. One of
+them had never been looked at. The pose bracket applies NMS *inside* each pose's surface but not
+across poses, so a site found by several independent pose hypotheses enters the candidate list
+several times. §31b showed that **deleting** those duplicates changes nothing — but the *count* was
+never used as evidence.
+
+Measured over 1400 candidates from 140 images (494 true, 906 impostors):
+
+| feature | truth mean | impostor mean | **separation (Cohen's d)** |
+|---|---|---|---|
+| **multiplicity** (poses agreeing) | **5.20** | **3.44** | **1.098** |
+| pose_spread | 0.0140 | 0.0087 | 0.823 |
+| dup_score_spread | 0.1384 | 0.0773 | 0.678 |
+| **score** (what we decide on) | 0.9066 | 0.8743 | **0.414** |
+| d_scale | 0.0090 | 0.0070 | 0.272 |
+| d_rot | 0.4382 | 0.3416 | 0.249 |
+
+**The number of independent pose hypotheses that find a site separates truth from impostor 2.6×
+better than the correlation score the system actually decides on.** That is genuinely new
+information, it is free, and it is currently discarded. A site several independent geometries agree
+on is more trustworthy than one lucky peak — which is exactly the intuition the duplicate-deletion
+experiment failed to exploit, because deletion throws the evidence away instead of reading it.
+
+### And it still cannot be used
+
+Ranking by multiplicity alone is *worse* than score (85.4% vs 92.3% rank-1). So the question becomes
+whether a blend helps. Sweeping `score + w·multiplicity`, selecting `w` on `dev` only:
+
+| w | 0.000 | 0.002 | **0.003** | 0.005 | 0.008 | 0.012 | 0.020 |
+|---|---|---|---|---|---|---|---|
+| dev (37 groups) | 94.6% | 94.6% | **97.3%** | 97.3% | 97.3% | 97.3% | 94.6% |
+| held-out (93) | 91.4% | 91.4% | **92.5%** | 90.3% | 90.3% | 88.2% | 87.1% |
+
+**`dev` is flat at 97.3% across w ∈ [0.003, 0.012] while held-out falls from 92.5% to 88.2%.** The
+tuning split cannot distinguish the best value from one that is 4.3 points worse. Landing on w=0.003
+rather than w=0.005 is luck, not selection — and w=0.005 is *worse than not doing it at all*.
+
+That is the ADR-0012 failure mode with the mechanism visible: not "the feature is useless", but
+**the selection set has no power at the resolution the decision requires**. The best honest gain was
+1 group in 93, inside the sampling floor of §27 either way.
+
+### What this says about building the verifier
+
+This is the gate the oracle exists to provide, and it does not open. A learned verifier over these
+features faces the *same* selection problem, with more knobs rather than fewer: it would choose its
+architecture, capacity, stopping point and threshold on the same 37 groups that cannot resolve a
+single scalar to within 4 points of held-out performance. The evidence is real; the ability to tune
+against it is not.
+
+**The blocker is model-selection power, not absence of signal** — which is a falsifiable statement
+and a different claim from the other negatives in this document. It predicts that a substantially
+larger tuning set would change the answer, and that is testable rather than rhetorical.
 
 `matchTemplate` is **579 calls and ~199 ms per pair**, about half the runtime, so batching them was
 the obvious remaining runtime lever and was proposed by review.
