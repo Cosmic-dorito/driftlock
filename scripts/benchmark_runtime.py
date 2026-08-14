@@ -45,6 +45,10 @@ from src.driftlock.match import localize  # noqa: E402
 # so its runtime is a proxy for how fast this machine currently is - which makes it a control.
 BASELINE_QUIET_MS = 22.0
 
+# p95/p50 of the DriftLock timings on a steady machine. Measured at 1.10 in steady state and
+# 1.28 on the first heavy run after idle, which the baseline control could not distinguish.
+MAX_P95_RATIO = 1.18
+
 SPLITS = [
     ("sponsor", "data/_sponsor/verify/manifest.csv"),
     ("bench", "data/bench/manifest.csv"),
@@ -140,7 +144,32 @@ def main() -> int:
     # says so out loud rather than letting a throttled number be written into results/ and then
     # into the deck.
     base_median = pooled_base
-    suspect = base_median > BASELINE_QUIET_MS * 1.5
+
+    # SECOND gate, because the baseline control has a blind spot it cannot see past.
+    #
+    # The baseline runs for ~19 ms. A DriftLock call runs for ~400. A short task can complete
+    # entirely inside the CPU's boost window while a long one drops into the sustained-clock regime,
+    # so the control can read perfectly normal while the thing being measured is not. That is not
+    # hypothetical: on a genuinely cold machine the first run gave baseline 20-24 ms (a clean pass)
+    # with DriftLock at 577-629 ms, and an immediate second run in steady state gave the same
+    # baseline with DriftLock at 388-406 ms. The control passed both times; the measurement moved
+    # by 1.6x. Counter-intuitively the FIRST heavy run after idle is the unreliable one.
+    #
+    # What did separate them was the dispersion of the measurement itself: p95/p50 was 1.28 in the
+    # bad run and 1.10 in the good one. A steady machine produces a tight distribution regardless of
+    # its absolute speed, so this catches instability the baseline structurally cannot.
+    drift_values = [v for per in timings.values() for v in per.get("driftlock", [])]
+    spread = (float(np.percentile(drift_values, 95)) / float(np.median(drift_values))
+              if drift_values else 1.0)
+    unstable = spread > MAX_P95_RATIO
+
+    suspect = base_median > BASELINE_QUIET_MS * 1.5 or unstable
+    if unstable and base_median <= BASELINE_QUIET_MS * 1.5:
+        print(f"\n  ** WARNING: baseline control is normal ({base_median:.0f} ms) but the measured "
+              f"distribution is not:")
+        print(f"     p95/p50 = {spread:.2f} against a steady-machine {MAX_P95_RATIO:.2f}. The first "
+              "heavy run after idle does this.")
+        print("     Re-run; a second pass in steady state is usually the trustworthy one.")
     if suspect:
         print(f"\n  ** WARNING: baseline control at {base_median:.0f} ms against a quiet-machine "
               f"{BASELINE_QUIET_MS:.0f} ms.")
@@ -158,7 +187,8 @@ def main() -> int:
         "method": ("interleaved round-robin across splits, "
                    f"{args.warmup} warm-up calls discarded, median of per-pair perf_counter"),
         "baseline_control_ms": f"{base_median:.1f}",
-        "absolute_ms_representative": "no - machine throttled" if suspect else "yes",
+        "p95_over_p50": f"{spread:.3f}",
+        "absolute_ms_representative": "no - machine throttled or unstable" if suspect else "yes",
     }
 
     out = REPO_ROOT / args.out

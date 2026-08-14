@@ -165,12 +165,12 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 
 | Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | Runtime p50 |
 |---|---|---|---|---|---|---|---|
-| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 67 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **20.0%** | **0.251** | **77.5%** | **72.5%** | 90.0% | 1311 ms (19x base) |
-| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 67 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.342** | **76.7%** | **63.3%** | 86.7% | 1204 ms (18x base) |
-| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 72 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **10.0%** | **0.220** | **83.3%** | **70.0%** | 90.0% | 1189 ms (17x base) |
+| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 20 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **20.0%** | **0.251** | **77.5%** | **72.5%** | 90.0% | 406 ms (21x base) |
+| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 19 ms |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.342** | **76.7%** | **63.3%** | 86.7% | 397 ms (20x base) |
+| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 20 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **10.0%** | **0.220** | **83.3%** | **70.0%** | 90.0% | 391 ms (20x base) |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
 
@@ -181,8 +181,6 @@ Two different things are being measured and should not be averaged together. On 
 **Hardware:** Windows 11 (AMD64) · Intel64 Family 6 Model 170 Stepping 4, GenuineIn. **Python version:** 3.14.3, OpenCV 5.0.0, 22 thread(s).
 
 **Timing method:** runtimes come from `scripts/benchmark_runtime.py`, which interleaves the splits round-robin and discards a warm-up. The **x-baseline** figure is the one to compare across machines: this laptop throttles by up to 3x for identical code over a long session and does not recover on idling, and across three states in one day the absolute p50 moved 400 -> 630 -> 1262 ms while the ratio to the baseline held at 20.0, 18.5 and 18.8. The baseline is therefore run as a control in the same interleaved pass.
-
-> ⚠️ **The absolute milliseconds in this table were measured on a throttled machine** — the baseline control read far above its quiet-machine value — and are not representative. The x-baseline ratios are unaffected. Re-run `scripts/benchmark_runtime.py` on a rested machine before quoting the p50 figures.
 
 <!-- END GENERATED README RESULTS -->
 
@@ -204,11 +202,18 @@ Stated plainly rather than left for a judge to find.
    [ADR-0024](docs/DECISIONS.md).
 2. **Runtime is above our own 300 ms target** (see the p50 column in the table above — this
    sentence deliberately does not restate the figure, because a hand-typed copy of a generated
-   number is exactly what goes stale). This is a deliberate, measured trade:
-   the narrow-refit configuration runs at ~296 ms for +4 points of held-out mis-lock, and is
-   reachable by config (`refit_steps=2, refit_scale_span=0.006, refit_rotation_span=0.30,
-   refit_screen_steps=0`). We chose accuracy. There is no published
-   runtime limit to calibrate against yet, and the ablation reports both operating points.
+   number is exactly what goes stale). This is a deliberate, measured trade: the narrow-refit
+   configuration is faster for +4 points of held-out mis-lock, and is reachable by config
+   (`refit_steps=2, refit_scale_span=0.006, refit_rotation_span=0.30, refit_screen_steps=0`). We
+   chose accuracy. There is no published runtime limit to calibrate against yet, and the ablation
+   reports both operating points.
+
+   The figures above are **certified**: `scripts/benchmark_runtime.py` runs the baseline as a
+   control in the same interleaved pass and refuses to publish absolute milliseconds unless both
+   the control *and* the dispersion of the measurement are in normal range. That second gate exists
+   because the control alone has a blind spot — a 19 ms baseline completes inside the CPU's boost
+   window while a 400 ms call does not, so on this laptop the first heavy run after idle read 1.6×
+   slow with a perfectly clean control ([FINDINGS §19b](docs/FINDINGS.md)).
 3. **Drift correction assumes a square frame.** The two-axis cancellation uses
    `S_row + S_col·(H−1)/(W−1)`; it is exact for the 1000×1000 images the spec defines and
    approximate otherwise.

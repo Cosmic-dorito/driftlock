@@ -6,17 +6,17 @@
 work. If time runs out right now, ship what is in `dist/`.
 
 * `scripts/verify_submission.py --strict` → **19 passed, 0 failed, 0 pending**
-* 36 tests pass · ruff clean · `dist/drift-lock-submission.zip` builds and reproduces bit-identically
+* 37 tests pass · ruff clean · `dist/drift-lock-submission.zip` builds and reproduces bit-identically
   from a clean extract
-* Deadline **16 Aug 2026**
+* Deadline **18 Aug 2026** (postponed from the 16th)
 
 ### Current measured results (generated into `docs/RESULTS.md` from `results/`)
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | p50 |
 |---|---|---|---|---|---|
-| sponsor (40) | 20.0% | 0.251 | 77.5% | 72.5% | see results/runtime.csv |
-| bench (30, ours) | 16.7% | 0.342 | 76.7% | 63.3% | see results/runtime.csv |
-| holdout FinFET (30) | 10.0% | 0.220 | 83.3% | 66.7% | see results/runtime.csv |
+| sponsor (40) | 20.0% | 0.251 | 77.5% | 72.5% | 406 ms |
+| bench (30, ours) | 16.7% | 0.342 | 76.7% | 63.3% | 397 ms |
+| holdout FinFET (30) | 10.0% | 0.220 | 83.3% | 66.7% | 391 ms |
 
 Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **16/100 = 16.0%** (was 22.0% two days ago).
 
@@ -60,16 +60,12 @@ flat (§23g). This configuration is at a local optimum in its own parameters.
 
 Remaining ideas, in rough order of expected value:
 
-1. **The two soft spots the sweep found.** Charging streaks 33.3% and barrel distortion 43.3%
-   (`results/robustness.csv`). Charging streaks matter more: the spec names them explicitly as a
-   possible degradation, barrel it does not. Row destriping does NOT fix them (§26) — it removes
-   the word lines too.
-2. **Runtime, not accuracy.** The refit window is already a local ROI (template + 2×7 px), but the
-   ~1000 remaining per-pair `matchTemplate` calls are small and overhead-dominated, so batching is
-   the open lever. Do not reach for FFT without benchmarking — the windows are 114×114 and setup
-   cost may exceed the arithmetic.
-3. Determinism test (PROGRESS 3.8), still outstanding.
-4. RGB optical extension — the explicit scored bonus, never started.
+1. Determinism test (PROGRESS 3.8), still outstanding.
+2. RGB optical extension — the explicit scored bonus, never started.
+3. Deck and demo polish. The algorithm work is done; presentation is where remaining marks are.
+
+**Charging streaks and runtime are both CLOSED, not open** — see below. There is no queued
+algorithmic work, and that is a conclusion rather than a schedule artefact.
 
 **Do not retry:** multi-basin pose refinement (§22, 26.0%), pose interpolation (§21c, 27.0%),
 pose-regime routing (§21a), pose-excursion penalty (§20a), or any seventh scoring criterion
@@ -96,6 +92,18 @@ FINDINGS §22:
 penalty (no gain at any setting), centre rule as a default (the benchmark samples targets uniformly,
 so the deployment prior it needs is absent — ADR-0021).
 
+**Also settled (14 Aug), charging streaks are a limitation and not a to-do.** The failure inverts
+there — 23.3% ABSENT against 3.3% OUTSCORED — so it is signal recovery, not ranking. `top_k` is flat
+at 10/20/30 (33.3% at all three), which means the peak is ERASED rather than demoted, so no proposal
+mechanism reading the raw image can find it. An artifact-aware `destreak` recovers one absent peak in
+thirty and regresses the benchmark; a raw+corrected proposal union would therefore buy at most that
+one pair. See §26c.
+
+**Also settled (14 Aug), batching the correlations is SLOWER.** Tiling ten 114×114 windows into one
+114×1140 image is exactly equivalent (no valid output position straddles a seam) and measured 1.943
+ms against 1.267 ms for ten separate calls. At these sizes OpenCV is arithmetic-bound, not
+overhead-bound. The correlation count is set by accuracy, not inefficiency (§29).
+
 **Also settled (14 Aug):** row destriping stays off — re-tested *with* charging streaks present and
 it still only bought one pair, while costing 20.0% → 36.7% on clean data (§26). The median filter,
 by contrast, was rejected in the wrong regime and now ships (ADR-0027).
@@ -107,11 +115,12 @@ and 603 ms); narrowing to ±2%/±1° does not help (19.0%). The screen's `top_n`
 
 ### Housekeeping notes
 
-* ⚠️ **RE-RUN `scripts/benchmark_runtime.py` ON A RESTED MACHINE BEFORE SUBMITTING.** The runtime
-  currently in `results/` was measured on a thermally throttled laptop and the generated docs say so
-  in a visible warning. The benchmark now runs the baseline as a **control** and refuses to certify
-  absolute milliseconds when that control sits far above its quiet-machine value of ~22 ms. Accuracy
-  is unaffected — only the p50 column.
+* ✅ **Runtime is CERTIFIED** (14 Aug, cold machine): 406 / 397 / 391 ms against a 19-20 ms
+  baseline, ratio ~20x, both gates passing. `benchmark_runtime.py` refuses to publish absolute
+  milliseconds unless the baseline control AND the dispersion of the measurement are in range.
+  The second gate exists because the control alone has a blind spot: a 19 ms baseline completes
+  inside the CPU boost window while a 400 ms call does not, so the FIRST heavy run after idle read
+  577-629 ms with a perfectly clean control. Re-run and take the steady-state pass (FINDINGS 19b).
 * The **x-baseline ratio is the machine-independent figure**: across three machine states in one day
   the absolute p50 moved 400 → 630 → 1262 ms while the ratio held at 20.0, 18.5, 18.8. Quote the
   ratio when comparing across hardware; quote milliseconds only from a certified run.

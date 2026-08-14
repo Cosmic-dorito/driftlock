@@ -1139,6 +1139,38 @@ baseline from 36 ms back to 67 ms within the run. On this hardware the absolute 
 unobtainable during an active session, which is not a reason to quote it anyway — it is the reason
 the ratio is the reported quantity and the gate exists.
 
+### 19b. Certified — and the control had a blind spot it could not see past ✅
+
+Measured on a genuinely cold machine, and the result was not what the gate expected.
+
+| run | baseline (control) | DriftLock p50 | p95/p50 | gate |
+|---|---|---|---|---|
+| first, from idle | 20–24 ms | **577–629 ms** | 1.28 | **passed** |
+| second, steady state | 19–20 ms | **388–406 ms** | 1.10 | passed |
+
+**The control read clean both times while the measurement moved by 1.6×.** The reason is structural:
+the baseline runs for ~19 ms and a DriftLock call for ~400. A short task can complete entirely
+inside the CPU's boost window while a long one drops into the sustained-clock regime — so a 19 ms
+control is *incapable* of observing the regime the 400 ms measurement lives in. Counter-intuitively
+the **first heavy run after idle is the unreliable one**, which is the opposite of the assumption
+the gate was built on.
+
+Ruling out the alternative first: a paired same-session comparison of the current configuration
+against the pre-median-filter one gave 390.6 ms and 392.1 ms with the baseline at 19.4 ms — ratio
+20.1×, exactly the historical figure. The code had not become slower, and the median filter is free
+(a separate microbenchmark confirms `medianBlur` costs ~1 ms and gives bit-identical output on
+uint8 and float32 input). The 1.6× was entirely measurement.
+
+What *did* separate the two runs was the dispersion of the measurement itself — p95/p50 of 1.28
+against 1.10. A steady machine produces a tight distribution regardless of its absolute speed, so
+`benchmark_runtime.py` now gates on that too. It catches precisely the instability the baseline
+control structurally cannot.
+
+**Certified figures, both gates passing:** sponsor 406 ms, bench 397 ms, holdout FinFET 391 ms,
+against a 19–20 ms baseline — a ratio of ~20×, which is the same ratio measured across every machine
+state this project has seen. The absolute numbers and the ratio finally agree, which is the point of
+having run both.
+
 ---
 
 ## 20. Six re-ranking attempts, one rule ✅ (the strongest conclusion in the project)
