@@ -1,6 +1,10 @@
 # HANDOFF — cold start on a new machine
 
-## ⏩ RESUME HERE — state as of 14 Aug 2026 (evening)
+## ⏩ RESUME HERE — state as of 15 Aug 2026
+
+> **📄 Read [`docs/STATE.md`](STATE.md) first.** It is a single self-contained snapshot: shipped
+> config, every measured number, every closed direction with its evidence, and the regeneration
+> commands. This file adds cold-start setup instructions on top of it.
 
 **The submission is COMPLETE, VERIFIED and PACKAGED.** Everything below is optional improvement
 work. If time runs out right now, ship what is in `dist/`.

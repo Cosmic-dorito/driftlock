@@ -200,7 +200,9 @@ make package   # dist/drift-lock-submission.zip in the spec's required layout
 
 ## Resuming work
 
-**Read the `RESUME HERE` section at the top of `docs/HANDOFF.md` before doing anything.** It has the
+**Read [`docs/STATE.md`](docs/STATE.md) before doing anything** — one self-contained snapshot of
+the shipped config, every measured number, and every closed direction with its evidence. Then the
+`RESUME HERE` section of `docs/HANDOFF.md` for cold-start setup. It has the
 current measured results, the shipped configuration, the one next action, and — importantly — the
 list of approaches already tried and refuted with their numbers, so they do not get retried.
 
