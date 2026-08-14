@@ -90,6 +90,17 @@ flat criterion with more free parameters.
 > that has ever worked, and why every scoring idea fails. Regenerate with
 > `scripts/oracle_ceiling.py`.
 >
+> **And the refit is not compensating for missing physics** (§36). Asked directly whether the
+> optimiser is using geometric freedom to stand in for an incomplete forward model: an explicit PSF
+> degree of freedom gives the truth +0.0003 more than the winner (real, 7/8, but 3% of the gap), and
+> spatial micro-deformation gives the **winner** more (−0.0004, 4/8) — extra freedom favours the
+> impostor, the same asymmetry as §15d and §23f. There is no large unmodelled acquisition effect
+> left to find.
+>
+> Two claims here were softened after review and should stay that way: the 0.002 IID noise figure is
+> a *scale*, not a calibrated floor (SEM pixels are not independent), and the ceiling is for **rules
+> that read the fixed-pose correlation**, not for every conceivable method.
+>
 > ## The stopping condition, with a mechanism (§34)
 >
 > **Any evidence strong enough to be reliable is shared by the impostor (it is periodic), and any

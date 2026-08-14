@@ -2484,12 +2484,74 @@ governs the outcome is **0.065**, and geometry had already taken 0.058 of it.
 * **Leave-cell-out generalisation failed** (§34) because at a fixed pose the impostor is a genuinely
   better explanation — that is exactly what 0.8615 against 0.7661 means.
 
-**This is a ceiling with a mechanism.** The remaining 0.007 is not a slack to be tuned away; it is
-what is left after the only effective lever has been pulled 89% of the way, and it sits close enough
-to the measurement floor that no rule reading this surface can reliably resolve it.
+**This is a ceiling for a family of methods, stated precisely.** What the experiment establishes is
+that *a decision rule reading the fixed-pose correlation cannot fix these pairs* — at that pose the
+truth is behind by 0.065, so no re-ranking of that surface reaches it. It does **not** establish that
+no method could: a richer forward model would change the score itself rather than re-read it. That
+possibility is tested directly in §36.
 
 The honest headline is not "16% mis-lock remains". It is: **at a fixed pose the true site is behind
 by 0.065; DriftLock's geometry recovers 89% of that, and the remainder is at the noise floor.**
+
+---
+
+## 36. What physics is the refit approximating with geometry? Measurably, almost none ✅
+
+§35 showed the refit closing 89% of a 0.065 deficit, which raises a sharp question an external
+reviewer put well: **is the optimiser using geometric freedom to compensate for a forward model that
+is missing something?** If so, supplying the missing physics directly should help the true site more
+than the impostor — a *differential* gain, which is the only form that matters. Two candidates, both
+tested as oracles on the 8 paired failures without touching the pipeline.
+
+### 36a. An explicit PSF degree of freedom — real, and 30x too small
+
+The reference is rendered sharper than the search image; if the template is systematically too
+sharp, correlation may prefer a wrong site whose texture happens to suit it. Sweeping a Gaussian
+blur over the template at each candidate's own refitted pose:
+
+| | |
+|---|---|
+| ZNCC gain, truth | **+0.0013** |
+| ZNCC gain, winner | +0.0009 |
+| **differential** | **+0.0003**, truth gains more in **7/8** (p = 0.070) |
+| deficit, before → after | +0.0094 → +0.0091 |
+| best sigma, truth / winner | 0.45 / 0.40 |
+
+**The effect is real and it is negligible.** Seven of eight favouring the truth, with a consistent
+optimum near sigma 0.45, says the template genuinely is a touch too sharp. But it buys 0.0003
+against a 0.0094 deficit — it would close **3%** of the gap. The refit has already absorbed
+essentially all of the available photometric mismatch.
+
+### 36b. Spatial micro-deformation — and it goes the wrong way ❌
+
+The other candidate: anisotropic scale plus shear, on top of the rigid pose, as a low-order stand-in
+for smooth acquisition distortion the current model cannot express.
+
+| | |
+|---|---|
+| gain, truth | +0.0010 |
+| gain, **winner** | **+0.0014** |
+| **differential** | **−0.0004**, truth better in only **4/8** (p = 1.000) |
+| deficit, before → after | +0.0094 → +0.0098 |
+
+**The impostor gains more.** Extra spatial freedom *widens* the gap by 4%.
+
+That is not a surprise once stated — it is the same asymmetry that sank refit-*gain* ranking at
+80–92% (§15d) and that the screen exists to bound (§23f): a candidate with more mismatch to absorb
+has more to gain from being allowed to move. It now has a third independent measurement, and this
+one is at the level of the final decision rather than the candidate field.
+
+### The answer to the reviewer's question
+
+**The refit is not compensating for missing physics.** It is recovering geometry, and it has taken
+89% of what is there. Of the two plausible missing degrees of freedom, one is worth 3% of the
+remaining gap and the other is negative. There is no large unmodelled acquisition effect for the
+optimiser to have been silently absorbing.
+
+Which sharpens §35 rather than contradicting it: the 0.065→0.007 closure is real *geometry*
+recovery, not an artefact of the model compensating for itself. And it explains why the shipped
+architecture is shaped the way it is — rigid pose plus per-candidate refit is not an approximation to
+a richer model we failed to build; on this data it is very nearly the whole of what is available.
 
 ---
 
