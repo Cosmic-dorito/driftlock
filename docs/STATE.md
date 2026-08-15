@@ -23,17 +23,21 @@ has the full experiment write-ups this summarises; `docs/DECISIONS.md` has the A
 
 ### Measured results
 
-| Split | mis-lock | median px | pass@1px | pass@0.5px | screen recall | runtime p50 |
-|---|---|---|---|---|---|---|
-| sponsor `verify` (40) | **20.0%** | 0.251 | 77.5% | 72.5% | 90.0% | 406 ms |
-| bench (30, ours) | **16.7%** | 0.342 | 76.7% | 63.3% | 86.7% | 397 ms |
-| holdout FinFET (30) | **10.0%** | 0.220 | 83.3% | 66.7% | 90.0% | 391 ms |
+| Split | mis-lock | median px | pass@1px | pass@0.5px | runtime p50 |
+|---|---|---|---|---|---|
+| sponsor `verify` (40) | **5.0%** | 0.195 | 92.5% | 87.5% | 394 ms |
+| bench (30, ours) | **23.3%** | 0.357 | 73.3% | 60.0% | 377 ms |
+| holdout FinFET (30) | **6.7%** | 0.214 | 86.7% | 73.3% | 382 ms |
 
-**Aggregate 16/100 = 16.0%.** Baselines 25.0 / 76.7 / 90.0%. Runtime certified against a 19–20 ms
-baseline control, ratio ~20×.
+**Aggregate 11/100 = 11.0%.** Baselines 25.0 / 76.7 / 90.0%.
 
-Paired against the previous configuration on the same 100 pairs: **0 regressions, 6 fixes, exact
-McNemar p = 0.031.**
+Paired against the previous configuration (§40, ADR-0032) over **300 pairs across five splits:
++17 fixed / −3 broken, exact McNemar p = 0.0026.** Four of five splits improve with zero breaks;
+`bench` is the single regression, 16.7% → 23.3%, and is reported rather than smoothed over.
+
+**Bonus modality (§41, ADR-0033).** RGB optical brightfield, 30 pairs: the unchanged pipeline
+reaches **6.7% mis-lock and 0.100 px median**, and measuring the colour projection instead of using
+luminance takes that to **3.3%** with p95 error 11.94 → **0.51 px**.
 
 ### Shipped configuration — `localize.py::build_config`
 
@@ -42,8 +46,15 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                pose_search=True, top_k=10, candidate_refit=True,
                median_filter=True,
                refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
-               refit_screen_steps=2, refit_screen_top_n=10)
+               refit_screen_steps=2, refit_screen_top_n=10,
+               pose_evidence_beta=5.0)          # 15 Aug, ADR-0032
 ```
+
+**Newest stage — read the pose grid as evidence, not as its maximum (§40, ADR-0032).** The maximum
+over ~25 poses is upward-biased, and the bias grows with how rough that candidate's pose surface is,
+so a candidate that peaked once outranks one that was consistently good. Same ZNCC, same grid,
+different summary — so it is not a new criterion (ADR-0024) — and it costs no correlations at all.
+Paired over **300 pairs across five splits: +17 fixed / −3 broken, exact McNemar p = 0.0026.**
 
 ---
 
@@ -62,32 +73,29 @@ Given the generator's **exact** `scale_ratio` and `rotation_deg`:
 
 | | | |
 |---|---|---|
-| shipped pipeline correct | **84 / 100** | |
-| oracle pose + plain argmax | **70 / 100** | recovers 1 of 16 failures, loses 15 it had |
+| shipped pipeline correct | **89 / 100** | |
+| oracle pose + plain argmax | **70 / 100** | rescues 3 failures, loses 22 it had |
 
-**Pose estimation error is not what loses these pairs** — a perfect pose is *worse* than the shipped
-pipeline, because it has no refit. (§35a, reproduced exactly.)
+**Pose estimation error is not what loses these pairs** — a perfect pose is far *worse* than the
+shipped pipeline, because it has no refit and no evidence stage. (§35a.)
 
-At that exact pose, on the 15 failures, scoring both sides at nominated locations:
+At that exact pose, on the 10 failures where both windows fit:
 
 | ZNCC at the exact GT pose | mean | truth ahead |
 |---|---|---|
-| at the **true** location | **0.7661** | — |
-| at the location the **pipeline chose** | **0.7696** | **7 / 15**, p = **1.000** |
-| *(at the global surface maximum — what the retracted figure measured)* | *0.8915* | *0 / 15* |
+| at the **true** location | **0.7181** | — |
+| at the location the **pipeline chose** | **0.6759** | **4 / 10**, p = **0.754** |
 
-**At the correct pose the true site and its impostor are statistically indistinguishable.** Paired
-on the 8 failures where the truth reached the final comparison:
+**At the correct pose the true site and its impostor remain statistically indistinguishable** — the
+truth is now nominally *ahead* on the mean, and 4/10 with p = 0.754 says that means nothing either
+way. The paired subset (truth present at the final comparison) is down to **3 pairs** since
+ADR-0032, so the "fraction of the deficit the refit closes" is no longer estimable and the script
+now reports it as such rather than dividing by a near-zero denominator.
 
-| | deficit (winner − truth) |
-|---|---|
-| at the exact oracle pose | **+0.0114** |
-| after the per-candidate refit | **+0.0072** |
-| **refit closes** | **36.6%** (gap reduced in 7/8) |
-
-> The headline is not "16% mis-lock remains". It is: **at the correct pose the true site and its
-> impostor are separated by about 0.01 of correlation — the level at which sampling noise and model
-> mismatch live. That is why six re-ranking criteria failed to resolve it.**
+> The headline is not "11% mis-lock remains". It is: **at the correct pose the true site and its
+> impostor are separated by about 0.01 of correlation or less — the level at which sampling noise
+> and model mismatch live. Six re-ranking criteria failed to resolve it; reading the pose surface as
+> evidence rather than as a maximum resolved part of it (§40).**
 
 Regenerate: `python scripts/pose_ceiling.py` → `results/pose_ceiling.csv`.
 
@@ -135,11 +143,15 @@ tried; that rests on the ablation, which is unaffected.
 
 `results/failure_decomposition.csv`, 100 pairs:
 
-| stage that lost it | count | can a better ranker fix it? |
-|---|---|---|
-| never a candidate | 3 | no |
-| cut by the screen | 4 | no — the wide stage never sees it |
-| outscored at the final comparison | 9 | in principle; six criteria have failed |
+| stage that lost it | count | before ADR-0032 | can a better ranker fix it? |
+|---|---|---|---|
+| never a candidate | 3 | 3 | no |
+| cut by the screen | 4 | 4 | no — the wide stage never sees it |
+| outscored at the final comparison | **4** | 9 | some of them, and §40 did |
+
+**The pose-evidence stage cut the outscored bucket from 9 to 4 and left the other two untouched** —
+the only bucket a selection change can reach, moving, and the two it cannot reach holding still
+(§40f).
 
 **The true candidate is never the runner-up.** Across 15 instrumented held-out failures: rank ≤2 in
 **0**, rank ≤3 in 1, rank ≤5 in 4, absent from the top 20 in **7**. Any idea of the form "break the
@@ -157,15 +169,16 @@ every reporting and tuning split.
 
 | axis | in-spec | beyond spec |
 |---|---|---|
-| dose (32× range) | 13.3–20.0% | 16.7% at 8× noisier |
-| read noise σ | 26.7% at nominal | 6.7% at 4× |
-| **scale** | 16.7% at 9–11:1 | **40.0%** at 8–12:1 |
-| rotation | **10.0%** at 0°/±1°/±2° | 16.7% at ±3°, 26.7% at ±5° |
-| charging streaks | — | **33.3%** ← named by the spec |
-| barrel distortion | — | 43.3% ← *not* named by the spec |
-| salt-and-pepper | — | 6.7% (with the median filter) |
-| mixed (spec + 4× noise) | — | 23.3% |
-| mixed (everything, beyond spec) | — | 46.7% |
+| dose (32× range) | 3.3–20.0% | 10.0–13.3% at 2–8× noisier |
+| read noise σ | 20.0% at nominal | 3.3% at 4× |
+| **scale** | 13.3% at 9–11:1 | **36.7%** at 8–12:1 |
+| rotation | **6.7%** at ±2°, 3.3% at ±1° | 13.3% at ±3°, **30.0%** at ±5° |
+| charging streaks | — | **30.0%** ← named by the spec |
+| barrel distortion | — | 36.7% ← *not* named by the spec |
+| salt-and-pepper + speckle | — | 6.7% (with the median filter) |
+| gamma + vignette | — | 3.3% |
+| mixed (spec + 4× noise) | — | 16.7% |
+| mixed (everything, beyond spec) | — | 43.3% |
 | **scan jitter** | 12.5% at σ = 0.5 | **25.0%** at σ = 1.5, **63.3%** at σ = 3.0 (§38e) |
 
 **Scan jitter is the most damaging degradation found so far**, and it was only measured because the
@@ -188,6 +201,7 @@ overlap, patterns non-monotone).
 ### Selection / scoring
 | direction | result |
 |---|---|
+| **pose grid read as evidence, not as its maximum** | ✅ **SHIPPED** — +17/−3 over 300 pairs, p = 0.0026, free (§40, ADR-0032) |
 | six re-ranking criteria (PADM, coarse consensus, max-likelihood, refit-gain, lattice-phase, residual tie-break) | all failed — ADR-0024 |
 | centre tie-break as default | ADR-0021 |
 | centre tie-break **gated to statistical ties**, all thresholds | **0 fixes**, up to 57 breaks (§30) |
@@ -288,6 +302,15 @@ Open user actions: no GitHub remote configured; git identity is repo-local "Drif
 9. **Never compare a nominated value against a maximum.** A max over ~810,000 positions is selected
    *because* it is largest, so the comparison cannot come out any other way. Both sides of a paired
    comparison must be nominated the same way.
+10. **A statistic is only comparable over the same support.** The pose-evidence stage first made
+    things *worse* — 14.4 px to 57.6 px — because `refit_candidates` merges the screened-out
+    candidates back in with grids from the **2×2 narrow screen** rather than the 5×5 wide pass. A
+    narrow grid is flat and high by construction, so its log-sum-exp sits near its maximum while a
+    wide grid averages in poses that are genuinely wrong. Ranking them together promotes exactly the
+    candidates the screen rejected (§40d).
+11. **An offline proxy and the pipeline can disagree for reasons that exist only in the pipeline.**
+    The cached-grid sweep was unaffected by the bug above, because it keeps only the top 10 and
+    those were all survivors. A proxy result is a reason to run the real thing, never a substitute.
 
 ---
 

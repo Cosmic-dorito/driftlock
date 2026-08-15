@@ -180,6 +180,21 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         refit_rotation_span=1.5,
         refit_screen_steps=2,
         refit_screen_top_n=10,
+        # Read the refit's pose grid as evidence rather than taking its maximum (15 Aug).
+        # See ADR-0032 and FINDINGS section 40.
+        #
+        # The maximum over ~25 poses is an upward-biased estimate of a candidate's quality, and the
+        # bias grows with how rough that candidate's pose surface is - so a candidate that peaked
+        # once outranks one that was consistently good. That is the same multiple-comparisons effect
+        # FINDINGS 23f measured from the other side: widening the bracket for the whole field is
+        # worse than widening it for ten survivors, because a wide search hands impostors more
+        # chances to get lucky.
+        #
+        # Still the SAME ZNCC on the SAME grid, summarised differently, so this does not cross
+        # ADR-0024's line - which bans ranking by a new criterion, not reading the existing one
+        # better. beta=5 chosen on dev alone and frozen. Paired, 300 pairs across five splits:
+        # +17 fixed / -3 broken, exact McNemar p = 0.0026, and it costs no correlations at all.
+        pose_evidence_beta=5.0,
     )
 
 

@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
@@ -41,7 +42,7 @@ from src.synth.pipeline import GenerationParams, generate_sample  # noqa: E402
 MANIFEST_COLUMNS = [
     "id", "reference_path", "search_path", "gt_x", "gt_y",
     "gt_box_x", "gt_box_y", "gt_box_w", "gt_box_h",
-    "architecture", "preset", "scale_ratio", "rotation_deg",
+    "architecture", "modality", "preset", "scale_ratio", "rotation_deg",
     "beam_spot_size_nm", "dose_reference", "dose_search",
     "detector_noise_sigma_ref", "detector_noise_sigma_search",
     "shear_amplitude_px", "drift_jitter_px", "astigmatism_ratio",
@@ -76,7 +77,13 @@ def build_params(args: argparse.Namespace) -> GenerationParams:
         boundary_bias=args.boundary_bias,
         edge_gain_min=args.edge_gain_min, edge_gain_max=args.edge_gain_max,
         beam_spot_size_nm=args.beam_spot_size_nm,
+        modality=getattr(args, "modality", "sem"),
     )
+
+
+def _for_png(img: np.ndarray) -> np.ndarray:
+    """RGB -> BGR for OpenCV's writer; grayscale passes through untouched."""
+    return cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if img.ndim == 3 else img
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,6 +94,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--output-dir", default="data")
     p.add_argument("--seed", type=int, default=1234)
     p.add_argument("--architectures", nargs="+", default=["dram"], choices=["dram", "finfet"])
+    p.add_argument("--modality", default="sem", choices=["sem", "optical"],
+                   help="'optical' emits 3-channel RGB brightfield pairs - the spec's bonus "
+                        "modality. Different physics, not a colourised SEM: see src/synth/optical.py")
 
     g = p.add_argument_group("magnification and pose (the sponsor's generator has neither)")
     g.add_argument("--scale-min", type=float, default=9.0)
@@ -148,8 +158,12 @@ def main(argv: list[str] | None = None) -> int:
 
             ref_path = ref_dir / f"{i:05d}.png"
             search_path = search_dir / f"{i:05d}.png"
-            cv2.imwrite(str(ref_path), sample.reference)
-            cv2.imwrite(str(search_path), sample.search)
+            # The optical renderer works in RGB channel order (index 0 is the 610 nm band) while
+            # cv2.imwrite expects BGR, so a straight write would save a colour-swapped file. The
+            # task would still be self-consistent, but the PNGs would not be true-colour and every
+            # figure in the deck would be wrong in a way nobody would notice.
+            cv2.imwrite(str(ref_path), _for_png(sample.reference))
+            cv2.imwrite(str(search_path), _for_png(sample.search))
 
             row = {
                 "id": i,

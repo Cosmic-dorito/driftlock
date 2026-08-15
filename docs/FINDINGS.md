@@ -2641,6 +2641,12 @@ project's headline finding was the one number a judge could not regenerate. Writ
 
 ### 37a. What reproduces and what does not
 
+*(Both columns below were measured against the configuration as it stood on the morning of 15 Aug,
+when the pipeline scored 84/100. ADR-0032 later took it to 89/100, which changes the failure set
+these statistics are computed over — the current figures are in `results/pose_ceiling.csv` and in
+STATE §2a. This table is the record of the **retraction**, so it is deliberately left at the numbers
+that were in dispute.)*
+
 | quantity | published (§35/§36) | reimplementation | verdict |
 |---|---|---|---|
 | shipped correct / oracle correct | 84/100, 70/100 | 84/100, 70/100 | ✅ exact |
@@ -2836,7 +2842,10 @@ bug, and the only reason it was caught is that the position metric moved.
 
 ### 38d. Pipeline result on dev — the split we are allowed to tune on
 
-Frozen configuration, same pairs, the only difference being the corrected search image:
+Frozen configuration, same pairs, the only difference being the corrected search image. *(All of §38
+was measured against the configuration as it stood before ADR-0032, so "shipped" here means dev at
+12.5% rather than the 7.5% it reads today. The comparison is internally paired and unaffected; only
+the absolute baseline moved afterwards.)*
 
 | dev, 40 pairs | mis-lock | median error, located | runtime |
 |---|---|---|---|
@@ -2970,6 +2979,241 @@ it gets wrong.
 
 This is a negative result with a positive control inside it: the method detected real structure at
 9× the chance rate, so its silence about larger orders is evidence rather than insensitivity.
+
+---
+
+## 40. Is the MAXIMUM the wrong statistic? Split-inconsistent, and my explanation was wrong ⚠️
+
+The strongest idea in the latest review, and the only one that is not a new criterion. ADR-0024 bans
+re-ranking by a *new* criterion; this re-reads the *same* ZNCC from the *same* pose grid the refit
+already computes, summarised differently.
+
+The motivation is our own measurement. §23f found that handing a wide pose bracket to the whole
+candidate field is worse than handing it to ten survivors — a wide search helps impostors **more**.
+That is a multiple-comparisons effect: every candidate gets 25 attempts at a flattering pose, and a
+candidate whose pose surface is rough has more chance of getting lucky than one whose surface is
+flat and genuinely high.
+
+| | pose grid | max |
+|---|---|---|
+| truth | 0.762 0.768 0.766 0.764 0.765 | 0.768 — consistently good |
+| impostor | 0.751 0.752 **0.769** 0.753 0.750 | 0.769 — one lucky sample |
+
+`scripts/pose_evidence.py` caches every pose grid once (1400 candidates, 140 pairs, 100% with a
+grid) and sweeps selectors offline, so every arm sees identical data and the comparison is exactly
+paired. Free parameters chosen on `dev` and frozen before the reporting splits were scored (R5).
+
+### 40a. It works — on one split, and backwards on another
+
+| selector | sponsor | bench | FinFET | aggregate | flips | McNemar |
+|---|---|---|---|---|---|---|
+| **max** (shipped) | 20.0% | 13.3% | 10.0% | 15.0% | — | — |
+| top-3 mean | 20.0% +1/−1 | 16.7% +0/−1 | 6.7% +1/−0 | 15.0% | 54 | 1.000 |
+| **log-sum-exp, β=5** | **5.0% +6/−0** | **20.0% +1/−3** | 6.7% +1/−0 | **10.0%** | 49 | 0.227 |
+| grid mean | 10.0% +5/−1 | 20.0% +1/−3 | 6.7% +1/−0 | 12.0% | 46 | 0.549 |
+| max − λ·std | 22.5% +0/−1 | 13.3% +0/−0 | 10.0% +0/−0 | 16.0% | 10 | 1.000 |
+
+**On the sponsor's own distribution, integrating instead of maximising fixes six pairs and breaks
+none** — 20.0% → 5.0%, and 6/0 alone is p = 0.031. On our bench it goes the other way, +1/−3.
+Aggregate p = 0.227.
+
+*(These are candidate-selection numbers read off the cached grids, before sub-pixel and drift
+correction, so they are not the shipped rates — `max` reads 13.3% on bench where the pipeline
+reports 16.7%. All five arms share that proxy, so the paired comparison is valid and the absolute
+values are not quotable.)*
+
+### 40b. My explanation was wrong, and the test says so
+
+The obvious mechanism: the sponsor split is fixed at 10:1 and 0° (H9), so its pose grid straddles
+the true pose and every sample is near-optimal — averaging is nearly free there, while on our data
+part of the grid covers genuinely wrong poses and averaging mixes them in. That predicts the split
+pattern. It is also testable *within* a split, which is the stronger comparison (ADR-0029).
+
+| bench + FinFET, split at the median pose offset | n | max | lse | fixed | broke |
+|---|---|---|---|---|---|
+| near-nominal pose | 30 | 3 | 4 | 1 | 2 |
+| far from nominal | 30 | 4 | 4 | 1 | 1 |
+
+**No difference.** Integration does not help more where the pose is near-nominal, so the mechanism I
+proposed is not the one operating. The sponsor gain is real and currently unexplained.
+
+### 40c. The bug that made it look catastrophic, and what it teaches
+
+Implemented in the pipeline behind `pose_evidence_beta`, the first run made things dramatically
+**worse** — the four sponsor failures went from 14.4, 14.3, 21.5 and 95.2 px to 57.6, 57.4, 37.5
+and 271.7 px.
+
+The cause is worth stating precisely because it generalises. `refit_candidates` returns the
+screened-out candidates merged back in, and **their grids come from the 2×2 narrow screen rather
+than the 5×5 wide pass**. A narrow grid is flat and high by construction — every sample sits near
+the candidate's own pose — so its log-sum-exp is close to its maximum, while a wide grid necessarily
+includes poses that are wrong and averages lower. Ranking the two together compares statistics
+computed over *different supports*, and systematically promotes exactly the candidates the screen
+had already rejected.
+
+> **A statistic is only comparable over the same support.** The maximum happens to be robust to this
+> — it is the same maximum whatever the grid — which is precisely why the defect was invisible until
+> the summary changed.
+
+Restricting the re-order to the wide-refit survivors fixes it, and the same three sponsor failures
+then resolve to **0.053, 0.032 and 0.111 px**, with correctly-located pairs unchanged to the fourth
+decimal.
+
+Note that the offline sweep was **unaffected**: it caches only the top ten candidates, and those
+were all survivors. So the proxy and the pipeline disagreed for a reason that existed only in the
+pipeline — which is exactly why a proxy result is a reason to run the real thing rather than a
+substitute for it.
+
+### 40d. Pipeline confirmation, all four splits
+
+The frozen configuration against the same configuration with `pose_evidence_beta = 5`, same pairs,
+paired:
+
+| split | shipped | + pose evidence | |
+|---|---|---|---|
+| dev *(tuning)* | 12.5% | **7.5%** | +2/−0 |
+| sponsor | 20.0% | **5.0%** | +6/−0 |
+| bench | 16.7% | 23.3% | **+1/−3** |
+| held-out FinFET | 10.0% | **6.7%** | +1/−0 |
+| **reporting aggregate** | **16.0%** | **11.0%** | +8/−3, p = 0.227 |
+
+Over all 140 pairs including dev: **+10/−3, exact McNemar p = 0.092**.
+
+Three of four splits improve, including both held-out ones, and the cost is nothing — the stage
+re-reads numbers the refit has already computed, so it adds no correlations and no measurable
+runtime. Against that: **bench regresses**, and one split moving the wrong way is the pattern behind
+ADR-0012 and ADR-0021.
+
+Two things temper the bench result. It is 3 discordant pairs out of 30, and ADR-0029 measured two
+*identically-parameterised* splits at 20.0% and 26.7% — a 6.7-point swing from seed alone, so a
+10-point swing on n = 30 is inside the documented noise. And bench is not distinguished from FinFET
+by generator or envelope: both are ours, same 9–11:1 and ±2°, and FinFET improved.
+
+### 40e. The 160-pair split settles it — and the stage ships
+
+`dev2` had 160 generated pairs sitting unused. Running the same paired comparison there roughly
+triples the evidence:
+
+| dev2, 160 pairs | mis-lock | |
+|---|---|---|
+| shipped | 11.2% | |
+| + pose evidence | **6.9%** | **+7 / −0**, exact McNemar **p = 0.016** |
+
+Seven fixes, zero breaks, on the largest split available. Pooling every split measured:
+
+| split | n | fixed | broke |
+|---|---|---|---|
+| dev | 40 | +2 | 0 |
+| dev2 | 160 | +7 | 0 |
+| sponsor | 40 | +6 | 0 |
+| bench | 30 | +1 | **3** |
+| held-out FinFET | 30 | +1 | 0 |
+| **total** | **300** | **+17** | **3** |
+
+> **Exact McNemar over 300 paired pairs: p = 0.0026.** Four splits of five improve with **zero**
+> breaks, and the one regression is 3 pairs out of 30 — inside the seed-to-seed noise ADR-0029
+> measured on identically-parameterised splits.
+
+**Shipped.** It clears every bar this project has set for a selection change:
+
+* it is not a new criterion — same ZNCC, same grid, different summary, which is what ADR-0024
+  actually permits;
+* its one free parameter was chosen on `dev` and confirmed on four splits that had no part in
+  choosing it;
+* it improves the two genuinely held-out splits (sponsor's independent generator, and a held-out
+  architecture);
+* **it costs nothing.** The grid is already computed by the refit; this re-reads numbers rather
+  than adding correlations, so there is no runtime change to trade against.
+
+The mechanism is still not fully explained — §40b refuted the pose-offset hypothesis — and that is
+stated rather than papered over. What is established is the effect, its size, and its sign, on 300
+paired pairs.
+
+### 40f. The failure decomposition confirms it acted where it should
+
+The decomposition (§3) splits every failure by the stage that lost it, and it was regenerated after
+the change without being consulted first:
+
+| stage that lost it | before | after |
+|---|---|---|
+| never a candidate | 3 | **3** |
+| cut by the screen | 4 | **4** |
+| **outscored at the final comparison** | **9** | **4** |
+
+**The stage cut the outscored bucket by more than half and left the other two exactly where they
+were.** Outscored is the only bucket a selection change can touch — a candidate that was never
+proposed, or was cut before the wide refit ran, is out of its reach by construction. So this is not
+a headline number moving for an unexamined reason; it is the predicted bucket moving and the other
+two holding still.
+
+That is also the sharpest available answer to the §37 question of whether the remaining failures
+were *selection* errors. Some of them were, and the margin that decided them was recoverable — not
+by scoring harder, but by reading the score that was already there without the maximum's bias.
+
+---
+
+## 41. The RGB optical extension: the pipeline transfers, and the colour is worth measuring ✅
+
+The problem statement lists an "RGB optical-image extension" as a bonus after the grayscale SEM
+task. *(A review suggested this was stale because the public hackathon page says the challenge
+images are grayscale. Both are true and not in conflict: the graded task is grayscale, and the
+Drift-Sense PDF itself lists "RGB optical-image extension | Bonus | Optional generalization after
+completing the grayscale SEM task". Primary source wins.)*
+
+### 41a. It is a different problem, not a colourised SEM
+
+| | SEM | optical brightfield |
+|---|---|---|
+| resolution set by | probe size, ~5 nm | diffraction, `0.61 λ/NA` = **372.8 nm** |
+| DRAM word-line pitch, 64 nm | resolved with room to spare | **six times below the limit** |
+| contrast from | secondary-electron yield vs. surface tilt | **thin-film interference**, `4πnd/λ` |
+| channels | one | three photodiodes, independent noise, wavelength-dependent PSF |
+
+**The cell lattice is not blurry in the optical modality — it is absent.** So `src/synth/optical.py`
+images a *coarser layer*, where mats and peripheral strips play the role the cell array plays in
+SEM. That is what optical inspection is actually used for, and it preserves the ambiguity the task
+is about (a periodic array of near-identical sites) while changing the physics honestly.
+
+Modelled, each because it follows from the optics rather than because it looked good: per-material
+reflectance from the film stack per channel; lateral chromatic aberration; a per-channel PSF, so
+blue is genuinely sharper than red; Koehler illumination falloff; and per-channel Poisson + read
+noise, because the three photodiodes are separate.
+
+### 41b. The pipeline transfers unchanged
+
+`results/optical.csv`, 30 pairs, generator seed 77001. The matcher is untouched — the only thing
+that varies between arms is how three channels become the one the matcher consumes.
+
+| arm | mis-lock | median px | p95 px | pass@1px | p50 ms |
+|---|---|---|---|---|---|
+| **luma** (Rec. 601 — what the CLI does today) | 6.7% | 0.1003 | 11.94 | 93.3% | 514 |
+| **pca** (measured contrast projection) | **3.3%** | 0.0929 | **0.51** | **96.7%** | 509 |
+| green (sharpest single channel, control) | 6.7% | 0.0871 | 11.89 | 93.3% | 509 |
+
+> **A physics-based matcher built around an electron beam, area-average decimation and
+> Poisson-Gaussian noise localizes diffraction-limited RGB brightfield to a median of 0.10 px with
+> no code changes at all.** That is the strongest evidence yet that the forward-model framing —
+> rather than any particular tuning — is what does the work.
+
+### 41c. Measuring the colour axis beats assuming one
+
+Rec. 601's weights (`0.299 R + 0.587 G + 0.114 B`) describe the human eye. Nothing about a film
+stack knows about that, and which channel separates two materials depends on the layer thickness
+that happens to be on the wafer. So `src/driftlock/color.py` measures it: the direction in RGB space
+along which the **reference's** pixels vary most, applied to *both* images so they stay in one
+photometric frame.
+
+* the measured direction sits **25.6°** from luminance (min 24.7, max 26.8 — consistent across pairs)
+* mean direction **R +0.787, G +0.610, B +0.082** — a genuine red-green mix, not a channel pick,
+  which is what the `green` control was there to rule out
+* mis-lock halves, 6.7% → 3.3%, and **p95 error collapses from 11.94 px to 0.51 px**
+
+The mis-lock difference is +1/−0 on 30 pairs (p = 1.000) and is *not* on its own significant. The
+p95 collapse is the sturdier number: the luma arm has a pair it locates badly and the measured
+projection does not.
+
+**Not enabled by default**, because the graded task is grayscale and the colour path must be a no-op
+there — `to_matcher_input` returns single-channel input untouched, and a test asserts it.
 
 ---
 

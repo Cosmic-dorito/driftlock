@@ -400,11 +400,14 @@ def _refit_once(search: np.ndarray, reference: np.ndarray, candidates: list,
         grid, ax = grids.get(i), axes.get(i)
         if grid is not None and grid.shape[0] >= 3 and grid.shape[1] >= 3:
             si, ri = np.unravel_index(int(np.argmax(grid)), grid.shape)
+            scales_ax, rot_ax = ax
+            # Keep the whole grid unconditionally. Multi-basin refinement needs every local maximum
+            # rather than the neighbourhood of the best sample, and so does any analysis that reads
+            # the pose surface as EVIDENCE rather than as a maximum - the whole grid is data, and
+            # whether it is retained should not depend on where the argmax happened to land. Only
+            # the parabolic probe below needs an interior peak.
+            cand.extra["refit_grid"] = (grid, scales_ax, rot_ax)
             if 0 < si < grid.shape[0] - 1 and 0 < ri < grid.shape[1] - 1:
-                scales_ax, rot_ax = ax
-                # Keep the whole grid too: multi-basin refinement needs every local maximum,
-                # not just the neighbourhood of the single best sample.
-                cand.extra["refit_grid"] = (grid, scales_ax, rot_ax)
                 cand.extra["refit_probe"] = (
                     (grid[si - 1, ri], grid[si, ri], grid[si + 1, ri]),
                     (grid[si, ri - 1], grid[si, ri], grid[si, ri + 1]),

@@ -18,15 +18,21 @@ work. If time runs out right now, ship what is in `dist/`.
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | p50 |
 |---|---|---|---|---|---|
-| sponsor (40) | 20.0% | 0.251 | 77.5% | 72.5% | 406 ms |
-| bench (30, ours) | 16.7% | 0.342 | 76.7% | 63.3% | 397 ms |
-| holdout FinFET (30) | 10.0% | 0.220 | 83.3% | 66.7% | 391 ms |
+| sponsor (40) | **5.0%** | 0.195 | 92.5% | 87.5% | 394 ms |
+| bench (30, ours) | 23.3% | 0.357 | 73.3% | 60.0% | 377 ms |
+| holdout FinFET (30) | **6.7%** | 0.214 | 86.7% | 73.3% | 382 ms |
 
-Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **16/100 = 16.0%** (was 22.0% two days ago).
+Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **11/100 = 11.0%** (16.0% earlier the same day,
+22.0% three days ago).
 
-Paired against the previous configuration on the same 100 pairs: **0 regressions, 6 fixes, exact
-McNemar p = 0.031** (`results/significance.csv`). Quote the paired test, not the marginal rates -
-the Wilson intervals overlap and would show nothing either way.
+Paired against the baseline on the same 100 pairs: **0 regressions, 49 fixes, exact McNemar
+p = 0.000** (`results/significance.csv`). Quote the paired test, not the marginal rates - the
+Wilson intervals overlap and would show nothing either way.
+
+Paired against the *previous* configuration, which is the comparison that matters for the newest
+stage (§40, ADR-0032): **+17 fixed / −3 broken over 300 pairs across five splits, exact McNemar
+p = 0.0026.** Four of five splits improve with zero breaks; `bench` is the one regression
+(16.7% → 23.3%) and is reported everywhere rather than smoothed over.
 
 ### Shipped configuration (`localize.py::build_config`)
 
@@ -35,8 +41,15 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                pose_search=True, top_k=10, candidate_refit=True,
                median_filter=True,
                refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
-               refit_screen_steps=2, refit_screen_top_n=10)
+               refit_screen_steps=2, refit_screen_top_n=10,
+               pose_evidence_beta=5.0)
 ```
+
+Changed 15 Aug — `pose_evidence_beta`. After the refit, candidates are ordered by the log-sum-exp of
+their own pose grid instead of by its maximum. The maximum over ~25 poses is upward-biased, and the
+bias grows with how rough that candidate's pose surface is, so a candidate that peaked once outranks
+one that was consistently good. **Same ZNCC, same grid, different summary** — so it is not a new
+criterion (ADR-0024) — and it costs no correlations at all. See ADR-0032 and FINDINGS §40.
 
 Changed 13 Aug — the wide dense refit is now screened, which made it both **cheaper and more
 accurate** than the unscreened version. See ADR-0025 and FINDINGS §23. The §21d accuracy/runtime
@@ -89,39 +102,33 @@ flat criterion with more free parameters.
 > Cause and full retraction: **FINDINGS §37**. Nothing shipped was affected.
 >
 > **A perfect pose does not rescue these pairs.** Oracle pose plus a plain argmax scores **70/100**
-> against the shipped **84/100** and recovers 1 of 16 failures. Pose estimation error is not the
-> bottleneck. (§35a — reproduced exactly.)
+> against the shipped **89/100** — it loses 22 pairs the pipeline gets right and rescues 3. Pose
+> estimation error is not the bottleneck. (§35a.)
 >
 > **At that pose the truth and its impostor are statistically indistinguishable:**
 >
-> | ZNCC at the exact GT pose, 15 failures | mean | truth ahead |
+> | ZNCC at the exact GT pose, 10 failures | mean | truth ahead |
 > |---|---|---|
-> | at the **true** location | **0.7661** | — |
-> | at the location the **pipeline chose** | **0.7696** | **7/15**, p = **1.000** |
-> | *(global surface maximum — what the retracted figure measured)* | *0.8915* | *0/15* |
+> | at the **true** location | **0.7181** | — |
+> | at the location the **pipeline chose** | **0.6759** | **4/10**, p = **0.754** |
 >
-> Paired on the 8 failures where the truth reached the final comparison, the deficit is **+0.0114**
-> at the oracle pose and **+0.0072** after the refit — the refit closes **36.6%**, in 7 of 8.
+> The truth is nominally *ahead* on the mean now, and 4/10 at p = 0.754 says that means nothing
+> either way. The paired subset is down to **3 pairs** since ADR-0032, so "the fraction of the
+> deficit the refit closes" is no longer estimable — the script says so rather than dividing by a
+> near-zero denominator. Regenerate with `scripts/pose_ceiling.py`.
 >
-> So the available margin is about **0.01 of correlation**. That is why six re-ranking criteria
-> failed to resolve it, and it is a *measured* statement rather than an impossibility claim.
-> Regenerate with `scripts/pose_ceiling.py` → `results/pose_ceiling.csv`.
+> So the available margin is about **0.01 of correlation or less**. Six re-ranking criteria failed
+> to resolve it; **reading the pose surface as evidence rather than as its maximum resolved part of
+> it** (§40, ADR-0032) — which is the one thing that has moved this number.
 >
-> **Extra forward-model freedom buys almost nothing** (§36). Three degrees of freedom added as
-> oracles, measured as *differential* gain — truth minus winner, the only form that changes a
-> decision:
+> **Extra forward-model freedom buys almost nothing** (§36, §38). Every degree of freedom added to
+> the forward model — PSF blur, anisotropic scale + shear, per-row jitter, and a global scan-field
+> calibration measured from the array itself — lands at the fourth decimal as a *differential*. The
+> global calibration is the sharpest case: it lifts the true site by **+0.0297** and the impostor by
+> **+0.0301**. A correction applied to the whole image is fair by construction, which is exactly why
+> it cannot break a tie (§38b). **The forward model is closed** (ADR-0031).
 >
-> | added freedom | differential | status |
-> |---|---|---|
-> | PSF blur | **+0.0000** (7/8) | real, negligible |
-> | anisotropic scale + shear | **−0.0004** (4/8) | ✅ reproduces exactly — the impostor gains more |
-> | line-jitter, quadratic in y | **+0.0378** (7/8) | ❌ sign reverses vs §36c — **unsettled** |
->
-> The line-jitter differential is the **one live lead** in the project: +0.0378 against a +0.0114
-> deficit would flip these pairs. It is not a finding — n = 8, oracle-only, p = 0.070, and an
-> earlier implementation measured the opposite sign. Settle it in the pipeline on all four splits or
-> leave it alone (§37d).
->
+
 > (A review challenged §36b as double-scaling the reference. Checked, not argued:
 > `integrate_reference` returns 1000×1000 — it blurs, it does not resize — and the experiment's warp
 > at ax=sh=0 reproduces `build_template` with max|diff| = 0.000000. Re-verified 15 Aug.)

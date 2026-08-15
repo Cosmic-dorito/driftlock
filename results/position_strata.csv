@@ -1,10 +1,10 @@
 stratum,n_pairs,mislock_k,mislock_rate,ci95_low,ci95_high,median_err_px
-radius inner,16,1,0.0625,0.0111,0.2833,0.194
-radius mid,36,8,0.2222,0.1172,0.3809,0.349
-radius outer,48,7,0.1458,0.0725,0.2717,0.206
-edge near edge,25,4,0.1600,0.0640,0.3465,0.340
-edge mid,41,5,0.1220,0.0532,0.2554,0.205
-edge central,34,7,0.2059,0.1035,0.3680,0.300
+radius inner,16,2,0.1250,0.0350,0.3602,0.266
+radius mid,36,4,0.1111,0.0441,0.2532,0.291
+radius outer,48,5,0.1042,0.0453,0.2217,0.170
+edge near edge,25,4,0.1600,0.0640,0.3465,0.313
+edge mid,41,2,0.0488,0.0135,0.1614,0.193
+edge central,34,5,0.1471,0.0645,0.3013,0.219
 
 # Pooled over sponsor + bench + holdout_finfet, the same pairs reported in
 # results/metrics_*.csv. No new data: the existing targets already span 32-547 px

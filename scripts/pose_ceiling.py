@@ -17,10 +17,11 @@ almost by construction, so that comparison was upward-biased and merely restated
 corrected numbers: FINDINGS 37. The lesson is the reason this file is committed - **a result with no
 script is not a result.**
 
-What the corrected measurement says: at the exact pose the true site (0.7661) and the site the
-pipeline chose (0.7696) are statistically indistinguishable - the truth is ahead in 7 of 15. The
-margin between them is about 0.01 of correlation, which is why six re-ranking criteria failed to
-resolve it.
+What the corrected measurement says: at the exact pose the true site and the site the pipeline chose
+are statistically indistinguishable, separated by about 0.01 of correlation or less. That is why six
+re-ranking criteria failed to resolve it. (The figures move as the pipeline improves - they are
+computed over the FAILURES, and there are fewer of them since ADR-0032 - so read them out of
+``results/pose_ceiling.csv`` rather than from this docstring.)
 
 Part two (FINDINGS 36) asks the natural follow-up: is the refit silently compensating for physics
 the forward model is missing? Three degrees of freedom are added as ORACLES - never in the pipeline -
@@ -71,7 +72,17 @@ _refit_candidates = refit_mod.refit_candidates
 
 def _capturing_refit(search, reference, candidates, bt, cs, config):
     out = _refit_candidates(search, reference, candidates, bt, cs, config)
-    CAPTURED["final"] = [(c.x, c.y, c.score, c.scale, c.rotation_deg) for c in out[:10]]
+    # The pipeline re-orders AFTER the refit when pose evidence is enabled (ADR-0032), so capturing
+    # the refit's own order would no longer describe what the pipeline decides. Applying the same
+    # re-order here keeps "rank 0" meaning "the candidate that won". Without this the script found
+    # zero paired failures and exited - the truth is often still rank 0 by refit score while losing
+    # on evidence, which is precisely the effect ADR-0032 introduced.
+    ordered = out
+    beta = getattr(config, "pose_evidence_beta", 0.0)
+    if beta > 0.0 and len(ordered) > 1:
+        from src.driftlock.match import rescore_by_pose_evidence
+        ordered = rescore_by_pose_evidence(list(ordered), beta)
+    CAPTURED["final"] = [(c.x, c.y, c.score, c.scale, c.rotation_deg) for c in ordered[:10]]
     return out
 
 
@@ -317,7 +328,16 @@ def main() -> int:
                 paired.append(row)
 
     if not paired:
-        sys.exit("no paired failures found - nothing to measure")
+        # Not an error: it means every remaining failure lost before the final comparison, so there
+        # is no truth/winner pair at the same pose to compare. Report 35a and stop rather than
+        # exiting non-zero, because "the paired subset is empty" is itself a result.
+        print("\n  No paired failures: on every failure the truth never reached the final "
+              "comparison,\n  so there is no truth-vs-winner pair to measure at a fixed pose.")
+        print(f"\n  {n_pairs} pairs")
+        print(f"    shipped pipeline correct     : {shipped_ok}/{n_pairs}")
+        print(f"    oracle pose + plain argmax   : {oracle_ok}/{n_pairs}"
+              f"   (rescues {oracle_rescued}, loses {oracle_broke})")
+        return 0
 
     # ------------------------------------------------------------------ summarise
     n_fix = len(fixed_truth)
@@ -329,7 +349,12 @@ def main() -> int:
 
     deficit_fixed = mean("fixed_pose_winner") - mean("fixed_pose_truth")
     deficit_refit = mean("refit_winner") - mean("refit_truth")
-    closed = (1.0 - deficit_refit / deficit_fixed) if deficit_fixed else 0.0
+    # "The refit closes X% of the deficit" is only meaningful when there IS a deficit. Once the
+    # pose-evidence stage cut the paired subset to three pairs the fixed-pose deficit fell to
+    # +0.0001, and the ratio printed 15500.6% - a number that is arithmetically correct and
+    # completely uninterpretable. A near-zero denominator is not a large effect.
+    MIN_DEFICIT = 0.002                     # about the correlation sampling scale on these patches
+    closed = (1.0 - deficit_refit / deficit_fixed) if deficit_fixed > MIN_DEFICIT else float("nan")
     reduced = sum(1 for r in paired
                   if (r["refit_winner"] - r["refit_truth"])
                   < (r["fixed_pose_winner"] - r["fixed_pose_truth"]))
@@ -358,7 +383,8 @@ def main() -> int:
         ("n_paired", n_pair, "35c: failures where the truth reached the final comparison"),
         ("deficit_fixed_pose", round(deficit_fixed, 4), "winner minus truth, at the exact GT pose"),
         ("deficit_after_refit", round(deficit_refit, 4), "winner minus truth, after the refit"),
-        ("deficit_closed_fraction", round(closed, 4), "fraction of the deficit geometry recovers"),
+        ("deficit_closed_fraction", "" if math.isnan(closed) else round(closed, 4),
+         "fraction of the deficit geometry recovers; blank when there is no deficit to close"),
         ("deficit_reduced_in", reduced, f"of {n_pair} paired failures"),
     ]
     for name, key, g_t, g_w, diff, wins, p in dof:
@@ -401,7 +427,9 @@ def main() -> int:
     print(f"\n  35c  paired on {n_pair} failures            deficit = winner - truth")
     print(f"    at the exact GT pose         : {deficit_fixed:+.4f}")
     print(f"    after the per-candidate refit: {deficit_refit:+.4f}")
-    print(f"    the refit closes             : {100 * closed:.1f}%   (reduced in {reduced}/{n_pair})")
+    closed_text = ("not estimable - no deficit at this pose" if math.isnan(closed)
+                   else f"{100 * closed:.1f}%")
+    print(f"    the refit closes             : {closed_text}   (reduced in {reduced}/{n_pair})")
     print("\n  36   added freedom, differential gain (truth - winner)")
     print(f"    {'degree of freedom':<28}{'truth':>9}{'winner':>9}{'diff':>10}{'truth better':>15}")
     print("    " + "-" * 71)

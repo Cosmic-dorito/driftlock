@@ -1,34 +1,34 @@
 metric,value,note
 n_pairs,100,pairs across all three splits
-shipped_correct,84,shipped pipeline within 5 px
+shipped_correct,89,shipped pipeline within 5 px
 oracle_pose_correct,70,"35a: exact GT pose + plain argmax, no refit or screen"
-oracle_rescued,1,shipped failures the oracle pose recovers
-oracle_broke,15,pairs the oracle loses that the shipped pipeline gets
-n_fixed_pose,15,35b: failures where both windows fit inside the image
-zncc_truth_fixed_pose,0.7661,"ZNCC at the TRUE location, exact GT pose"
-zncc_winner_fixed_pose,0.7696,"ZNCC at the WINNING location, exact GT pose"
-truth_wins_fixed_pose,7,of n_fixed_pose
-truth_wins_fixed_pose_p,1.0,exact two-sided sign test
-n_paired,8,35c: failures where the truth reached the final comparison
-deficit_fixed_pose,0.0114,"winner minus truth, at the exact GT pose"
-deficit_after_refit,0.0072,"winner minus truth, after the refit"
-deficit_closed_fraction,0.3655,fraction of the deficit geometry recovers
-deficit_reduced_in,7,of 8 paired failures
-dof_psf_gain_truth,0.0003,"36: psf blur, ZNCC gain for the truth"
-dof_psf_gain_winner,0.0002,"36: psf blur, ZNCC gain for the winner"
-dof_psf_differential,0.0,"36: psf blur, truth minus winner - the only form that changes a decision"
-dof_psf_truth_better_in,7,of 8
-dof_psf_p,0.0703,exact two-sided sign test
-dof_warp_gain_truth,0.001,"36: anisotropic scale + shear, ZNCC gain for the truth"
+oracle_rescued,3,shipped failures the oracle pose recovers
+oracle_broke,22,pairs the oracle loses that the shipped pipeline gets
+n_fixed_pose,10,35b: failures where both windows fit inside the image
+zncc_truth_fixed_pose,0.7181,"ZNCC at the TRUE location, exact GT pose"
+zncc_winner_fixed_pose,0.6759,"ZNCC at the WINNING location, exact GT pose"
+truth_wins_fixed_pose,4,of n_fixed_pose
+truth_wins_fixed_pose_p,0.7539,exact two-sided sign test
+n_paired,3,35c: failures where the truth reached the final comparison
+deficit_fixed_pose,0.0001,"winner minus truth, at the exact GT pose"
+deficit_after_refit,-0.0152,"winner minus truth, after the refit"
+deficit_closed_fraction,,fraction of the deficit geometry recovers; blank when there is no deficit to close
+deficit_reduced_in,2,of 3 paired failures
+dof_psf_gain_truth,0.0002,"36: psf blur, ZNCC gain for the truth"
+dof_psf_gain_winner,0.0003,"36: psf blur, ZNCC gain for the winner"
+dof_psf_differential,-0.0001,"36: psf blur, truth minus winner - the only form that changes a decision"
+dof_psf_truth_better_in,0,of 3
+dof_psf_p,0.25,exact two-sided sign test
+dof_warp_gain_truth,0.0011,"36: anisotropic scale + shear, ZNCC gain for the truth"
 dof_warp_gain_winner,0.0014,"36: anisotropic scale + shear, ZNCC gain for the winner"
-dof_warp_differential,-0.0004,"36: anisotropic scale + shear, truth minus winner - the only form that changes a decision"
-dof_warp_truth_better_in,4,of 8
+dof_warp_differential,-0.0003,"36: anisotropic scale + shear, truth minus winner - the only form that changes a decision"
+dof_warp_truth_better_in,1,of 3
 dof_warp_p,1.0,exact two-sided sign test
-dof_jitter_gain_truth,-0.0276,"36: line-jitter, quadratic in y, ZNCC gain for the truth"
-dof_jitter_gain_winner,-0.0654,"36: line-jitter, quadratic in y, ZNCC gain for the winner"
-dof_jitter_differential,0.0378,"36: line-jitter, quadratic in y, truth minus winner - the only form that changes a decision"
-dof_jitter_truth_better_in,7,of 8
-dof_jitter_p,0.0703,exact two-sided sign test
+dof_jitter_gain_truth,-0.0092,"36: line-jitter, quadratic in y, ZNCC gain for the truth"
+dof_jitter_gain_winner,0.0025,"36: line-jitter, quadratic in y, ZNCC gain for the winner"
+dof_jitter_differential,-0.0117,"36: line-jitter, quadratic in y, truth minus winner - the only form that changes a decision"
+dof_jitter_truth_better_in,1,of 3
+dof_jitter_p,1.0,exact two-sided sign test
 
 # 35a  Template built at the generator's recorded scale_ratio/rotation_deg, then one
 #      plain correlation over the whole search image. No pose search, refit or screen.

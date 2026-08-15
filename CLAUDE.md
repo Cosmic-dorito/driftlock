@@ -224,6 +224,16 @@ Two rules that have each been learned the hard way and cost real time when ignor
 5. **Quote paired comparisons, and quote the sample size.** Two splits with identical generator
    parameters and different seeds measured 20.0% and 26.7%. Differences of 2–4 points between splits
    are directional only; within-split paired tests are far stronger (ADR-0029).
+6. **A result with no script is not a result.** The project's headline finding lived only as prose —
+   measured once in a scratchpad, hand-copied into four documents, never written into `results/`.
+   It did not survive reimplementation: it had compared a score at one location against the
+   **maximum** over the whole image. R2 and R8 both missed it because neither can reach a number
+   that never entered `results/` and never reached a slide (ADR-0030).
+7. **A statistic is only comparable over the same support.** Ranking candidates by a log-sum-exp
+   over their pose grid promoted exactly the ones the screen had rejected, because *their* grids
+   came from the narrow 2×2 screen rather than the wide 5×5 pass — flat and high by construction.
+   The maximum is immune to this, which is why the defect stayed invisible until the summary
+   changed (ADR-0032).
 
 ## Current gate
 

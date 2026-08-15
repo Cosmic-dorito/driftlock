@@ -84,6 +84,11 @@ def ladder() -> list[PipelineConfig]:
         # point of FINDINGS section 26.
         replace(build_config(argparse.Namespace(config="driftlock")),
                 median_filter=False, label="   the DEFAULT minus the median filter"),
+        # And the same for the newest stage. A shipped stage that never appears on its own line is
+        # exactly what R9 exists to prevent: the reader cannot tell what it contributes, and neither
+        # can we. beta = 0 is the plain maximum, so this row IS the previous configuration.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                pose_evidence_beta=0.0, label="   the DEFAULT minus pose evidence"),
 
         # --- measured negative results, kept per R9 ---
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),

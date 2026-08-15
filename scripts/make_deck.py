@@ -847,8 +847,13 @@ def slide_ablation(prs, M, ABL):
         ("+ sub-pixel DFT (A9)", "+ sub-pixel DFT", "precision only"),
         ("+ blind drift correction", "+ two-axis drift cancellation", "precision only"),
         ("+ pose: pyramid", "+ pose: pyramid   ← shipped", "solves rotation/scale"),
-        ("** + per-candidate pose refit  [DEFAULT] **",
-         "+ per-candidate pose refit   ← shipped", "solves selection"),
+        # No leading whitespace: load_ablation() strips every cell, so a key written with the
+        # indentation run_ablation.py uses for its sub-rows silently matches nothing and the row
+        # vanishes from the slide without any error. Caught by rendering and counting rows.
+        ("the DEFAULT minus pose evidence", "+ per-candidate pose refit   ← shipped",
+         "solves geometry"),
+        ("** + screened wide refit + median  [DEFAULT] **",
+         "+ pose grid as evidence   ← shipped", "solves selection"),
         ("+ centre rule on the default  [prior absent here]", "+ spec's centre rule",
          "prior absent"),
         ("+ pose: spectral lattice  [LESS ACCURATE]", "+ pose: spectral lattice", "less accurate"),
@@ -870,12 +875,25 @@ def slide_ablation(prs, M, ABL):
          "Mis-lock rate. Rows are baseline plus the named stage, not a cumulative chain.",
          size=9.5, color=GREY, italic=True)
 
-    # Height covers five entries now, not four. Rendered and checked - the fifth used to print
-    # through the bottom border of the panel.
-    card(s, 8.5, 1.72, 4.2, 5.15, INK, None)
-    text(s, 8.75, 1.92, 3.7, 0.55, "Five attempts at selection, and why only one worked",
+    # Height and content both grew with the shipped stages, so this is one text flow rather than a
+    # main block plus a separately-positioned footer - the footer version printed through the panel
+    # border the moment an entry was added above it.
+    card(s, 8.5, 1.72, 4.2, 5.62, INK, None)
+    text(s, 8.75, 1.92, 3.7, 0.55, "Six attempts at selection, and the two that worked",
          size=14, bold=True, color=AMBER, font=HEAD)
     grey = RGBColor(0x9F, 0xB4, 0xC2)
+
+    # The result that closes the forward-model direction, and the sharpest sentence in the project:
+    # unfair freedom flows to the wrong candidate, fair improvement flows to both.
+    lift = load_scan_calibration()
+    CALIBRATION_NOTE = (
+        f"Measured from the array itself and applied to the whole image before any candidate "
+        f"existed. It lifted the true site by {lift['truth']} and the impostor by {lift['winner']} "
+        f"— fair by construction, which is exactly why it cannot break a tie."
+    ) if lift else (
+        "Measured from the array itself and applied before any candidate existed. It lifted the "
+        "true site and the impostor alike — fair by construction, which is why it cannot break a tie."
+    )
     text(s, 8.75, 2.48, 3.7, 3.7, [
         ("PADM residual scoring — overfit", {"bold": True, "color": WHITE}),
         ("Two tuned constants. Gained on the split it was tuned on, lost on both held-out splits.",
@@ -894,28 +912,20 @@ def slide_ablation(prs, M, ABL):
         ("Follows the line above: if mismatch dominates, reduce mismatch. Each candidate is "
          "re-SCORED at its own best pose — no new criterion, so it cannot invent a preference.",
          {"color": grey}),
-    ], size=9.5, spacing=2)
+        ("", {}),
+        ("Pose grid as evidence — WORKS", {"bold": True, "color": AMBER}),
+        ("The same principle again. The MAXIMUM over 25 poses rewards a candidate that got lucky "
+         "once; reading the whole grid rewards one that was consistently good. Same score, same "
+         "grid, no extra work.", {"color": grey}),
+        ("", {}),
+        ("Global scanner calibration — fair, and useless", {"bold": True, "color": WHITE}),
+        (CALIBRATION_NOTE, {"color": grey}),
+    ], size=9, spacing=2)
 
-    # The result that closes the forward-model direction, and the sharpest sentence in the project.
-    # It belongs beside the four selection attempts because it is the same asymmetry approached from
-    # the opposite side: unfair freedom flows to the wrong candidate, fair improvement flows to both.
-    lift = load_scan_calibration()
-    calibration = (
-        f"We measured the scanner from the array itself and corrected the whole image once, before "
-        f"any candidate existed. It lifted the true site by {lift['truth']} — three times the "
-        f"margin — and the impostor by {lift['winner']}."
-    ) if lift else (
-        "We measured the scanner from the array itself and corrected the whole image once, before "
-        "any candidate existed. It lifted the true site and the impostor alike."
-    )
-    text(s, 8.75, 5.62, 3.7, 1.15, [
-        ("Global scanner calibration — fair, and useless",
-         {"bold": True, "color": WHITE, "size": 9.5}),
-        (calibration + " A global correction is fair by construction, which is exactly why it "
-         "cannot break a tie.", {"color": grey, "size": 8.5}),
-    ], size=8.5, spacing=1)
 
-    text(s, 0.6, 5.30, 7.6, 1.0,
+    # Derived from the table height, not fixed: the table grew by a row when the pose-evidence
+    # stage landed and a hard-coded y put this paragraph underneath the caption.
+    text(s, 0.6, 1.75 + 0.30 * len(rows) + 0.42, 7.6, 1.0,
          "Two rules these bought. Downsampling is free for measuring pose and ruinous for deciding "
          "identity — pose is a global low-frequency property, identity lives only in the "
          "full-resolution aperiodic fingerprint. And refinement fails gracefully while re-ranking "
@@ -1065,7 +1075,7 @@ def slide_conclusion(prs, M):
         text(s, x + 0.25, 1.63, 3.35, 0.5, v, size=20, bold=True, color=AMBER, font=HEAD)
         text(s, x + 0.25, 2.15, 3.35, 0.35, k, size=10.5, color=RGBColor(0x9F, 0xB4, 0xC2))
 
-    text(s, 0.6, 2.92, 12.1, 0.4, "The four findings we would carry to any similar problem",
+    text(s, 0.6, 2.86, 12.1, 0.4, "The five findings we would carry to any similar problem",
          size=16, bold=True, color=WHITE, font=HEAD)
     for i, (h, d) in enumerate([
         ("Own the generator, or you cannot see your own blind spots.",
@@ -1087,12 +1097,18 @@ def slide_conclusion(prs, M):
          "refuted it: it had compared a score at one location against the MAXIMUM over the whole "
          "image, which is upward-biased by construction. Retracted, corrected, and now regenerated "
          "by a committed script."),
+        ("The maximum of many tries is not a measurement of quality.",
+         "The same mistake one level down, and worth more than any physics we added. Each candidate "
+         "gets ~25 attempts at a flattering pose, so the one with the roughest score surface wins "
+         "most often — not the best one. Reading the whole surface instead of its peak fixed 17 "
+         "pairs and broke 3 across five splits, for no extra work."),
     ]):
-        y = 3.42 + i * 0.94
-        bubble(s, 0.62, y, str(i + 1), AMBER if i == 3 else TEAL)
+        y = 3.34 + i * 0.79
+        highlight = i >= 3
+        bubble(s, 0.62, y, str(i + 1), AMBER if highlight else TEAL)
         text(s, 1.20, y - 0.02, 11.3, 0.3, h, size=12.5, bold=True,
-             color=AMBER if i == 3 else WHITE)
-        text(s, 1.20, y + 0.27, 11.3, 0.62, d, size=10, color=RGBColor(0x9F, 0xB4, 0xC2))
+             color=AMBER if highlight else WHITE)
+        text(s, 1.20, y + 0.26, 11.3, 0.56, d, size=9.5, color=RGBColor(0x9F, 0xB4, 0xC2))
 
     PC = load_pose_ceiling()
     if PC:
@@ -1103,7 +1119,7 @@ def slide_conclusion(prs, M):
     else:
         closing = ("Next: the one stage that ever beat selection did so by removing a handicap, "
                    "not by scoring harder.")
-    text(s, 0.6, 7.00, 12.1, 0.35, closing, size=11.5, color=AMBER, italic=True)
+    text(s, 0.6, 7.10, 12.1, 0.35, closing, size=11, color=AMBER, italic=True)
     s.notes_slide.notes_text_frame.text = (
         "Everything in results/ is regenerated by `make bench`; scripts/verify_submission.py fails "
         "the build on any deck number not found there."

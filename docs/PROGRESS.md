@@ -336,6 +336,58 @@ silently drifted the moment the shipped config changed.
 
 ---
 
+## Stage 10 — A retraction, and the largest accuracy gain since the refit ✅ (15 Aug, win-2)
+
+> Current numbers live in the generated headline in `docs/RESULTS.md`.
+
+| | aggregate mis-lock |
+|---|---|
+| start of the day | 16.0% |
+| **end of the day** | **11.0%** (5.0 / 23.3 / 6.7 across sponsor / bench / FinFET) |
+
+**1. The headline finding was retracted.** §35 — *"at the generator's exact pose the true site
+correlates 0.065 worse than the impostor, and the refit recovers 89%"* — was measured once in a
+scratchpad, printed to a terminal, and hand-copied into four documents. It never entered `results/`,
+so neither R2 nor R8 could reach it. Writing it down properly (`scripts/pose_ceiling.py`) re-measured
+it: the "winner" figure had been the **maximum of the correlation surface**, not the score at the
+location the pipeline chose, and a maximum over ~810,000 positions beats any nominated point by
+construction. Corrected, the truth (0.7661) and its impostor (0.7696) are *statistically
+indistinguishable* — the margin is ~0.01, not a deficit. FINDINGS §37, ADR-0030: **a result with no
+script is not a result.**
+
+**2. Two literature-backed directions were built and closed.** A global scan-field calibration
+(§38) measures the scanner from the periodic array and corrects the whole search image once, before
+any candidate exists. It genuinely works — ZNCC at the true site rises **+0.0297** — and it changes
+nothing, because it lifts the impostor by **+0.0301**. *A global correction is fair by construction,
+which is exactly why it cannot break a tie.* A supercell search (§39), with a 400-permutation null,
+found real higher-order structure at **order 2** — the `(i+j)%2` checkerboard, which is by
+definition blind to the parity-*preserving* diagonal shift that causes our failures.
+
+**3. And then the one that worked.** Reading the refit's pose grid as **evidence** rather than
+taking its maximum: the maximum over ~25 poses is upward-biased, and the bias grows with how rough
+that candidate's pose surface is, so a candidate that peaked once outranks one that was consistently
+good. Same ZNCC, same grid, different summary — not a new criterion — and it adds no correlations.
+
+| split | n | before | after | |
+|---|---|---|---|---|
+| dev *(tuning)* | 40 | 12.5% | 7.5% | +2/−0 |
+| dev2 | 160 | 11.2% | **6.9%** | +7/−0 |
+| sponsor | 40 | 20.0% | **5.0%** | +6/−0 |
+| bench | 30 | 16.7% | 23.3% | +1/**−3** |
+| FinFET | 30 | 10.0% | **6.7%** | +1/−0 |
+
+**+17 fixed / −3 broken over 300 pairs, exact McNemar p = 0.0026** (ADR-0032). The failure
+decomposition, regenerated without being consulted first, confirms it acted where it should: the
+**outscored** bucket fell 9 → 4 while *absent* (3) and *screened* (4) held exactly still.
+
+**4. The RGB optical bonus shipped** (§41, ADR-0033). Not a colourised SEM — at `0.61 λ/NA` = 372.8
+nm the 64 nm cell lattice is *absent*, so the modality images a coarser layer. The unchanged
+pipeline localizes diffraction-limited RGB brightfield to **0.10 px median**, and measuring the
+colour projection instead of assuming Rec. 601 luminance halves mis-lock (6.7% → 3.3%) and collapses
+p95 error from 11.94 px to **0.51 px**.
+
+---
+
 ## Stage 7 — Stretch, all flag-gated
 
 Stop wherever time runs out; each is independently shippable.

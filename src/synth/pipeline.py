@@ -31,7 +31,7 @@ from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
-from src.synth import imaging, layout
+from src.synth import imaging, layout, optical
 
 REFERENCE_SIZE_PX = 1000
 SEARCH_SIZE_PX = 1000
@@ -64,6 +64,18 @@ class GenerationParams:
     # --- optics ---
     beam_spot_size_nm: float = 5.0
     astigmatism_ratio: float = 1.0
+
+    # --- modality. "sem" is the graded task; "optical" is the spec's RGB bonus. ---
+    #
+    # The optical path is NOT the SEM path in colour. An optical microscope is diffraction-limited
+    # at 0.61*lambda/NA = 373 nm, six times the DRAM word-line pitch, so the cell lattice is not
+    # blurred - it is gone. Identity has to come from the mat/strip structure instead, which is why
+    # the optical modality images at a coarser plate scale. See src/synth/optical.py.
+    modality: str = "sem"
+    optical_numerical_aperture: float = 0.90
+    optical_chromatic_aberration: float = 0.0010
+    optical_dose: float = 900.0
+    optical_read_sigma: float = 2.5
 
     # --- dose: the search image is a faster, noisier acquisition ---
     dose_reference: float = 2000.0
@@ -113,6 +125,64 @@ def _crop_reference(canvas: np.ndarray, x0_nm: float, y0_nm: float) -> np.ndarra
     )
 
 
+def _per_channel(rgb: np.ndarray, fn) -> np.ndarray:
+    """Apply a single-channel geometric operation to each channel of an HxWx3 image.
+
+    The crop and field-of-view resample are pure geometry, so running them per channel is exactly
+    equivalent to a 3-channel version and avoids duplicating either one. Chromatic aberration is
+    applied earlier, in the optical renderer, where it belongs.
+    """
+    planes = [fn(rgb[..., c]) for c in range(rgb.shape[2])]
+    return np.stack(planes, axis=-1)
+
+
+def _generate_optical(seed: int, params: GenerationParams, struct_rng, ref_rng, search_rng,
+                      built, canvas_px, scale, rotation, architecture, preset,
+                      cx, cy, x0_nm, y0_nm, search_centre) -> tuple:
+    """The RGB optical acquisition, sharing the SEM path's geometry exactly.
+
+    Sharing the geometry is deliberate: ground truth, the crop origin and the field-of-view
+    transform are identical, so any difference in the measured result is caused by the imaging
+    physics and by nothing else. What changes is everything after the layout:
+
+      SEM       SE yield -> charging -> beam PSF -> sample -> Poisson -> Gaussian
+      optical   film-stack reflectance per channel -> chromatic aberration -> diffraction
+                -> illumination -> sample -> Poisson and Gaussian per channel
+
+    WHAT THE PLATE SCALE MEANS. One canvas unit is ``PIXEL_SIZE_OPTICAL_NM`` here rather than 1 nm,
+    so the same rendered layout stands for a **coarser layer** - metal routing and mat boundaries
+    rather than the cell array. That is not a convenience: an optical microscope resolves
+    0.61*lambda/NA = 373 nm, and a 64 nm cell pitch is simply not there to be imaged. Optical
+    inspection is used on coarse layers for exactly this reason, so imaging one is the honest
+    translation of the task rather than a colourised SEM.
+    """
+    optical_params = optical.OpticalParams(
+        pixel_size_nm=optical.PIXEL_SIZE_OPTICAL_NM,
+        numerical_aperture=params.optical_numerical_aperture,
+        chromatic_aberration=params.optical_chromatic_aberration,
+    )
+    # Diffraction is a property of the objective, so it is applied ONCE to the shared scene at
+    # canvas resolution - the same argument that puts the beam PSF before the split in the SEM path.
+    scene_rgb = optical.render_optical(built.canvas, optical_params)
+
+    reference = optical.optical_detector(
+        _per_channel(scene_rgb, lambda plane: _crop_reference(plane, x0_nm, y0_nm)),
+        params.optical_dose, params.optical_read_sigma, ref_rng,
+    )
+    sampled = _per_channel(
+        scene_rgb,
+        lambda plane: imaging.resample_field_of_view(
+            plane, SEARCH_SIZE_PX, scale, rotation, search_centre
+        ),
+    )
+    # The search acquisition is faster and therefore noisier, exactly as in the SEM path.
+    search = optical.optical_detector(
+        sampled, params.optical_dose / 8.0, params.optical_read_sigma * 2.0, search_rng,
+    )
+    _ = (struct_rng, canvas_px, architecture, preset, cx, cy, seed)
+    return reference, search
+
+
 def generate_sample(seed: int, params: GenerationParams) -> Sample:
     """Generate one reference/search pair with exact, continuous ground truth."""
     # Separate streams: structure, reference acquisition, search acquisition. The two acquisitions
@@ -136,6 +206,11 @@ def generate_sample(seed: int, params: GenerationParams) -> Sample:
         linewidth_bias_nm=params.linewidth_bias_nm,
         corner_rounding_px=params.corner_rounding_px,
     )
+
+    # The optical modality replaces every imaging stage below but shares all the geometry above and
+    # below it, so the two modalities differ by physics alone. Its own chain lives in
+    # _generate_optical; the SEM chain continues here.
+    optical_mode = params.modality == "optical"
 
     # Steps 2-3: SE response and charging. Applied ONCE to the shared scene, because they are
     # properties of the sample and the beam-sample interaction, not of a particular acquisition.
@@ -206,6 +281,12 @@ def generate_sample(seed: int, params: GenerationParams) -> Sample:
     )
     search = imaging.detector_chain(sampled, search_params, search_rng)
 
+    if optical_mode:
+        reference, search = _generate_optical(
+            seed, params, struct_rng, ref_rng, search_rng, built, canvas_px, scale, rotation,
+            architecture, preset, cx, cy, x0_nm, y0_nm, search_centre,
+        )
+
     # Ground truth: computed analytically from the SAME transform used to render, never measured
     # back off the image. Exact and continuous.
     gt_x, gt_y = imaging.canvas_to_search_coords(
@@ -229,6 +310,7 @@ def generate_sample(seed: int, params: GenerationParams) -> Sample:
         reference=reference, search=search, gt_x=gt_x, gt_y=gt_y,
         metadata={
             "architecture": architecture,
+            "modality": params.modality,
             "preset": getattr(preset, "name", architecture),
             "scale_ratio": scale,
             "rotation_deg": rotation,

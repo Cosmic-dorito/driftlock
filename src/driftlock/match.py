@@ -149,6 +149,26 @@ class PipelineConfig:
     # would merge genuinely adjacent repeats. 0 disables.
     refit_screen_dedup_px: float = 0.0
 
+    # Read the refit's pose grid as EVIDENCE rather than taking its maximum. Still the same ZNCC on
+    # the same grid - only the summary changes - so this does not cross ADR-0024's line, which bans
+    # ranking by a new criterion, not reading the existing one differently.
+    #
+    # The maximum over ~25 poses is an upward-biased estimate of a candidate's quality, and the bias
+    # grows with how rough that candidate's pose surface is. FINDINGS 23f measured the consequence
+    # from the other direction: widening the bracket for the whole field is worse than widening it
+    # for ten survivors, because a wide search hands impostors more chances to get lucky. A
+    # log-sum-exp over the grid rewards a candidate that is consistently good over one that peaked
+    # once.
+    #
+    # 0 disables it and the plain maximum is used, which is what BASELINE and every historical
+    # ablation row want. The shipped value is set in localize.py::build_config.
+    #
+    # Measured, FINDINGS 40 / ADR-0032, paired across five splits and 300 pairs: +17 fixed, -3
+    # broken, exact McNemar p = 0.0026. Four splits of five improve with zero breaks; `bench`
+    # regresses by 3 pairs of 30 and is reported rather than smoothed over. It costs no
+    # correlations - the grid is already computed by the refit, so this re-reads numbers.
+    pose_evidence_beta: float = 0.0
+
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation
     ecc_affine: bool = False         # ECC refinement; affine because the drift is a shear (H10)
@@ -475,12 +495,21 @@ def localize(
             search_proc, ref_proc, candidates, build_template, correlation_surface, config
         )
 
+    pose_evidence = config.pose_evidence_beta > 0.0 and len(candidates) > 1
+    if pose_evidence:
+        candidates = rescore_by_pose_evidence(candidates, config.pose_evidence_beta)
+
     if config.ml_rescore and len(candidates) > 1:
         from src.driftlock.likelihood import rescore_by_likelihood
         candidates = rescore_by_likelihood(search_proc, ref_proc, candidates, config)
         chosen = candidates[0]          # already ordered by log-likelihood
     elif config.centre_rule:
         chosen = select_by_centre_rule(candidates, search_proc.shape)
+    elif pose_evidence:
+        # Already ordered by pose evidence. Taking max-by-score here instead would silently discard
+        # the whole stage - the ordering is the only thing it changes, and `score` is deliberately
+        # left at the refit's value so the reported score stays comparable across configurations.
+        chosen = candidates[0]
     else:
         chosen = max(candidates, key=lambda c: c.score)
 
@@ -534,6 +563,54 @@ def localize(
         confidence_radius_px=None if pai is None else float(pai),
         runtime_ms=elapsed_ms,
     )
+
+
+def rescore_by_pose_evidence(candidates: list, beta: float) -> list:
+    """Re-order candidates by the log-sum-exp of their pose grid instead of its maximum.
+
+    ``(1/beta) log mean exp(beta * s)`` interpolates between the mean (beta -> 0) and the maximum
+    (beta -> inf), so the shipped behaviour is the limiting case of this one rather than a different
+    rule. The candidate's reported score and position are left exactly as the refit set them; only
+    the ORDER changes, because the position that a candidate's best pose found is still the position
+    we want if that candidate wins.
+
+    ONLY THE WIDE-REFIT SURVIVORS ARE RE-ORDERED, and that restriction is the whole correctness
+    story. ``refit_candidates`` returns the screened-out candidates merged back in, and their grids
+    come from the *narrow* 2x2 screen rather than the 5x5 wide pass. A narrow grid is flat and high
+    by construction - every sample sits near the candidate's own pose - so its log-sum-exp is close
+    to its maximum, while a wide grid necessarily includes poses that are wrong and averages lower.
+    Ranking the two together compares statistics computed over different supports and systematically
+    promotes the candidates the screen already rejected. Measured: doing exactly that turned four
+    sponsor failures from 14.4, 14.3, 21.5 and 95.2 px into 57.6, 57.4, 37.5 and 271.7 px.
+
+    Candidates outside the widest grid shape therefore keep their score order and stay below the
+    survivors, which is where the screen put them.
+    """
+    grids = {id(c): c.extra.get("refit_grid") for c in candidates}
+    shapes = [np.asarray(g[0]).shape for g in grids.values() if g is not None]
+    if not shapes:
+        return candidates
+    widest = max(shapes, key=lambda s: s[0] * s[1])
+
+    survivors, others = [], []
+    for cand in candidates:
+        stored = grids[id(cand)]
+        if stored is None or np.asarray(stored[0]).shape != widest:
+            others.append(cand)
+            continue
+        values = np.asarray(stored[0], dtype=np.float64).ravel()
+        values = values[values > -1.5]          # poses whose template did not fit are stored as -2
+        if not values.size:
+            others.append(cand)
+            continue
+        peak = float(values.max())
+        evidence = peak + float(np.log(np.exp(beta * (values - peak)).mean())) / beta
+        cand.extra["pose_evidence"] = evidence
+        survivors.append((evidence, cand))
+
+    survivors.sort(key=lambda t: -t[0])
+    others.sort(key=lambda c: -c.score)
+    return [cand for _, cand in survivors] + others
 
 
 def _preprocess(

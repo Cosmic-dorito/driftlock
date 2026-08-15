@@ -110,6 +110,27 @@ python generate_dataset.py --num-samples 30 --split bench --seed 1234 --output-d
 python evaluate.py --manifest data/bench/manifest.csv --predictions results/predictions.csv --out results/
 ```
 
+### RGB optical extension (the problem statement's bonus)
+
+```bash
+python generate_dataset.py --num-samples 30 --split optical --seed 77001 --modality optical
+python scripts/optical_bench.py --manifest data/optical/manifest.csv
+```
+
+`--modality optical` emits 3-channel brightfield pairs through a genuinely different forward model,
+not a colourised SEM. An optical microscope resolves `0.61 λ/NA` = **373 nm** against a 64 nm DRAM
+word-line pitch, so the cell lattice is *absent* rather than blurred — the modality images a coarser
+layer, where mats and peripheral routing play the role the cell array plays in SEM. Contrast comes
+from thin-film interference, and the per-channel PSF and chromatic aberration make the three
+channels genuinely non-redundant.
+
+**The localizer needs no changes**: `load_grayscale` folds colour to luminance, and the same
+physics-based matcher reaches a median error of **0.10 px** on diffraction-limited RGB. Measuring
+the colour projection from the reference instead of assuming Rec. 601 weights
+([`src/driftlock/color.py`](src/driftlock/color.py)) halves mis-lock again and collapses the p95
+error from 11.94 px to 0.51 px. See [ADR-0033](docs/DECISIONS.md) and
+[`results/optical.csv`](results/optical.csv).
+
 ---
 
 ## Coordinate convention
@@ -165,12 +186,12 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 
 | Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | Runtime p50 |
 |---|---|---|---|---|---|---|---|
-| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 20 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **20.0%** | **0.251** | **77.5%** | **72.5%** | 90.0% | 406 ms (21x base) |
+| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 19 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **5.0%** | **0.195** | **92.5%** | **87.5%** | 90.0% | 394 ms (21x base) |
 | **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 19 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.342** | **76.7%** | **63.3%** | 86.7% | 397 ms (20x base) |
-| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 20 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **10.0%** | **0.220** | **83.3%** | **70.0%** | 90.0% | 391 ms (20x base) |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **23.3%** | **0.357** | **73.3%** | **60.0%** | 86.7% | 377 ms (20x base) |
+| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 18 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **6.7%** | **0.214** | **86.7%** | **73.3%** | 90.0% | 382 ms (20x base) |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
 
@@ -191,26 +212,34 @@ Failure case with root cause: [`results/failure_case/`](results/failure_case/).
 
 Stated plainly rather than left for a judge to find.
 
-1. **The remaining failures sit at a margin of about 0.01 of correlation, not at a tuning gap.**
-   Given the generator's *exact* scale and rotation, the true site scores **0.7661** and the site
-   the pipeline chose scores **0.7696** — the truth is ahead in **7 of 15**, p = **1.000**. At the
-   correct pose the two are *statistically indistinguishable*, and the paired deficit is **+0.0114**,
-   which the per-candidate refit reduces to **+0.0072**. A perfect pose does not rescue them either:
-   an oracle-pose plain argmax scores **70/100** against the shipped **84/100**. Reproduce with
+1. **The remaining failures sit at a margin of about 0.01 of correlation or less, not at a tuning
+   gap.** Given the generator's *exact* scale and rotation, the true site and the site the pipeline
+   chose are *statistically indistinguishable* — the truth is ahead in **4 of 10**, p = **0.754**,
+   and is nominally ahead on the mean. A perfect pose does not rescue the failures either: an
+   oracle-pose plain argmax scores **70/100** against the shipped **89/100**. Reproduce with
    `python scripts/pose_ceiling.py`; details in [FINDINGS §35a and §37](docs/FINDINGS.md).
+   The paired subset shrank to 3 pairs once the pose-evidence stage landed, so the "fraction of the
+   deficit the refit closes" is no longer estimable and the script reports it as such rather than
+   dividing by a near-zero denominator.
    *An earlier version of this note claimed a 0.065 deficit and 89% recovery. That did not
    reproduce — the figure it compared against was the maximum of the correlation surface rather than
    a score at a location, and a maximum over ~810,000 positions exceeds any nominated point by
    construction. The retraction is [FINDINGS §37](docs/FINDINGS.md); nothing shipped was affected.*
 2. **Selection is not solved, and the screen is a hard gate.** Every pass rate is capped by the
    mis-lock rate. Each failure is classified by the stage that lost it, in
-   [`results/failure_decomposition.csv`](results/failure_decomposition.csv): of the 16 failures
+   [`results/failure_decomposition.csv`](results/failure_decomposition.csv): of the 11 failures
    across 100 pairs, **3 were never candidates at all** (no selection rule can recover those),
-   **4 were cut by the screen** before the expensive geometry ran, and **9 reached the final
-   comparison and lost on correlation**. Only the last group is addressable by better ranking, and
-   **six** re-ranking criteria were built, measured and rejected trying — all six are in the
-   ablation with their numbers, and the principle they establish is
-   [ADR-0024](docs/DECISIONS.md).
+   **4 were cut by the screen** before the expensive geometry ran, and **4 reached the final
+   comparison and lost on correlation**. Only that last group is addressable by ranking, and it is
+   where the newest stage acted: reading the refit's pose grid as evidence rather than taking its
+   maximum ([ADR-0032](docs/DECISIONS.md)) cut it from 9 to 4 while leaving the other two buckets
+   unchanged. Six *other* re-ranking criteria were built, measured and rejected before it — all six
+   are in the ablation with their numbers, and the principle they establish
+   ([ADR-0024](docs/DECISIONS.md)) is why this one is a different *summary* of the existing score
+   rather than a new criterion.
+   *One honest negative:* that change costs 3 pairs on the `bench` split (16.7% → 23.3%) while
+   fixing 17 across the other four. It ships on the pooled evidence — 300 paired pairs, exact
+   McNemar p = 0.0026 — and the regression is reported rather than smoothed over.
 3. **Runtime is above our own 300 ms target** (see the p50 column in the table above — this
    sentence deliberately does not restate the figure, because a hand-typed copy of a generated
    number is exactly what goes stale). This is a deliberate, measured trade: the narrow-refit

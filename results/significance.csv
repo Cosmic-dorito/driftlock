@@ -1,9 +1,9 @@
 scope,mislock_k,n,mislock_rate,ci95_low,ci95_high
-sponsor,8,40,0.2000,0.1050,0.3476
-bench,5,30,0.1667,0.0734,0.3356
-finfet,3,30,0.1000,0.0346,0.2562
-aggregate,16,100,0.1600,0.1010,0.2442
-paired_vs_baseline,0,100,6,0.0312,strictly dominant (no regressions)
+sponsor,2,40,0.0500,0.0138,0.1650
+bench,7,30,0.2333,0.1179,0.4093
+finfet,2,30,0.0667,0.0185,0.2132
+aggregate,11,100,0.1100,0.0625,0.1863
+paired_vs_baseline,0,100,49,0.0000,strictly dominant (no regressions)
 
 # Wilson score intervals; normal-approximation intervals go negative at n=30.
 # For scope=paired_vs_baseline: mislock_k=b, mislock_rate=c, ci95_low=exact p.

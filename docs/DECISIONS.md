@@ -903,6 +903,108 @@ robustness axis measured, 63.3% at σ = 3.0, now recorded in the envelope.
 
 ---
 
+## ADR-0032 · 2026-08-15 · accepted · Read the pose grid as evidence, not as a maximum
+
+**Decision.** `pose_evidence_beta = 5.0` ships. After the refit, candidates are ordered by
+`(1/β)·log mean exp(β·s)` over their own pose grid instead of by the grid's maximum. The maximum is
+the `β → ∞` limit of the same expression, so the previous behaviour is a special case rather than a
+different rule.
+
+**Why this does not contradict ADR-0024.** That ADR bans ranking by a *new criterion* — six of them
+failed. This adds no criterion: it is the same ZNCC, on the same grid, already computed by the
+refit, summarised differently. Nothing new is measured and nothing is weighted against anything
+else.
+
+**What forced it.** §23f measured that widening the pose bracket for the whole candidate field is
+*worse* than widening it for ten survivors — a wide search helps impostors more. That is a
+multiple-comparisons effect: each candidate gets ~25 attempts at a flattering pose, and a candidate
+whose pose surface is rough has more chance of getting lucky than one whose surface is flat and
+genuinely high. The maximum of 25 draws is therefore an upward-biased estimate of quality, with the
+bias growing in the roughness of the surface.
+
+| | pose grid | max |
+|---|---|---|
+| truth | 0.762 0.768 0.766 0.764 0.765 | 0.768 — consistently good |
+| impostor | 0.751 0.752 **0.769** 0.753 0.750 | 0.769 — one lucky sample |
+
+**Measured, paired, on every split we have** (β chosen on `dev` alone and then frozen):
+
+| split | n | shipped | + pose evidence | fixed | broke |
+|---|---|---|---|---|---|
+| dev *(tuning)* | 40 | 12.5% | 7.5% | +2 | 0 |
+| dev2 | 160 | 11.2% | **6.9%** | +7 | 0 |
+| sponsor | 40 | 20.0% | **5.0%** | +6 | 0 |
+| bench | 30 | 16.7% | 23.3% | +1 | **3** |
+| held-out FinFET | 30 | 10.0% | **6.7%** | +1 | 0 |
+| **total** | **300** | | | **+17** | **3** |
+
+**Exact McNemar over 300 paired pairs: p = 0.0026.** Reporting aggregate 16.0% → **11.0%**.
+
+**And it is free.** The grid is already computed by the refit, so this re-reads numbers rather than
+adding correlations — there is no runtime cost to weigh against the accuracy.
+
+**The honest negative.** `bench` regresses, 16.7% → 23.3%, +1/−3. It is reported in the ablation and
+in the deck rather than smoothed over. Two things bound how much weight it should carry: it is 3
+discordant pairs out of 30, and ADR-0029 measured two *identically-parameterised* splits at 20.0%
+and 26.7% — a 6.7-point swing from seed alone. bench is also not distinguished from FinFET by
+generator or envelope, and FinFET improved.
+
+**What is not claimed.** The mechanism is not established. The obvious hypothesis — that the sponsor
+split gains because its pose is fixed at 10:1/0° (H9), so averaging the grid is free there — was
+tested within `bench`+`FinFET` by pose offset and **refuted**: near-nominal 3→4, far-from-nominal
+4→4. The effect, its size and its sign are measured on 300 paired pairs; the reason is not.
+
+**A defect this exposed, worth its own line.** The first implementation made things dramatically
+worse (14.4 px → 57.6 px) because `refit_candidates` merges screened-out candidates back in, and
+*their* grids come from the 2×2 narrow screen rather than the 5×5 wide pass. A narrow grid is flat
+and high by construction, so its log-sum-exp sits near its maximum while a wide grid averages in
+poses that are genuinely wrong — ranking them together promotes exactly the candidates the screen
+rejected. **A statistic is only comparable over the same support.** The maximum happens to be immune
+to this, which is why the defect stayed invisible until the summary changed.
+
+---
+
+## ADR-0033 · 2026-08-15 · accepted · The RGB optical bonus images a coarser layer, and measures its own colour axis
+
+**Decision.** `--modality optical` generates 3-channel brightfield pairs through
+`src/synth/optical.py`. The localizer is unchanged; `src/driftlock/color.py` supplies an optional
+colour-to-single-channel projection and is a no-op on grayscale input, which a test asserts.
+
+**Why the optical path is not the SEM path in colour.** An optical microscope is diffraction-limited
+at `0.61 λ/NA` = **372.8 nm**, six times the 64 nm DRAM word-line pitch. The cell lattice is not
+blurred in this modality; it is **absent**. Rendering a colourised SEM image would have been
+physically false in a way a process engineer would spot immediately. So the optical modality images
+a **coarser layer** — mats and peripheral routing, which is what optical inspection is actually used
+for — preserving the ambiguity the task is about while changing the physics honestly.
+
+Contrast comes from thin-film interference (`4πnd/λ`), not from dye, which is why two materials can
+share a luminance and separate cleanly in one channel. Chromatic aberration and a wavelength-scaled
+PSF are modelled because they follow from the same optics and make the three channels genuinely
+non-redundant.
+
+**The result that matters.** The SEM pipeline — built around an electron probe, area-average
+decimation and Poisson-Gaussian noise — localizes diffraction-limited RGB brightfield to a **median
+of 0.10 px with no code changes**, because `load_grayscale` folds colour to luminance and the
+forward-model framing does not depend on the modality.
+
+**Why measure the colour axis rather than use luminance.** Rec. 601's weights describe the human
+eye; which channel separates two materials depends on the film thickness on the wafer. Measuring the
+direction of greatest colour variance in the **reference** (the high-dose acquisition) and applying
+it to both images gives, on 30 pairs:
+
+| arm | mis-lock | median px | p95 px | pass@1px |
+|---|---|---|---|---|
+| luma | 6.7% | 0.1003 | 11.94 | 93.3% |
+| **measured projection** | **3.3%** | 0.0929 | **0.51** | **96.7%** |
+| green channel *(control)* | 6.7% | 0.0871 | 11.89 | 93.3% |
+
+The measured direction sits **25.6°** from luminance and averages **R +0.787, G +0.610, B +0.082** —
+a real red-green mix, not a channel pick, which is what the `green` control existed to rule out. The
+mis-lock difference is +1/−0 on 30 pairs and is not significant on its own; the p95 collapse from
+11.94 px to 0.51 px is the sturdier figure.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,
