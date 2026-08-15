@@ -343,7 +343,8 @@ silently drifted the moment the shipped config changed.
 | | aggregate mis-lock |
 |---|---|
 | start of the day | 16.0% |
-| **end of the day** | **11.0%** (5.0 / 23.3 / 6.7 across sponsor / bench / FinFET) |
+| after reading the pose grid as evidence | 11.0% |
+| **end of the day** | **8.0%** (**0.0** / 20.0 / 6.7 across sponsor / bench / FinFET) |
 
 **1. The headline finding was retracted.** §35 — *"at the generator's exact pose the true site
 correlates 0.065 worse than the impostor, and the refit recovers 89%"* — was measured once in a
@@ -380,7 +381,20 @@ good. Same ZNCC, same grid, different summary — not a new criterion — and it
 decomposition, regenerated without being consulted first, confirms it acted where it should: the
 **outscored** bucket fell 9 → 4 while *absent* (3) and *screened* (4) held exactly still.
 
-**4. The RGB optical bonus shipped** (§41, ADR-0033). Not a colourised SEM — at `0.61 λ/NA` = 372.8
+**4. And then the screen widened — because the selector changed.** §23d had measured
+`refit_screen_top_n` at 6/10/15/20 and found it **flat**, so the cut point was closed. That sits
+badly against 4 failures being lost at the screen, and both cannot be true unless the truth ranks
+below every cut tested. Instrumenting it: on the four screened failures the truth sits at rank
+**12, 14, 25 and 29** of 60, while on *correct* pairs its rank is median 0, p90 0. A wider cut always
+did reach them — it never converted, because the recovered candidates were handed to the plain
+maximum. With pose evidence selecting instead: **+4 fixed / 0 broken over 140 pairs**, no split
+regressing, sponsor to **0.0%**, and aggregate 11.0% → **8.0%** (ADR-0034). The decomposition's
+*screened* bucket went 4 → **0**.
+
+> **A parameter measured as "flat" is flat against the pipeline it was measured in.** The trigger
+> was a contradiction between two of our own recorded results, not a new idea.
+
+**5. The RGB optical bonus shipped** (§41, ADR-0033). Not a colourised SEM — at `0.61 λ/NA` = 372.8
 nm the 64 nm cell lattice is *absent*, so the modality images a coarser layer. The unchanged
 pipeline localizes diffraction-limited RGB brightfield to **0.10 px median**, and measuring the
 colour projection instead of assuming Rec. 601 luminance halves mis-lock (6.7% → 3.3%) and collapses

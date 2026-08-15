@@ -179,7 +179,19 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         refit_scale_span=0.03,
         refit_rotation_span=1.5,
         refit_screen_steps=2,
-        refit_screen_top_n=10,
+        # Widened from 10 (15 Aug). See ADR-0034 and FINDINGS section 40h-40i.
+        #
+        # FINDINGS 23d measured this at 6/10/15/20 and found it FLAT, so the cut point was closed.
+        # That was true of the selector it was measured with. Instrumenting the screen showed the
+        # truth sitting at rank 12, 14, 25 and 29 on the four screened failures, so a wider cut
+        # always DID reach them - it just never converted, because the candidates it recovered were
+        # handed to the plain maximum, which is the thing that loses ties (ADR-0032).
+        #
+        # With pose evidence doing the selecting: +4 fixed / -0 broken over 140 pairs, strictly
+        # dominant on every split, and runtime x1.05 - the wide refit groups candidates by pose and
+        # builds each template once, so extra candidates inside an existing group cost correlations
+        # but not template construction.
+        refit_screen_top_n=30,
         # Read the refit's pose grid as evidence rather than taking its maximum (15 Aug).
         # See ADR-0032 and FINDINGS section 40.
         #

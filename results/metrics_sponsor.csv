@@ -1,21 +1,21 @@
 metric,value
 n_pairs,40
-error_mean_px,4.7317
-error_median_px,0.195229
-error_p95_px,5.28977
-error_worst_px,95.17
-mislock_rate,0.05
-n_mislocks,2
-pass@5px,0.95
-pass@4px,0.95
-pass@2px,0.95
-pass@1px,0.925
-pass@subpixel(0.5px),0.875
+error_mean_px,0.225494
+error_median_px,0.179023
+error_p95_px,0.539362
+error_worst_px,1.07087
+mislock_rate,0
+n_mislocks,0
+pass@5px,1
+pass@4px,1
+pass@2px,1
+pass@1px,0.975
+pass@subpixel(0.5px),0.925
 error_median_px_located_only,0.179023
-error_mean_px_located_only,0.227609
-runtime_p50_ms,381.62
-runtime_p95_ms,445.276
-runtime_mean_ms,388.069
+error_mean_px_located_only,0.225494
+runtime_p50_ms,704.725
+runtime_p95_ms,828.209
+runtime_mean_ms,715.515
 python_version,3.14.3
 platform,Windows 11 (AMD64)
 processor,"Intel64 Family 6 Model 170 Stepping 4, GenuineIntel"

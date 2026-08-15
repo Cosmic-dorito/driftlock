@@ -18,14 +18,20 @@ work. If time runs out right now, ship what is in `dist/`.
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | p50 |
 |---|---|---|---|---|---|
-| sponsor (40) | **5.0%** | 0.195 | 92.5% | 87.5% | 394 ms |
-| bench (30, ours) | 23.3% | 0.357 | 73.3% | 60.0% | 377 ms |
-| holdout FinFET (30) | **6.7%** | 0.214 | 86.7% | 73.3% | 382 ms |
+| sponsor (40) | **0.0%** | 0.179 | 97.5% | 92.5% | ⚠️ see below |
+| bench (30, ours) | 20.0% | 0.330 | 76.7% | 63.3% | " |
+| holdout FinFET (30) | **6.7%** | 0.214 | 86.7% | 73.3% | " |
 
-Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **11/100 = 11.0%** (16.0% earlier the same day,
-22.0% three days ago).
+Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **8/100 = 8.0%** (11.0% and 16.0% earlier the
+same day, 22.0% three days ago).
 
-Paired against the baseline on the same 100 pairs: **0 regressions, 49 fixes, exact McNemar
+⚠️ **Runtime is NOT currently certified.** The last benchmark ran on a throttled machine — its own
+gate flagged a baseline control of 76 ms against a quiet-machine 22 ms — so `results/runtime.csv`
+holds a rejected run. Re-run `scripts/benchmark_runtime.py` on a settled machine before quoting any
+p50. The widened screen (ADR-0034) costs somewhere between ×1.05 and ~×1.9 and that is not yet
+pinned down.
+
+Paired against the baseline on the same 100 pairs: **0 regressions, 52 fixes, exact McNemar
 p = 0.000** (`results/significance.csv`). Quote the paired test, not the marginal rates - the
 Wilson intervals overlap and would show nothing either way.
 
@@ -41,9 +47,17 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                pose_search=True, top_k=10, candidate_refit=True,
                median_filter=True,
                refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
-               refit_screen_steps=2, refit_screen_top_n=10,
+               refit_screen_steps=2, refit_screen_top_n=30,
                pose_evidence_beta=5.0)
 ```
+
+Changed 15 Aug — `refit_screen_top_n` 10 → 30. §23d had measured this knob at 6/10/15/20 and found
+it **flat**, so it was closed. Instrumenting the screen showed the truth sitting at rank 12, 14, 25
+and 29 on the four screened failures (median 0 on correct pairs), so a wider cut always did reach
+them — it never converted, because the recovered candidates were handed to the plain maximum. With
+`pose_evidence_beta` selecting instead: **+4 fixed / 0 broken over 140 pairs**, no split regressing,
+and the *screened* failure bucket went 4 → 0. **A parameter measured as "flat" is flat against the
+pipeline it was measured in.** See ADR-0034 and FINDINGS §40h–40i.
 
 Changed 15 Aug — `pose_evidence_beta`. After the refit, candidates are ordered by the log-sum-exp of
 their own pose grid instead of by its maximum. The maximum over ~25 poses is upward-biased, and the

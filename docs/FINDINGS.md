@@ -3150,6 +3150,134 @@ That is also the sharpest available answer to the §37 question of whether the r
 were *selection* errors. Some of them were, and the margin that decided them was recoverable — not
 by scoring harder, but by reading the score that was already there without the maximum's bias.
 
+### 40g. The pose surface has nothing left in it beyond mean-versus-max ❌
+
+The obvious follow-up, and the review's top recommendation once §40 landed: if reading the grid as
+evidence beats reading its maximum, read *more* of it. The grid is a likelihood over the nuisance
+pose, so its **shape** should carry information a single interpolation between mean and max cannot —
+how concentrated the evidence is, and how many independent chances the candidate really had.
+
+Four more statistics, on the same cached grids, so the comparison is exactly paired and costs
+nothing. All parameters chosen on `dev` and frozen; **the reference is the shipped LSE**, not the
+maximum it already replaced, so nothing re-credits a gain that is already banked.
+
+| selector | sponsor | bench | FinFET | aggregate |
+|---|---|---|---|---|
+| **lse β = 5 — shipped** | **5.0%** | 20.0% | **6.7%** | **10.0%** |
+| grid mean | 10.0% | 20.0% | 6.7% | 12.0% |
+| plain maximum | 20.0% | 13.3% | 10.0% | 15.0% |
+| top-3 mean | 20.0% | 16.7% | 6.7% | 15.0% |
+| `max − λ·σ` | 22.5% | 13.3% | 10.0% | 16.0% |
+| **extreme-value, effective trials** | 22.5% | 13.3% | 10.0% | 16.0% |
+| peakiness (`max − median`) | 25.0% | 13.3% | 10.0% | 17.0% |
+| **entropy-penalised** | 25.0% | 16.7% | 10.0% | 18.0% |
+
+**Every one is worse, and each breaks 6–8 sponsor pairs the LSE gets right.**
+
+Two of these were designed to be the principled version of something that already half-worked. The
+effective-trials correction estimates `N_eff` per candidate from the lag-1 autocorrelation of its
+own surface — a fixed look-elsewhere term cannot reorder anything, because every candidate draws the
+same number of samples, so smoothness is the only thing that differs. It is the right correction and
+it does not help. The entropy penalty asks whether the true site concentrates its evidence and the
+impostor spikes; it makes things measurably worse.
+
+> **The usable direction is toward averaging, and everything that adds surface *shape* degrades.**
+> `mean` (12.0%) is the closest competitor to `lse β=5` (10.0%); every statistic that reads the
+> grid's structure rather than its central tendency lands at 15–18%.
+
+So the pose surface is not a rich object with more to extract. It is a noisy sample of one number,
+and the whole value of §40 is that averaging estimates that number better than maximising does. That
+also explains why β = 5 sits near the mean end of the family rather than at some interesting middle.
+
+### 40h. Where the truth actually sits in the screen's ranking
+
+The review's next target was the screen: 4 of the 11 remaining failures are lost there, so an
+uncertainty-preserving cut should recover them. That sits oddly against §23d, which measured
+`refit_screen_top_n` at 6, 10, 15 and 20 and found it **flat**. Both cannot be true unless the truth
+is ranked far below any of those cuts — so measure the rank before building anything.
+
+All 11 failures, with the rank the *screen* assigns the true site among 60 candidates:
+
+| where the truth is | failures | ranks |
+|---|---|---|
+| **absent** — never a candidate | 3 | — |
+| **survives the screen and still loses** | 4 | 0, 0, 0, 2 |
+| **cut by the screen** | 4 | **12, 14, 25, 29** |
+
+On *correct* pairs the truth's screen rank is median **0**, p90 **0** — the screen is excellent
+almost always, and these four are its genuine misses.
+
+**And the contradiction resolves.** A top-15 cut reaches two of them, a top-30 cut reaches all four.
+§23d found widening flat because *recovering a candidate is not winning*: the truth entered the wide
+refit and then lost the final comparison to the plain maximum. **ADR-0032 replaced that selector.**
+So the question is open again for a reason, not out of optimism — measured in §40i.
+
+### 40i. The screen widens, and it is strictly dominant ✅
+
+Same frozen configuration, only `refit_screen_top_n` varying, every pair scored under all four cuts:
+
+| `top_n` | dev | sponsor | bench | FinFET | reporting | runtime |
+|---|---|---|---|---|---|---|
+| **10** *(was shipped)* | 7.5% | 5.0% | 23.3% | 6.7% | **11.0%** | ×1.00 |
+| 15 | 7.5% | **0.0%** | 23.3% | 6.7% | 9.0% | ×0.96 |
+| 20 | 7.5% | **0.0%** | 23.3% | 6.7% | 9.0% | ×1.01 |
+| **30** | **5.0%** | **0.0%** | **20.0%** | 6.7% | **8.0%** | ×1.05 *(see caveat)* |
+
+> **+4 fixed, 0 broken over 140 pairs. Not one split regresses, and the sponsor split reaches
+> 0.0% mis-lock.**
+
+Three things make this shippable rather than a lucky draw:
+
+* **`dev` alone selects 30** (5.0% against 7.5% at every narrower cut), so the choice is made on the
+  tuning split and the reporting splits only confirm it (R5).
+* **Zero breaks everywhere.** The exact McNemar is p = 0.125 — four discordant pairs all falling one
+  way is the best attainable outcome at this sample size, exactly as ADR-0029 describes.
+* **The cost is well below ×3, but it is NOT yet cleanly measured.** The ×1.05 above comes from the
+  interleaved sweep, which held conditions constant across configurations but ran on a loaded
+  machine, and a loaded machine compresses relative differences. The clean re-measure was rejected
+  by the benchmark's own gate: **baseline control 76 ms against a quiet-machine 22 ms.** The
+  ratio-to-baseline column drifts as well, because the heavier workload throttles harder than the
+  control (20.8x before, 25.9x while throttled). Honest bound: **between ×1.05 and roughly ×1.9,
+  pending a settled-machine run.** What is structural is that tripling the candidate count does not
+  triple the work - the wide refit groups candidates by pose and builds each template once (§23's
+  hoist), so extra candidates cost correlations, not template construction.
+
+**And it only works now.** This is the same knob §23d closed. What changed is not the knob but what
+receives its output: a wider field hands impostors more chances (§23f), and the plain maximum is
+precisely the statistic that cashes those chances in. Once selection stopped rewarding the luckiest
+sample, the cost of a wider field fell below its benefit.
+
+That is a general lesson worth more than the three points: **a parameter measured as "flat" is flat
+against the pipeline it was measured in.** ADR-0027 said stages must be judged in the regime they
+target; this says the same about *configuration*, and the trigger to re-open it was a contradiction
+between two of our own recorded results rather than a new idea.
+
+**The ablation makes the interaction explicit, and it is the cleanest evidence in the document:**
+
+| configuration | sponsor | bench | FinFET | aggregate |
+|---|---|---|---|---|
+| **DEFAULT** — top_n = 30 **+** pose evidence | **0.0%** | 20.0% | 6.7% | **8%** |
+| top_n = 10 + pose evidence | 5.0% | 23.3% | 6.7% | 11% |
+| top_n = 30, **no** pose evidence | 20.0% | 16.7% | 10.0% | 17% |
+| top_n = 10, no pose evidence | 20.0% | 16.7% | 10.0% | 17% |
+
+> **The last two rows are identical to the decimal.** Widening the screen without the evidence
+> selector is worth *exactly nothing* — which is §23d's flat result, reproduced on demand. The two
+> stages are not additive; the second only exists because the first landed.
+
+**The decomposition confirms the mechanism, again without being consulted first:**
+
+| stage that lost it | before §40 | after §40 | after §40i |
+|---|---|---|---|
+| never a candidate | 3 | 3 | **3** |
+| **cut by the screen** | 4 | 4 | **0** |
+| outscored at the final comparison | 9 | 4 | 5 |
+
+**The screened bucket is empty.** Three of the four recovered pairs became correct outright; one
+reached the final comparison and lost there, which is why *outscored* ticks from 4 to 5. Each of the
+two stages moved exactly the bucket it addresses and left the others alone — and *absent* has not
+moved at all through any of this, because nothing yet built touches candidate generation.
+
 ---
 
 ## 41. The RGB optical extension: the pipeline transfers, and the colour is worth measuring ✅

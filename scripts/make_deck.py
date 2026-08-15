@@ -562,6 +562,23 @@ def load_pose_ceiling() -> dict[str, str]:
                 if row.get("metric") and not row["metric"].startswith("#")}
 
 
+def runtime_is_representative() -> bool:
+    """Did the last benchmark run on a machine whose control was in its normal range?
+
+    ``scripts/benchmark_runtime.py`` records this, and ``docs/RESULTS.md`` already honours it. The
+    deck did not, and it prints a runtime column of its own read from the metrics files rather than
+    from runtime.csv - so a throttled afternoon's milliseconds would appear on a slide with nothing
+    saying so. A number that is not representative has to carry that on its face.
+    """
+    path = RESULTS / "runtime.csv"
+    if not path.exists():
+        return True
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("# absolute_ms_representative,"):
+            return line.split(",", 1)[1].strip().startswith("yes")
+    return True
+
+
 def load_scan_calibration() -> dict[str, str]:
     """The global scan-field result: how much the correction lifts each of the two candidates.
 
@@ -828,10 +845,15 @@ def slide_results(prs, M):
     chart.font.size = Pt(10)
 
     env = M["bench"]
-    text(s, 0.6, 6.95, 12.1, 0.3,
-         f"{env['platform']} · {env['processor'][:44]} · Python {env['python_version']} · "
-         f"OpenCV {env['opencv_version']} · {env['timing_method']}",
-         size=9, color=GREY, italic=True)
+    footer = (f"{env['platform']} · {env['processor'][:44]} · Python {env['python_version']} · "
+              f"OpenCV {env['opencv_version']} · {env['timing_method']}")
+    if not runtime_is_representative():
+        text(s, 0.6, 6.70, 12.1, 0.3,
+             "Runtime p50 was measured on a throttled machine — the benchmark's baseline control "
+             "read far above its quiet value — so those milliseconds are not representative. "
+             "Accuracy is unaffected; re-run scripts/benchmark_runtime.py on a rested machine.",
+             size=9.5, bold=True, color=RED)
+    text(s, 0.6, 6.95, 12.1, 0.3, footer, size=9, color=GREY, italic=True)
 
 
 def slide_ablation(prs, M, ABL):
@@ -850,10 +872,12 @@ def slide_ablation(prs, M, ABL):
         # No leading whitespace: load_ablation() strips every cell, so a key written with the
         # indentation run_ablation.py uses for its sub-rows silently matches nothing and the row
         # vanishes from the slide without any error. Caught by rendering and counting rows.
-        ("the DEFAULT minus pose evidence", "+ per-candidate pose refit   ← shipped",
-         "solves geometry"),
-        ("** + screened wide refit + median  [DEFAULT] **",
+        ("the DEFAULT with the old top_n=10 screen and no pose evidence",
+         "+ per-candidate pose refit   ← shipped", "solves geometry"),
+        ("the DEFAULT with the old top_n=10 screen",
          "+ pose grid as evidence   ← shipped", "solves selection"),
+        ("** + screened wide refit + median  [DEFAULT] **",
+         "+ wider screen (top 30)   ← shipped", "recovers candidates"),
         ("+ centre rule on the default  [prior absent here]", "+ spec's centre rule",
          "prior absent"),
         ("+ pose: spectral lattice  [LESS ACCURATE]", "+ pose: spectral lattice", "less accurate"),

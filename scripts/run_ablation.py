@@ -89,6 +89,15 @@ def ladder() -> list[PipelineConfig]:
         # can we. beta = 0 is the plain maximum, so this row IS the previous configuration.
         replace(build_config(argparse.Namespace(config="driftlock")),
                 pose_evidence_beta=0.0, label="   the DEFAULT minus pose evidence"),
+        # The two 15-Aug stages INTERACT: the wider cut only pays off because pose evidence is doing
+        # the selecting (ADR-0034), and with the old maximum it was measured as flat (23d). So the
+        # table needs both the cumulative chain and each stage removed on its own, or a reader
+        # cannot see that the order mattered.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                refit_screen_top_n=10, label="   the DEFAULT with the old top_n=10 screen"),
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                refit_screen_top_n=10, pose_evidence_beta=0.0,
+                label="   the DEFAULT with the old top_n=10 screen and no pose evidence"),
 
         # --- measured negative results, kept per R9 ---
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),

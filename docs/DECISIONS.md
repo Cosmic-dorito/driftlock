@@ -964,6 +964,73 @@ to this, which is why the defect stayed invisible until the summary changed.
 
 ---
 
+## ADR-0034 · 2026-08-15 · accepted · The screen widens to 30, because the selector that receives it changed
+
+**Decision.** `refit_screen_top_n` 10 → 30.
+
+**What forced it.** 4 of the 11 remaining failures were lost at the screen, and §23d had already
+measured this exact knob at 6/10/15/20 and found it **flat** — so the cut point was closed. Both
+facts cannot hold unless the truth ranks far below every cut tested, which is checkable. Instrumenting
+the screen on all 100 pairs:
+
+| where the truth is | failures | rank the screen gives it |
+|---|---|---|
+| absent — never a candidate | 3 | — |
+| survives the screen and still loses | 4 | 0, 0, 0, 2 |
+| **cut by the screen** | 4 | **12, 14, 25, 29** |
+
+On *correct* pairs the truth's screen rank is median 0, p90 0. So a wider cut always did reach these
+four. §23d found it flat because **recovering a candidate is not winning**: they entered the wide
+refit and lost the final comparison to the plain maximum — the statistic ADR-0032 replaced.
+
+**Measured, same pairs, only the cut varying:**
+
+| `top_n` | dev | sponsor | bench | FinFET | reporting | runtime |
+|---|---|---|---|---|---|---|
+| 10 | 7.5% | 5.0% | 23.3% | 6.7% | 11.0% | ×1.00 |
+| 15 | 7.5% | 0.0% | 23.3% | 6.7% | 9.0% | ×0.96 |
+| 20 | 7.5% | 0.0% | 23.3% | 6.7% | 9.0% | ×1.01 |
+| **30** | **5.0%** | **0.0%** | **20.0%** | 6.7% | **8.0%** | see below |
+
+**+4 fixed, 0 broken over 140 pairs, exact McNemar p = 0.125.** No split regresses; sponsor reaches
+0.0%. `dev` alone selects 30, so the choice is made on the tuning split (R5) and the reporting splits
+confirm it.
+
+**The runtime cost is not yet cleanly measured, and the first two attempts were both unusable.** The
+interleaved sweep above reads ×1.05, but it ran four configurations per pair on a loaded machine,
+which compresses relative differences. A clean re-measure then reported a **baseline control at
+76 ms against a quiet-machine 22 ms** — the machine was throttled and the benchmark's own gate said
+so and refused to certify. The ratio-to-baseline column drifts too, because the heavier workload
+throttles harder than the control does (20.8× before, 25.9× while throttled).
+
+So the honest statement is: **the cost is somewhere between ×1.05 and roughly ×1.9, and it must be
+re-measured on a settled machine before any figure is quoted.** What is structurally true is that
+tripling the candidate count does *not* triple the work — the wide refit groups candidates by pose
+and builds each template once (§23's hoist), so the extra candidates cost correlations inside
+existing pose groups rather than template construction, which dominates. That bounds the cost well
+below ×3 but does not pin it.
+
+**The ablation isolates both stages and shows they are not additive:**
+
+| configuration | sponsor | bench | FinFET |
+|---|---|---|---|
+| **DEFAULT** — top_n = 30 **+** pose evidence | **0.0%** | 20.0% | 6.7% |
+| top_n = 10 + pose evidence | 5.0% | 23.3% | 6.7% |
+| top_n = 30, **no** pose evidence | 20.0% | 16.7% | 10.0% |
+| top_n = 10, no pose evidence | 20.0% | 16.7% | 10.0% |
+
+The last two rows are **identical to the decimal**: widening the screen buys nothing without the
+evidence selector, which is §23d's flat measurement reproduced on demand.
+
+**The general lesson, which is worth more than the three points.** §23f's warning that a wider field
+hands impostors more chances is still true; the plain maximum is simply the statistic that cashes
+those chances in. Once selection stopped rewarding the luckiest sample, a wider field became a net
+gain. **A parameter measured as "flat" is flat against the pipeline it was measured in.** ADR-0027
+says stages must be judged in the regime they target; this says the same of configuration. What
+re-opened it was a contradiction between two of our own recorded results, not a new idea.
+
+---
+
 ## ADR-0033 · 2026-08-15 · accepted · The RGB optical bonus images a coarser layer, and measures its own colour axis
 
 **Decision.** `--modality optical` generates 3-channel brightfield pairs through

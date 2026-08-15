@@ -130,6 +130,75 @@ def select_ev(values: np.ndarray, fallback: float, lam: float = 1.0, **_) -> flo
     return float(values.max() - lam * values.std())
 
 
+def _pose_probabilities(values: np.ndarray, beta: float) -> np.ndarray:
+    """The pose grid read as a distribution over the nuisance parameter."""
+    shifted = beta * (values - values.max())
+    weights = np.exp(shifted)
+    total = weights.sum()
+    return weights / total if total > 0 else np.full(values.shape, 1.0 / values.size)
+
+
+def select_entropy(values: np.ndarray, fallback: float, beta: float = 200.0,
+                   gamma: float = 0.01, **_) -> float:
+    """Peak height, discounted by how DIFFUSE the candidate's pose likelihood is.
+
+    A true site should concentrate its evidence near one pose; a candidate that got lucky at one
+    sample has a flat surface with a spike on it. Normalised by log(n) so the penalty is
+    grid-size-independent and gamma keeps its units.
+    """
+    if values is None or values.size < 2:
+        return fallback
+    p = _pose_probabilities(values, beta)
+    entropy = float(-(p * np.log(p + 1e-300)).sum() / math.log(values.size))
+    return float(values.max() - gamma * entropy)
+
+
+def _effective_trials(values: np.ndarray) -> float:
+    """How many INDEPENDENT pose samples this candidate effectively drew.
+
+    A fixed look-elsewhere correction cannot reorder anything - every candidate is scored on the
+    same grid, so the count is a constant. What differs is smoothness: a surface whose neighbouring
+    samples are highly correlated is really one or two independent draws, while a jagged one is
+    closer to n. Estimated as ``n * (1 - rho)`` with rho the lag-1 autocorrelation, clipped to
+    [1, n], which is the standard effective-sample-size correction for a correlated series.
+    """
+    n = values.size
+    if n < 3:
+        return float(n)
+    centred = values - values.mean()
+    denom = float((centred * centred).sum())
+    if denom < 1e-15:
+        return 1.0
+    rho = float((centred[:-1] * centred[1:]).sum() / denom)
+    return float(np.clip(n * (1.0 - rho), 1.0, n))
+
+
+def select_ev_neff(values: np.ndarray, fallback: float, lam: float = 1.0, **_) -> float:
+    """Extreme-value correction using the EFFECTIVE number of pose trials.
+
+    ``max - lam * sigma * sqrt(2 log N_eff)`` is the Gumbel-style expectation of the maximum of
+    ``N_eff`` draws, so this asks how surprising the peak is rather than how large it is. This is
+    the principled version of ``select_ev``'s ``max - lam*std``, which used the spread directly and
+    ignored that the spread and the number of chances are separate quantities.
+    """
+    if values is None or values.size < 3:
+        return fallback
+    n_eff = _effective_trials(values)
+    return float(values.max() - lam * values.std() * math.sqrt(2.0 * math.log(max(n_eff, 1.0001))))
+
+
+def select_peakiness(values: np.ndarray, fallback: float, gamma: float = 1.0, **_) -> float:
+    """Peak height plus a reward for the peak standing above its own surface.
+
+    The complement of the entropy selector: instead of penalising diffuseness it rewards contrast
+    between the maximum and the bulk. Included because the two can disagree, and a hypothesis that
+    only one of them captures the effect is worth being able to reject.
+    """
+    if values is None or values.size < 2:
+        return fallback
+    return float(values.max() + gamma * (values.max() - float(np.median(values))))
+
+
 SELECTORS = {
     "max": (select_max, {}),
     "top3": (select_top3, {}),
@@ -140,7 +209,17 @@ SELECTORS = {
     "lse": (select_lse, {"beta": [5.0, 10.0, 25.0, 50.0, 100.0, 200.0, 400.0, 800.0]}),
     "mean": (select_mean, {}),
     "ev": (select_ev, {"lam": [0.1, 0.25, 0.5, 1.0, 2.0]}),
+    # Experiment A, second round: the grid holds more than a location parameter. These read its
+    # SHAPE - how concentrated the evidence is, and how many independent chances the candidate
+    # really had at its peak - rather than only its height.
+    "entropy": (select_entropy, {"gamma": [0.002, 0.005, 0.01, 0.02, 0.05]}),
+    "ev_neff": (select_ev_neff, {"lam": [0.05, 0.1, 0.25, 0.5, 1.0]}),
+    "peaky": (select_peakiness, {"gamma": [0.1, 0.25, 0.5, 1.0, 2.0]}),
 }
+
+# The shipped selector, so every row is compared against what actually runs today rather than
+# against the maximum it already replaced.
+SHIPPED = ("lse", {"beta": 5.0})
 
 
 # ---------------------------------------------------------------------------------------
@@ -218,7 +297,13 @@ def evaluate(rows: list, selector, **kwargs) -> dict:
                     if c["grid"] is not None and np.asarray(c["grid"]).shape == widest] or cands
         scored = [(selector(_clean(c["grid"]), c["score"], **kwargs), c) for c in eligible]
         chosen = max(scored, key=lambda t: t[0])[1]
-        current = cands[0]                       # the pipeline's own pick, already sorted by score
+        # The reference is what SHIPS, not the maximum it already replaced. Comparing every new
+        # statistic against the plain argmax would keep re-crediting the gain ADR-0032 already
+        # banked and hide whether anything further is on the table.
+        shipped_fn, shipped_kwargs = SELECTORS[SHIPPED[0]][0], SHIPPED[1]
+        shipped_scored = [(shipped_fn(_clean(c["grid"]), c["score"], **shipped_kwargs), c)
+                          for c in eligible]
+        current = max(shipped_scored, key=lambda t: t[0])[1]
         ok = math.hypot(chosen["x"] - gx, chosen["y"] - gy) <= NEAR_PX
         was_ok = math.hypot(current["x"] - gx, current["y"] - gy) <= NEAR_PX
         bad += not ok

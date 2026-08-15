@@ -186,12 +186,12 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 
 | Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | Runtime p50 |
 |---|---|---|---|---|---|---|---|
-| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 19 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **5.0%** | **0.195** | **92.5%** | **87.5%** | 90.0% | 394 ms (21x base) |
-| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 19 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **23.3%** | **0.357** | **73.3%** | **60.0%** | 86.7% | 377 ms (20x base) |
-| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 18 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **6.7%** | **0.214** | **86.7%** | **73.3%** | 90.0% | 382 ms (20x base) |
+| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 85 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **0.0%** | **0.179** | **97.5%** | **92.5%** | 90.0% | 2166 ms (25x base) |
+| **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 87 ms |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **20.0%** | **0.330** | **76.7%** | **63.3%** | 86.7% | 1927 ms (23x base) |
+| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 85 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **6.7%** | **0.214** | **86.7%** | **73.3%** | 90.0% | 1984 ms (23x base) |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
 
@@ -202,6 +202,8 @@ Two different things are being measured and should not be averaged together. On 
 **Hardware:** Windows 11 (AMD64) · Intel64 Family 6 Model 170 Stepping 4, GenuineIn. **Python version:** 3.14.3, OpenCV 5.0.0, 22 thread(s).
 
 **Timing method:** runtimes come from `scripts/benchmark_runtime.py`, which interleaves the splits round-robin and discards a warm-up. The **x-baseline** figure is the one to compare across machines: this laptop throttles by up to 3x for identical code over a long session and does not recover on idling, and across three states in one day the absolute p50 moved 400 -> 630 -> 1262 ms while the ratio to the baseline held at 20.0, 18.5 and 18.8. The baseline is therefore run as a control in the same interleaved pass.
+
+> ⚠️ **The absolute milliseconds in this table were measured on a throttled machine** — the baseline control read far above its quiet-machine value — and are not representative. The x-baseline ratios are unaffected. Re-run `scripts/benchmark_runtime.py` on a rested machine before quoting the p50 figures.
 
 <!-- END GENERATED README RESULTS -->
 
@@ -225,21 +227,27 @@ Stated plainly rather than left for a judge to find.
    reproduce — the figure it compared against was the maximum of the correlation surface rather than
    a score at a location, and a maximum over ~810,000 positions exceeds any nominated point by
    construction. The retraction is [FINDINGS §37](docs/FINDINGS.md); nothing shipped was affected.*
-2. **Selection is not solved, and the screen is a hard gate.** Every pass rate is capped by the
-   mis-lock rate. Each failure is classified by the stage that lost it, in
-   [`results/failure_decomposition.csv`](results/failure_decomposition.csv): of the 11 failures
-   across 100 pairs, **3 were never candidates at all** (no selection rule can recover those),
-   **4 were cut by the screen** before the expensive geometry ran, and **4 reached the final
-   comparison and lost on correlation**. Only that last group is addressable by ranking, and it is
-   where the newest stage acted: reading the refit's pose grid as evidence rather than taking its
-   maximum ([ADR-0032](docs/DECISIONS.md)) cut it from 9 to 4 while leaving the other two buckets
-   unchanged. Six *other* re-ranking criteria were built, measured and rejected before it — all six
-   are in the ablation with their numbers, and the principle they establish
-   ([ADR-0024](docs/DECISIONS.md)) is why this one is a different *summary* of the existing score
+2. **Candidate generation is now the binding constraint.** Every pass rate is capped by the mis-lock
+   rate, and each failure is classified by the stage that lost it in
+   [`results/failure_decomposition.csv`](results/failure_decomposition.csv). Of the 8 remaining
+   failures across 100 pairs, **3 were never candidates at all**, **0 were cut by the screen**, and
+   **5 reached the final comparison and lost on correlation**.
+
+   Two changes on 15 Aug produced that. Reading the refit's pose grid as evidence rather than taking
+   its maximum ([ADR-0032](docs/DECISIONS.md)) cut the *outscored* bucket from 9 to 4. Widening the
+   screen's cut from 10 to 30 ([ADR-0034](docs/DECISIONS.md)) then emptied the *screened* bucket,
+   4 → 0 — and it only works in that order: the same knob had been measured as flat, because the
+   candidates a wider cut recovers used to be handed to the plain maximum, which is the statistic
+   that loses ties. Six *other* re-ranking criteria were built, measured and rejected before either
+   of these; all six are in the ablation with their numbers, and the principle they establish
+   ([ADR-0024](docs/DECISIONS.md)) is why ADR-0032 is a different *summary* of the existing score
    rather than a new criterion.
-   *One honest negative:* that change costs 3 pairs on the `bench` split (16.7% → 23.3%) while
-   fixing 17 across the other four. It ships on the pooled evidence — 300 paired pairs, exact
-   McNemar p = 0.0026 — and the regression is reported rather than smoothed over.
+
+   *One honest negative:* ADR-0032 costs 3 pairs on the `bench` split while fixing 17 across the
+   other four. Its independent evidence is +8/−3 on the 100 reporting pairs (p = 0.227); the pooled
+   +17/−3 over 300 pairs (p = 0.0026) includes the tuning splits and is a reproducibility statement,
+   not an independent one. **`absent` has not moved through any of this** — nothing built so far
+   touches candidate generation, which is where the remaining headroom is.
 3. **Runtime is above our own 300 ms target** (see the p50 column in the table above — this
    sentence deliberately does not restate the figure, because a hand-typed copy of a generated
    number is exactly what goes stale). This is a deliberate, measured trade: the narrow-refit
