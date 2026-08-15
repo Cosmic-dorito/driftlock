@@ -170,7 +170,12 @@ def main() -> int:
         print(f"     p95/p50 = {spread:.2f} against a steady-machine {MAX_P95_RATIO:.2f}. The first "
               "heavy run after idle does this.")
         print("     Re-run; a second pass in steady state is usually the trustworthy one.")
-    if suspect:
+    # Only blame the CONTROL when the control is actually high. Both gates used to print this
+    # message, so a run whose control read a perfectly healthy 19 ms - FASTER than the 22 ms
+    # reference - was reported as "the machine is throttled or loaded". That sends the reader after
+    # a thermal problem that does not exist, when the real complaint is dispersion and the fix is
+    # simply to re-run.
+    if base_median > BASELINE_QUIET_MS * 1.5:
         print(f"\n  ** WARNING: baseline control at {base_median:.0f} ms against a quiet-machine "
               f"{BASELINE_QUIET_MS:.0f} ms.")
         print("     The machine is throttled or loaded; the absolute milliseconds below are NOT "

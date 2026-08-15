@@ -207,6 +207,36 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         # better. beta=5 chosen on dev alone and frozen. Paired, 300 pairs across five splits:
         # +17 fixed / -3 broken, exact McNemar p = 0.0026, and it costs no correlations at all.
         pose_evidence_beta=5.0,
+        # Extra candidate PROPOSALS from the lattice residual (15 Aug). See ADR-0035 and
+        # FINDINGS section 42.
+        #
+        # After ADR-0034 the failure decomposition was 3 absent / 0 screened / 5 outscored, and
+        # `absent` is the one bucket no selection change can reach - the true site never enters the
+        # candidate set. Oracle-pose forensics showed all three absent sites ARE visible to some
+        # representation, and a per-channel ablation showed the lattice residual carries the entire
+        # benefit while variance and edge contribute nothing.
+        #
+        # This ADDS locations only. Their scores come from a different surface and never enter the
+        # comparison - the existing ZNCC and the existing refit re-score everything on the original
+        # intensity image, which is what keeps it a coverage change rather than a ranking one
+        # (ADR-0024). Provenance confirms the mechanism: across 100 pairs exactly one
+        # auxiliary-proposed candidate ever wins, and it is a rescue.
+        #
+        # +4 fixed / 0 broken over 300 pairs across five splits. k=3 because k=3/5/8 measure
+        # identically, so the fewest extra candidates wins on parsimony. Costs ~1.46x runtime.
+        proposal_channels="residual",
+        proposal_top_k=3,
+        # Half resolution for the proposal stage. Provenance showed the candidate pool growing only
+        # 60 -> 63 while runtime grew 1.46x, so the cost is the residual's own computation - two
+        # dozen warps of a 1000x1000 image plus a correlation per pose - not the extra candidates.
+        # A proposal only has to say "look near here"; the refit finds the exact location on the
+        # intensity image afterwards.
+        #
+        # Measured: +0 fixed / -0 broken across all 300 pairs, and 0.79x the runtime of the
+        # full-resolution version. L4 was also tested and loses 2 pairs, so the aperiodic signal
+        # survives one halving and not two. tests/test_proposals.py pins the coordinate invariant
+        # so a future mistake here cannot masquerade as an accuracy loss.
+        proposal_level=2,
     )
 
 

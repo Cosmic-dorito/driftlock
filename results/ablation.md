@@ -17,11 +17,14 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 22.5% | 46.7% | 60.0% |
 | + pose: pyramid | 27.5% | 26.7% | 33.3% |
 | + per-candidate pose refit, narrow | 25.0% | 23.3% | 16.7% |
-| ** + screened wide refit + median  [DEFAULT] ** | 0.0% | 20.0% | 6.7% |
-|    the DEFAULT minus the median filter | 7.5% | 26.7% | 10.0% |
-|    the DEFAULT minus pose evidence | 20.0% | 16.7% | 10.0% |
-|    the DEFAULT with the old top_n=10 screen | 5.0% | 23.3% | 6.7% |
-|    the DEFAULT with the old top_n=10 screen and no pose evidence | 20.0% | 16.7% | 10.0% |
+| ** + screened wide refit + median  [DEFAULT] ** | 0.0% | 16.7% | 3.3% |
+|    the DEFAULT minus the median filter | 7.5% | 23.3% | 10.0% |
+|    the DEFAULT minus pose evidence | 20.0% | 16.7% | 6.7% |
+|    the DEFAULT with the old top_n=10 screen | 5.0% | 23.3% | 3.3% |
+|    the DEFAULT with the old top_n=10 screen and no pose evidence | 20.0% | 16.7% | 6.7% |
+|    the DEFAULT minus residual proposals | 0.0% | 20.0% | 6.7% |
+| + variance proposals instead  [NO GAIN] | 0.0% | 20.0% | 6.7% |
+| + edge proposals instead  [NO GAIN] | 0.0% | 20.0% | 6.7% |
 | + top-K=20 alone (no re-rank) | 25.0% | 76.7% | 90.0% |
 | + top-K + PADM + centre rule  [OVERFIT] | 27.5% | 70.0% | 73.3% |
 | + wide dense refit, unscreened  [slower AND worse] | 22.5% | 20.0% | 16.7% |
@@ -44,11 +47,14 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 0.246 | 0.892 | 89.289 |
 | + pose: pyramid | 0.297 | 0.365 | 0.316 |
 | + per-candidate pose refit, narrow | 0.297 | 0.343 | 0.313 |
-| ** + screened wide refit + median  [DEFAULT] ** | 0.179 | 0.330 | 0.214 |
-|    the DEFAULT minus the median filter | 0.194 | 0.408 | 0.201 |
+| ** + screened wide refit + median  [DEFAULT] ** | 0.179 | 0.300 | 0.214 |
+|    the DEFAULT minus the median filter | 0.194 | 0.362 | 0.201 |
 |    the DEFAULT minus pose evidence | 0.251 | 0.342 | 0.220 |
 |    the DEFAULT with the old top_n=10 screen | 0.195 | 0.357 | 0.214 |
 |    the DEFAULT with the old top_n=10 screen and no pose evidence | 0.251 | 0.342 | 0.220 |
+|    the DEFAULT minus residual proposals | 0.179 | 0.330 | 0.214 |
+| + variance proposals instead  [NO GAIN] | 0.179 | 0.330 | 0.214 |
+| + edge proposals instead  [NO GAIN] | 0.179 | 0.330 | 0.214 |
 | + top-K=20 alone (no re-rank) | 1.102 | 326.905 | 359.893 |
 | + top-K + PADM + centre rule  [OVERFIT] | 1.105 | 174.810 | 295.865 |
 | + wide dense refit, unscreened  [slower AND worse] | 0.269 | 0.365 | 0.267 |
@@ -71,11 +77,14 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 77.5% | 53.3% | 30.0% |
 | + pose: pyramid | 70.0% | 70.0% | 63.3% |
 | + per-candidate pose refit, narrow | 72.5% | 73.3% | 80.0% |
-| ** + screened wide refit + median  [DEFAULT] ** | 97.5% | 76.7% | 86.7% |
-|    the DEFAULT minus the median filter | 90.0% | 70.0% | 86.7% |
-|    the DEFAULT minus pose evidence | 77.5% | 76.7% | 83.3% |
-|    the DEFAULT with the old top_n=10 screen | 92.5% | 73.3% | 86.7% |
-|    the DEFAULT with the old top_n=10 screen and no pose evidence | 77.5% | 76.7% | 83.3% |
+| ** + screened wide refit + median  [DEFAULT] ** | 97.5% | 80.0% | 90.0% |
+|    the DEFAULT minus the median filter | 90.0% | 73.3% | 86.7% |
+|    the DEFAULT minus pose evidence | 77.5% | 76.7% | 86.7% |
+|    the DEFAULT with the old top_n=10 screen | 92.5% | 73.3% | 90.0% |
+|    the DEFAULT with the old top_n=10 screen and no pose evidence | 77.5% | 76.7% | 86.7% |
+|    the DEFAULT minus residual proposals | 97.5% | 76.7% | 86.7% |
+| + variance proposals instead  [NO GAIN] | 97.5% | 76.7% | 86.7% |
+| + edge proposals instead  [NO GAIN] | 97.5% | 76.7% | 86.7% |
 | + top-K=20 alone (no re-rank) | 40.0% | 10.0% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 40.0% | 16.7% | 10.0% |
 | + wide dense refit, unscreened  [slower AND worse] | 75.0% | 73.3% | 80.0% |
@@ -98,11 +107,14 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 | + pose: spectral lattice  [LESS ACCURATE] | 72.5% | 33.3% | 16.7% |
 | + pose: pyramid | 67.5% | 63.3% | 56.7% |
 | + per-candidate pose refit, narrow | 67.5% | 63.3% | 63.3% |
-| ** + screened wide refit + median  [DEFAULT] ** | 92.5% | 63.3% | 73.3% |
-|    the DEFAULT minus the median filter | 85.0% | 56.7% | 70.0% |
-|    the DEFAULT minus pose evidence | 72.5% | 63.3% | 70.0% |
-|    the DEFAULT with the old top_n=10 screen | 87.5% | 60.0% | 73.3% |
-|    the DEFAULT with the old top_n=10 screen and no pose evidence | 72.5% | 63.3% | 70.0% |
+| ** + screened wide refit + median  [DEFAULT] ** | 92.5% | 66.7% | 76.7% |
+|    the DEFAULT minus the median filter | 85.0% | 60.0% | 70.0% |
+|    the DEFAULT minus pose evidence | 72.5% | 63.3% | 73.3% |
+|    the DEFAULT with the old top_n=10 screen | 87.5% | 60.0% | 76.7% |
+|    the DEFAULT with the old top_n=10 screen and no pose evidence | 72.5% | 63.3% | 73.3% |
+|    the DEFAULT minus residual proposals | 92.5% | 63.3% | 73.3% |
+| + variance proposals instead  [NO GAIN] | 92.5% | 63.3% | 73.3% |
+| + edge proposals instead  [NO GAIN] | 92.5% | 63.3% | 73.3% |
 | + top-K=20 alone (no re-rank) | 17.5% | 3.3% | 3.3% |
 | + top-K + PADM + centre rule  [OVERFIT] | 20.0% | 6.7% | 6.7% |
 | + wide dense refit, unscreened  [slower AND worse] | 70.0% | 60.0% | 63.3% |
@@ -118,28 +130,31 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 
 | Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 81 | 69 |
-| + sub-pixel DFT (A9) | 217 | 147 | 126 |
-| + blind drift correction | 173 | 167 | 155 |
-| + sub-pixel + drift | 320 | 99 | 214 |
-| + pose: spectral lattice  [LESS ACCURATE] | 1195 | 1123 | 976 |
-| + pose: pyramid | 743 | 760 | 665 |
-| + per-candidate pose refit, narrow | 926 | 1001 | 900 |
-| ** + screened wide refit + median  [DEFAULT] ** | 1800 | 1899 | 1711 |
-|    the DEFAULT minus the median filter | 1984 | 1713 | 1799 |
-|    the DEFAULT minus pose evidence | 1723 | 1852 | 1834 |
-|    the DEFAULT with the old top_n=10 screen | 1264 | 1254 | 1326 |
-|    the DEFAULT with the old top_n=10 screen and no pose evidence | 1226 | 1212 | 1295 |
-| + top-K=20 alone (no re-rank) | 81 | 76 | 93 |
-| + top-K + PADM + centre rule  [OVERFIT] | 615 | 572 | 699 |
-| + wide dense refit, unscreened  [slower AND worse] | 1882 | 1800 | 2180 |
-| + centre rule on the default  [prior absent here] | 1248 | 1242 | 1469 |
-| + coarse-level consensus re-rank  [HARMFUL] | 697 | 712 | 892 |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 1078 | 1032 | 1240 |
-| + row destripe  [HARMFUL] | 107 | 100 | 118 |
-| + median filter on baseline  [no effect WITHOUT impulse noise] | 90 | 80 | 101 |
-| + Anscombe A1  [no effect on argmax] | 160 | 138 | 175 |
-| + ECC affine  [never converges] | 96 | 82 | 106 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 20 | 33 |
+| + sub-pixel DFT (A9) | 28 | 28 | 65 |
+| + blind drift correction | 54 | 53 | 84 |
+| + sub-pixel + drift | 63 | 63 | 122 |
+| + pose: spectral lattice  [LESS ACCURATE] | 331 | 329 | 613 |
+| + pose: pyramid | 199 | 185 | 431 |
+| + per-candidate pose refit, narrow | 273 | 263 | 595 |
+| ** + screened wide refit + median  [DEFAULT] ** | 581 | 601 | 1482 |
+|    the DEFAULT minus the median filter | 580 | 1259 | 1268 |
+|    the DEFAULT minus pose evidence | 586 | 1407 | 623 |
+|    the DEFAULT with the old top_n=10 screen | 430 | 1093 | 501 |
+|    the DEFAULT with the old top_n=10 screen and no pose evidence | 773 | 1070 | 791 |
+|    the DEFAULT minus residual proposals | 1031 | 1262 | 1005 |
+| + variance proposals instead  [NO GAIN] | 1069 | 1335 | 1379 |
+| + edge proposals instead  [NO GAIN] | 996 | 1221 | 965 |
+| + top-K=20 alone (no re-rank) | 25 | 37 | 30 |
+| + top-K + PADM + centre rule  [OVERFIT] | 251 | 326 | 252 |
+| + wide dense refit, unscreened  [slower AND worse] | 982 | 1072 | 1003 |
+| + centre rule on the default  [prior absent here] | 629 | 856 | 690 |
+| + coarse-level consensus re-rank  [HARMFUL] | 319 | 412 | 326 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 311 | 594 | 339 |
+| + row destripe  [HARMFUL] | 29 | 54 | 30 |
+| + median filter on baseline  [no effect WITHOUT impulse noise] | 24 | 41 | 24 |
+| + Anscombe A1  [no effect on argmax] | 53 | 86 | 53 |
+| + ECC affine  [never converges] | 24 | 53 | 27 |
 
 ## Reading this table
 

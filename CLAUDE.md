@@ -128,6 +128,17 @@ It is the best available proxy for the evaluation data.
 | H7 | Line positions are a random walk `pos += pitch + N(0, 1.5nm)` → **every cell has a unique fingerprint** | unverified |
 | H8 | Contacts on an `(i+j)%2` checkerboard → the dangerous confusion is the **parity-preserving diagonal shift** (+1 word-line *and* +1 bit-line) | unverified |
 | H9 | Their generator has **no rotation and no scale variation**, though the spec says 9:1–11:1 and 1–2° will be tested | unverified |
+| H11 | Their search fields are **pitch-heterogeneous** (several layout types per image); ours are near-uniform | **CONFIRMED** (§43) |
+
+**H11 is a distribution finding, and it cuts against the obvious reading of our results table.**
+Their `presets.py` spans 48–240 nm bit-line pitch and their sample images show eight mats at visibly
+different pitches; measured, the per-block period spread is **16.6 px** on their data against
+**0.1 px** on ours. On a multi-pitch field most mats are trivially wrong, because a 9.6 px lattice
+cannot be confused with a 23.8 px one. On our uniform field **every mat is a plausible impostor**.
+So our uniform-pitch generator removes the cheap pitch-based rejection cue and stress-tests
+within-pitch ambiguity harder. How much of the 0.0%-vs-16.7% gap that explains is **not**
+established — only that a mechanism exists pointing that way. Deliberately not "fixed": adding
+heterogeneous pitch would make our numbers look better while testing less.
 
 **The bar:** their baseline is `INTER_AREA` resize over 5 fixed scales → `matchTemplate` argmax →
 `max_loc + tw/2`. No sub-pixel, no centre rule, no rotation, no ambiguity handling. Its output is

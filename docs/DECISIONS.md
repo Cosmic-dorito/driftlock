@@ -964,6 +964,81 @@ to this, which is why the defect stayed invisible until the summary changed.
 
 ---
 
+## ADR-0035 · 2026-08-15 · accepted · The lattice residual proposes candidates, and only proposes
+
+**Decision.** `proposal_channels = "residual"`, `proposal_top_k = 3`. A second representation — the
+search image minus its own lattice-periodic prediction — proposes candidate *locations*. Their
+scores never enter any comparison; the existing ZNCC and the existing refit re-score every candidate
+on the original intensity image.
+
+**What forced it.** After ADR-0034 the decomposition was 3 `absent` / 0 `screened` / 5 `outscored`.
+`absent` is the only bucket no selection change can reach, and it had not moved through a single
+change made in this project, because nothing built so far touched candidate generation.
+
+**Diagnose before building.** `scripts/proposal_forensics.py` asked the cheap question first: scored
+at the generator's *exact* pose, does any representation have a peak near the truth? All three do,
+and no single one sees more than two. That is what justified a union rather than a replacement.
+
+**Then the per-channel ablation overturned the design.** Measured end to end, separately:
+
+| channel, alone | sponsor | bench | FinFET | total |
+|---|---|---|---|---|
+| off | 0.0% | 20.0% | 6.7% | **8.0%** |
+| variance | 0.0% | 20.0% | 6.7% | **8.0%** |
+| **residual** | 0.0% | **16.7%** | **3.3%** | **6.0%** |
+| edge | 0.0% | 20.0% | 6.7% | **8.0%** |
+| variance + residual | 0.0% | 16.7% | 3.3% | 6.0% |
+
+**The residual carries all of it; variance and edge are pure cost.** Without this ablation the
+shipped configuration would have carried two channels that buy nothing — the union sweep alone could
+never have shown that.
+
+**And oracle visibility did not predict which channel to ship.** The forensics said `bench 4` was
+found by *variance* and that the residual could not see it. End to end the opposite holds. The
+forensic measures the *exact* pose; the pipeline searches an *estimated* one, and which
+representation survives that gap is not predictable from the oracle. **The oracle forensic is a
+screening tool — "is the information present anywhere?" — not a design tool.**
+
+**Evidence, paired, k chosen on the tuning family:**
+
+| split | n | shipped | + residual | |
+|---|---|---|---|---|
+| dev | 40 | 5.0% | 5.0% | +0/−0 |
+| dev2 | 160 | 6.9% | **5.6%** | +2/−0 |
+| sponsor | 40 | 0.0% | 0.0% | +0/−0 |
+| bench | 30 | 20.0% | **16.7%** | +1/−0 |
+| FinFET | 30 | 6.7% | **3.3%** | +1/−0 |
+| **total** | **300** | | | **+4 / −0** |
+
+`k` = 3, 5 and 8 measure identically, so the fewest extra candidates wins on parsimony rather than on
+reporting-split performance.
+
+**Provenance confirms the mechanism rather than assuming it.** Three outcomes look identical in an
+aggregate mis-lock number: rescuing the truth, duplicating a site intensity already found, or
+proposing a new impostor that then wins. Only the first justifies shipping. Measured over 100 pairs:
+the residual proposes the truth on **2** pairs intensity misses, and exactly **one**
+auxiliary-proposed candidate ever wins — a rescue. No impostor is ever manufactured.
+
+**Why this is not PADM (§8) returning.** PADM removed periodic frequencies with a Fourier mask and
+used the result as a *ranking* score with two tuned constants; it gained on its tuning split and lost
+on both held-out splits. Nothing here ranks. A representation can be useless at ranking and useful
+at proposing, and only the first was ever tested.
+
+**On duplicating the lattice estimator.** `proposals.py` estimates a period per axis, while the
+project's existing `padm.estimate_lattice` exposes a single radial `dominant_pitch_px`. Checked
+rather than argued: on ten pairs the existing estimator's value matches one of the two per-axis
+periods every time (16.13/23.26 against 23.25; 4.52/6.80 against 4.52; 5.32/8.00 against 8.00). It
+is not a divergent second estimator — it computes a strictly richer quantity the existing API does
+not expose, and agrees on the axis they share.
+
+**The cost is real and is the argument against.** ×1.46 runtime, on a figure already above this
+project's own 300 ms target and, at the time of writing, **not certified at all** (ADR-0034). This
+is accuracy bought, not found. It ships on the same precedent as the screened wide refit — this
+project has consistently chosen accuracy where no runtime limit is published — and the trade is
+stated in the README rather than buried.
+
+---
+
 ## ADR-0034 · 2026-08-15 · accepted · The screen widens to 30, because the selector that receives it changed
 
 **Decision.** `refit_screen_top_n` 10 → 30.

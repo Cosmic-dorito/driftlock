@@ -16,7 +16,7 @@ has the full experiment write-ups this summarises; `docs/DECISIONS.md` has the A
 | | |
 |---|---|
 | `scripts/verify_submission.py --strict` | **19 passed, 0 failed, 0 pending** |
-| tests | **37 pass** |
+| tests | **52 pass** |
 | lint | ruff clean |
 | clean extract of `dist/` | reproduces all 15 accuracy metrics **exactly** |
 | deck | `solution_presentation.pptx`, 12 slides, every number generated from `results/` |
@@ -25,13 +25,39 @@ has the full experiment write-ups this summarises; `docs/DECISIONS.md` has the A
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | runtime p50 |
 |---|---|---|---|---|---|
-| sponsor `verify` (40) | **0.0%** | 0.179 | 97.5% | 92.5% | see `results/runtime.csv` |
-| bench (30, ours) | **20.0%** | 0.330 | 76.7% | 63.3% | " |
-| holdout FinFET (30) | **6.7%** | 0.214 | 86.7% | 73.3% | " |
+| sponsor `verify` (40) | **0.0%** | 0.179 | 97.5% | 92.5% | 664 ms (30.0×) |
+| bench (30, ours) | **16.7%** | 0.300 | 80.0% | 63.3% | 590 ms (26.7×) |
+| holdout FinFET (30) | **3.3%** | 0.214 | 90.0% | 73.3% | 586 ms (26.5×) |
 
-**Aggregate 8/100 = 8.0%.** Baselines 25.0 / 76.7 / 90.0%. Two stages landed on 15 Aug: reading the
-pose grid as evidence (ADR-0032) took 16.0% → 11.0%, and widening the screen to 30 — which only pays
-off *because* of that selector — took 11.0% → 8.0% (ADR-0034).
+**Aggregate 6/100 = 6.0%.** Baselines 25.0 / 76.7 / 90.0%. Three stages landed on 15 Aug, each one
+only working because of the one before it:
+
+| change | aggregate | bucket it moved |
+|---|---|---|
+| pose grid read as evidence (ADR-0032) | 16.0% → 11.0% | outscored 9 → 4 |
+| screen widened 10 → 30 (ADR-0034) | 11.0% → 8.0% | screened 4 → 0 |
+| lattice residual proposals (ADR-0035) | 8.0% → **6.0%** | absent 3 → 1 |
+
+The residual proposal runs at **half resolution** (`proposal_level=2`): +0/−0 across all 300 pairs
+at **0.79× the full-resolution *residual configuration*** — not 0.79× baseline; the whole system still runs 26–30× the control — because a proposal only has to say "look near here" and the refit
+finds the exact location on the intensity image. L4 was also tested and loses 2 pairs — the
+aperiodic signal survives one halving, not two.
+
+**Runtime measured on a cool machine, and the gate does NOT pass.** Control **22 ms exact**, matching
+the quiet-machine reference, so the control axis is healthy. But dispersion read **1.19** across
+three consecutive passes against the benchmark's **1.18** threshold. That is a *marginal gate
+failure*, not a certification.
+
+Say **"stable measured runtime on a healthy machine, marginal dispersion gate failure at
+1.19 vs 1.18"** — never "runtime certified" or "strict certification passed" while the gate itself
+reports otherwise. The threshold was deliberately *not* widened to make the number pass; 1.19 looks
+like this machine's steady value rather than instability, but that is a hypothesis about the
+threshold's calibration, not a pass.
+
+**The day's trade, measured:** this morning's configuration ran 394/377/382 ms at ~20× baseline at
+16.0% mis-lock. The three changes cost **≈×1.5 runtime for 16.0% → 6.0%**. There is no published
+runtime limit; the faster narrow-refit configuration remains reachable by config and is in the
+ablation.
 
 Paired against the previous configuration (§40, ADR-0032), stated at both levels because the two
 answer different questions:
@@ -44,7 +70,8 @@ answer different questions:
 **`dev` and `dev2` are the tuning family**, so the pooled p is a statement about reproducibility,
 not about independent significance. The independent evidence is the first row: a large, consistent
 improvement that does **not** reach p < 0.05 on 100 pairs. Four of five splits improve with zero
-breaks; `bench` is the single regression, 16.7% → 23.3%, reported rather than smoothed over.
+breaks; `bench` was the single regression at that step (16.7% → 23.3%) and the two changes after it
+took `bench` back to 16.7%. The regression is kept on the record rather than quietly absorbed.
 
 **Bonus modality (§41, ADR-0033).** RGB optical brightfield, 30 pairs: the unchanged pipeline
 reaches **6.7% mis-lock and 0.100 px median**, and measuring the colour projection instead of using
@@ -58,7 +85,9 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                median_filter=True,
                refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
                refit_screen_steps=2, refit_screen_top_n=30,   # 15 Aug, ADR-0034
-               pose_evidence_beta=5.0)                        # 15 Aug, ADR-0032
+               pose_evidence_beta=5.0,                        # 15 Aug, ADR-0032
+               proposal_channels="residual", proposal_top_k=3,
+               proposal_level=2)                              # 15 Aug, ADR-0035
 ```
 
 **Newest stage — read the pose grid as evidence, not as its maximum (§40, ADR-0032).** The maximum
@@ -96,7 +125,7 @@ Given the generator's **exact** `scale_ratio` and `rotation_deg`:
 
 | | | |
 |---|---|---|
-| shipped pipeline correct | **89 / 100** | |
+| shipped pipeline correct | **89 / 100** | ⚠️ measured before ADR-0034/0035; the pipeline is now 94/100 |
 | oracle pose + plain argmax | **70 / 100** | rescues 3 failures, loses 22 it had |
 
 **Pose estimation error is not what loses these pairs** — a perfect pose is far *worse* than the
@@ -115,7 +144,7 @@ way. The paired subset (truth present at the final comparison) is down to **3 pa
 ADR-0032, so the "fraction of the deficit the refit closes" is no longer estimable and the script
 now reports it as such rather than dividing by a near-zero denominator.
 
-> The headline is not "11% mis-lock remains". It is: **at the correct pose the true site and its
+> The headline is not "6% mis-lock remains". It is: **at the correct pose the true site and its
 > impostor are separated by about 0.01 of correlation or less — the level at which sampling noise
 > and model mismatch live. Six re-ranking criteria failed to resolve it; reading the pose surface as
 > evidence rather than as a maximum resolved part of it (§40).**
@@ -166,16 +195,22 @@ tried; that rests on the ablation, which is unaffected.
 
 `results/failure_decomposition.csv`, 100 pairs:
 
-| stage that lost it | now | before §40 | after §40 | can anything reach it? |
+| stage that lost it | **now** | before §40 | after §40 | after §40i |
 |---|---|---|---|---|
-| never a candidate | **3** | 3 | 3 | only candidate generation — untouched so far |
-| cut by the screen | **0** | 4 | 4 | fixed by ADR-0034 |
-| outscored at the final comparison | **5** | 9 | 4 | some of them; §40 took 9 → 4 |
+| never a candidate | **1** | 3 | 3 | 3 |
+| cut by the screen | **1** | 4 | 4 | 0 |
+| outscored at the final comparison | **4** | 9 | 4 | 5 |
 
 **Each stage moved exactly the bucket it addresses.** Pose evidence cut *outscored* 9 → 4; widening
-the screen emptied *screened* 4 → 0, with three of those becoming correct and one falling through to
-*outscored*. **`absent` has not moved at all**, because nothing built so far touches candidate
-generation — that is the whole of the remaining opportunity outside final selection.
+the screen emptied *screened* 4 → 0; residual proposals took *absent* 3 → 1.
+
+**And the last one has an honest side effect.** `finfet 25` was outscored at screen rank 29; the
+extra proposals inflate the pool and push it to rank 32, past the top-30 cut, so it is `screened`
+again. A wider pool has more competition in it. Net −2 failures, not a free win.
+
+The one remaining `absent` is **bench 17**, which is partly a *pose* failure: plain intensity ranks
+it 13th at the oracle pose, so the information is in the channel the pipeline already uses and the
+pipeline never looks there. No proposal channel fixes that (§42).
 
 **The true candidate is never the runner-up.** Across 15 instrumented held-out failures: rank ≤2 in
 **0**, rank ≤3 in 1, rank ≤5 in 4, absent from the top 20 in **7**. Any idea of the form "break the
@@ -259,6 +294,15 @@ overlap, patterns non-monotone).
 | candidate-local line-jitter | superseded: both implementations were measuring their own unfairness, not physics (§38b) |
 | **global scan-field calibration** | lifts the truth **+0.0297** and the impostor **+0.0301** — differential **−0.0003**, 8/27. dev mis-lock 12.5% → 15.0%, +101 ms. Declines every pair at σ = 1.5 and σ = 3.0, so it has **no operating regime** (§38) |
 | supercell / higher-order periodicity | order 2 only — the checkerboard parity, which is **blind to the parity-preserving diagonal shift** that causes our failures (§39) |
+
+### Candidate generation, second round
+| direction | result |
+|---|---|
+| **lattice residual as a PROPOSAL channel** | ✅ **SHIPPED** — +4/−0 over 300 pairs, absent 3 → 1 (§42, ADR-0035) |
+| variance / edge proposal channels | change **zero** pairs and cost runtime — measured negatives in the ablation (§42c) |
+| half-resolution proposals | ✅ shipped — +0/−0 at 0.79× the *full-resolution residual config*; quarter resolution loses 2 pairs (§42) |
+| auxiliary-quota screen (protect intensity candidates) | +1/−1, net zero — the mechanism is real, the trade is not (§42f) |
+| oracle-pose forensics as a *design* tool | ❌ does not predict which channel ships; it is a screening tool only (§42d) |
 
 ### Other
 | direction | result |

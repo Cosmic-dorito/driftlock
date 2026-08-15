@@ -148,6 +148,10 @@ class PipelineConfig:
     # duplicates. Must stay well inside one lattice pitch (6.4 px word, 9.6 px bit at 10:1) or it
     # would merge genuinely adjacent repeats. 0 disables.
     refit_screen_dedup_px: float = 0.0
+    # Reserve this many of the screen's slots for auxiliary proposals, so they compete with each
+    # other rather than displacing intensity candidates from a single global cut. 0 = global cut.
+    # See refit.py and FINDINGS 42f.
+    refit_screen_aux_quota: int = 0
 
     # Read the refit's pose grid as EVIDENCE rather than taking its maximum. Still the same ZNCC on
     # the same grid - only the summary changes - so this does not cross ADR-0024's line, which bans
@@ -168,6 +172,20 @@ class PipelineConfig:
     # regresses by 3 pairs of 30 and is reported rather than smoothed over. It costs no
     # correlations - the grid is already computed by the refit, so this re-reads numbers.
     pose_evidence_beta: float = 0.0
+
+    # Extra candidate PROPOSALS from representations that are poor at ranking (src/driftlock/
+    # proposals.py). Empty disables it. These only ADD locations - every candidate is still scored
+    # and refitted by the shipped criterion on the original intensity image, so this cannot become a
+    # re-ranker by accident (ADR-0024). Targets the `absent` bucket, which no selection change can
+    # reach. See FINDINGS 42.
+    proposal_channels: str = ""
+    proposal_top_k: int = 5
+    proposal_dedup_px: float = 8.0
+    # Resolution divisor for the proposal stage. The pool grows only 60 -> 63 while runtime grows
+    # 1.46x, so the cost is the residual's own computation rather than the extra candidates - and a
+    # proposal only has to say "look near here" before the refit finds the exact location on the
+    # intensity image. Halving quarters both the warps and the correlations.
+    proposal_level: int = 1
 
     # --- A9: refinement -------------------------------------------------------------------
     subpixel: bool = False           # upsampled-DFT cross-correlation
@@ -444,6 +462,18 @@ def localize(
         raise ValueError(
             "no valid template scale produced a correlation surface; the reference may be larger "
             "than the search image"
+        )
+
+    # Auxiliary proposals, merged by POSITION only. Their scores come from a different surface and
+    # are not comparable with ZNCC - the refit re-scores everything on the intensity image, which is
+    # what keeps this a coverage change rather than a ranking one.
+    if config.proposal_channels:
+        from src.driftlock.proposals import merge, propose
+        candidates = merge(
+            candidates,
+            propose(ref_proc, search_proc, poses, config, build_template, correlation_surface,
+                    extract_peaks, level),
+            config.proposal_dedup_px,
         )
 
     pitch_px = None

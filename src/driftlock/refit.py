@@ -138,9 +138,29 @@ def refit_candidates(search: np.ndarray, reference: np.ndarray, candidates: list
             candidates = kept
 
         if len(candidates) > screen_n:
-            # The losers are kept, not dropped: they still carry their screened score, and
-            # downstream stages (ambiguity index, confidence radius) read the whole candidate set.
-            candidates, deferred = candidates[:screen_n], deferred + candidates[screen_n:]
+            # PROVENANCE-AWARE CUT. Auxiliary proposals (ADR-0035) enlarge the pool, and a global
+            # top-N then lets them displace intensity candidates that were only just inside it.
+            # Measured: finfet 25 sat at screen rank 29 and the residual's three extra candidates
+            # pushed it to 32, turning an `outscored` failure into a `screened` one. A wider pool
+            # having more competition in it is not a bug, but evicting the CHANNEL THAT USUALLY
+            # CARRIES THE TRUTH is - intensity proposes it on 97 of 100 pairs.
+            #
+            # So the two sources are cut separately: intensity keeps its own quota, and the
+            # auxiliary channels compete only for the remainder. 0 disables the split and restores
+            # a plain global cut.
+            aux_quota = getattr(config, "refit_screen_aux_quota", 0)
+            if aux_quota > 0:
+                main = [c for c in candidates if "proposal" not in c.extra]
+                aux = [c for c in candidates if "proposal" in c.extra]
+                keep_main = max(screen_n - aux_quota, 1)
+                candidates = main[:keep_main] + aux[:aux_quota]
+                deferred = deferred + main[keep_main:] + aux[aux_quota:]
+                candidates.sort(key=lambda c: -c.score)
+            else:
+                # The losers are kept, not dropped: they still carry their screened score, and
+                # downstream stages (ambiguity index, confidence radius) read the whole candidate
+                # set.
+                candidates, deferred = candidates[:screen_n], deferred + candidates[screen_n:]
 
     for pass_index in range(passes):
         scale_span = span * (shrink ** pass_index)

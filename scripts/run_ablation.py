@@ -98,6 +98,18 @@ def ladder() -> list[PipelineConfig]:
         replace(build_config(argparse.Namespace(config="driftlock")),
                 refit_screen_top_n=10, pose_evidence_beta=0.0,
                 label="   the DEFAULT with the old top_n=10 screen and no pose evidence"),
+        # Candidate generation, isolated. This one targets a different bucket from the two above -
+        # `absent` rather than `outscored`/`screened` - so it should be roughly additive with them,
+        # unlike the pair above which are not.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                proposal_channels="", label="   the DEFAULT minus residual proposals"),
+        # The two channels the per-channel ablation rejected, kept as measured negatives (R9): both
+        # cost runtime and neither changes a single pair.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                proposal_channels="variance",
+                label="+ variance proposals instead  [NO GAIN]"),
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                proposal_channels="edge", label="+ edge proposals instead  [NO GAIN]"),
 
         # --- measured negative results, kept per R9 ---
         PipelineConfig(label="+ top-K=20 alone (no re-rank)", top_k=20),

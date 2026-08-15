@@ -3280,6 +3280,233 @@ moved at all through any of this, because nothing yet built touches candidate ge
 
 ---
 
+## 42. The three invisible sites: each is found by a different representation ✅
+
+After §40i the failure decomposition is **3 absent / 0 screened / 5 outscored**, and `absent` is the
+one bucket nothing built so far can reach — the true site never enters the candidate set, so no
+selection rule of any kind applies. It is also the only bucket that has not moved through any change
+made in this project.
+
+The tempting move is to build a proposal-union pipeline. `scripts/proposal_forensics.py` exists to
+avoid doing that blind, and asks the cheap diagnostic question first: **does any representation have
+a peak near the truth?** If none does, the information is not there and a union cannot conjure it.
+
+Every representation is scored at the generator's **exact recorded pose**, so none is ever blamed
+for a pose error, and the truth's rank is taken among the top 30 non-maximum-suppressed peaks at the
+pipeline's own suppression radius.
+
+| absent failure | intensity | edge | variance | residual |
+|---|---|---|---|---|
+| bench 4 | ABSENT | ABSENT | **6** | ABSENT |
+| bench 17 | 13 | **1** | 12 | ABSENT |
+| finfet 17 | ABSENT | ABSENT | ABSENT | **0** |
+| **controls — pairs already solved** | 10/12 | 10/12 | **11/12** | **11/12** |
+
+> **All three are visible, and no single representation sees more than two of them.** Variance finds
+> bench 4 and bench 17; the residual finds finfet 17, which variance misses entirely. The union of
+> intensity + variance + residual covers all three.
+
+Three things worth stating precisely:
+
+* **`bench 17` is partly a pose failure, not a representation failure.** Plain intensity ranks it
+  13th at the *oracle* pose, so the information was always in the channel the pipeline already uses
+  — the pipeline lost it because it was searching at an estimated pose.
+* **The residual is not PADM.** §8's PADM removed periodic frequencies with a Fourier mask and used
+  the result as a *ranking* score with two tuned constants, and it overfit. This builds the periodic
+  prediction by averaging the image over its own lattice translations, subtracts it, and uses the
+  result **only to propose locations**. A representation can be useless at ranking and still be
+  useful at proposing; those are different claims, and only the first was ever tested.
+* **The controls are the evidence.** A representation that ranked the truth first everywhere would
+  have found nothing. Variance and the residual rank it in the top 30 on 11 of 12 pairs the pipeline
+  already solves *and* on cases plain intensity cannot see at all.
+
+**A methodological note on this measurement.** The first version used a suppression radius of
+`0.6 × template size` = 60 px and reported the truth ABSENT on 4 of 12 pairs the pipeline solves
+correctly. That is a property of the measurement, not of the representations: suppressing a 60 px
+neighbourhood deletes the truth whenever a stronger repeat sits within half a footprint. The
+pipeline's own radius is 6 px — a fraction of a *lattice pitch*, not of the template.
+
+### 42b. The union converts two of the three, and costs 1.6× runtime
+
+Built as `src/driftlock/proposals.py`: each channel proposes locations at the same poses as the main
+pass, and proposals are merged by **position only**. Their scores come from a different surface and
+never enter the comparison — the existing ZNCC and the existing refit re-score everything on the
+original intensity image. That is what keeps this a *coverage* change rather than a ranking one, and
+what stops it drifting into ADR-0024 territory by accident.
+
+On the three sites the pipeline could not see:
+
+| absent failure | shipped | + variance, residual |
+|---|---|---|
+| bench 4 | 148.572 px | **0.142 px** |
+| finfet 17 | 73.402 px | **0.271 px** |
+| bench 17 | 66.891 px | 66.891 px — unchanged |
+
+`bench 17` resists even with the `edge` channel added, and the reason is instructive: edge ranked it
+**1st at the oracle pose**, but the pipeline searches at an *estimated* pose. The channel sees the
+site; the pipeline never looks there. That is a pose failure wearing a representation failure's
+clothes.
+
+| variant | dev *(tuning)* | sponsor | bench | FinFET | total | runtime |
+|---|---|---|---|---|---|---|
+| **off — shipped** | 5.0% | 0.0% | 20.0% | 6.7% | **8.0%** | ×1.00 |
+| variance + residual, k=5 | 5.0% **+0/−0** | 0.0% | 16.7% | 3.3% | **6.0%** | **×1.62** |
+| variance + residual, k=10 | 7.5% **+0/−1** | 0.0% | 16.7% | 6.7% | 7.0% | ×1.66 |
+| + edge, k=5 | 5.0% +0/−0 | 0.0% | 16.7% | 3.3% | 6.0% | ×1.84 |
+| + edge, k=10 | 7.5% +0/−1 | 0.0% | 16.7% | 6.7% | 7.0% | ×1.89 |
+
+**+2 fixed, 0 broken on the reporting splits, p = 0.500.** The `edge` channel buys nothing over
+variance + residual and costs a further 0.22×, so it is out on its own evidence.
+
+**`dev` says nothing, and that matters.** +0/−0 on the one split the configuration may be chosen
+from. All dev contributes is ruling out k = 10, which breaks a pair. Taken alone that is exactly the
+shape of a result that should not ship — a gain visible only on splits that are not allowed to
+select it (ADR-0012, ADR-0021).
+
+So the 160-pair `dev2` split was run as the strongest independent evidence available:
+
+| split | n | shipped | + variance, residual | |
+|---|---|---|---|---|
+| dev *(tuning)* | 40 | 5.0% | 5.0% | +0/−0 |
+| **dev2** | 160 | 6.9% | **5.6%** | **+2/−0** |
+| sponsor | 40 | 0.0% | 0.0% | +0/−0 |
+| bench | 30 | 20.0% | **16.7%** | +1/−0 |
+| held-out FinFET | 30 | 6.7% | **3.3%** | +1/−0 |
+| **total** | **300** | | | **+4 / −0** |
+
+> **Four fixed, zero broken across 300 pairs, exact McNemar p = 0.125** — every split improves or
+> holds, and the reporting aggregate is 8.0% → 6.0%. That is the same signature as ADR-0034.
+
+**But it is not free, and that is the whole of the decision.** ×1.62 runtime against a figure that
+is already above this project's own 300 ms target and, as of this writing, **not certified at all**
+(§40i). Accuracy is bought here, not found.
+
+### 42c. One channel does all the work, and the other two are pure cost
+
+The sweep above compared *unions*, which cannot say which channel earned anything. Measured
+separately, on the reporting splits:
+
+| channel, alone | sponsor | bench | FinFET | total | candidate pool |
+|---|---|---|---|---|---|
+| off | 0.0% | 20.0% | 6.7% | **8.0%** | 60 |
+| variance | 0.0% | 20.0% | 6.7% | **8.0%** | 63 |
+| **residual** | 0.0% | **16.7%** | **3.3%** | **6.0%** | 63 |
+| edge | 0.0% | 20.0% | 6.7% | **8.0%** | 63 |
+| variance + residual | 0.0% | 16.7% | 3.3% | 6.0% | 66 |
+
+> **The residual carries the entire gain. Variance and edge contribute nothing and cost runtime.**
+
+**And the provenance says the mechanism is the intended one**, which is the check that separates a
+rescue from an accident:
+
+| variant | truth proposed by intensity | by variance | by residual | never proposed | winner from an auxiliary channel |
+|---|---|---|---|---|---|
+| off | 97 | — | — | **3** | — |
+| residual | 97 | 0 | **2** | 1 | `residual: 1` |
+| variance + residual | 97 | 1 | 2 | **0** | `residual: 1` |
+
+The auxiliary channels are not manufacturing impostors that then win — across 100 pairs exactly
+**one** auxiliary-proposed candidate ever wins, and it is a rescue. Three outcomes look identical in
+an aggregate mis-lock number (rescuing the truth, duplicating a site intensity already found,
+proposing a new impostor), and only provenance tells them apart.
+
+### 42d. Oracle-pose visibility does not transfer — in either direction
+
+§42's forensics said `bench 4` was found by **variance** (rank 6) and that the residual could not see
+it at all. End to end, the opposite is true: `variance` alone fixes nothing, and the residual fixes
+both bench and FinFET.
+
+The forensics measured visibility at the generator's **exact** pose. The pipeline searches at an
+*estimated* pose, and which representation survives that difference is not predictable from the
+oracle measurement. §42 already noted this for `bench 17` — where intensity sees the site at rank 13
+but the pipeline never looks there — and assumed it cut one way. It cuts both.
+
+**So the oracle forensic is a screening tool, not a design tool.** It answers "is the information
+present anywhere?", which is worth knowing before building. It does not answer "which channel should
+ship", and the per-channel end-to-end ablation is the only thing that does.
+
+### 42e. What shipped, and the side effect it caused
+
+`proposal_channels = "residual"`, `proposal_top_k = 3` — k = 3, 5 and 8 measure identically, so the
+fewest extra candidates wins on parsimony rather than on reporting-split performance. Reporting
+aggregate **8.0% → 6.0%**; sponsor 0.0%, bench 16.7%, FinFET 3.3%.
+
+The decomposition, regenerated afterwards:
+
+| stage that lost it | before §42 | after |
+|---|---|---|
+| **never a candidate** | 3 | **1** |
+| cut by the screen | 0 | **1** |
+| outscored at the final comparison | 5 | **4** |
+
+**Two of the three invisible sites are recovered — and one new failure is created.** `finfet 25` was
+outscored at screen rank 29; the extra proposals inflate the pool and push it to rank **32**, past
+the top-30 cut, so it is now `screened`. That is the honest cost of coverage: a wider pool has more
+competition in it, and a candidate sitting one place inside the cut can be displaced by candidates
+that are themselves useless. Net −2 failures, but not a free win.
+
+The one remaining `absent` is **bench 17**, which §42 already identified as partly a *pose* failure:
+plain intensity ranks it 13th at the oracle pose, so the information is in the channel the pipeline
+already uses and the pipeline simply never looks there. No proposal channel fixes that; a better
+pose bracket might.
+
+---
+
+## 43. H11: the sponsor's fields are pitch-heterogeneous; ours are uniform ✅
+
+Looking at the sponsor's own published sample images — rather than at their source — settles a
+structural question nobody had asked. Their 10× search image shows eight mats whose **pitches
+visibly differ**: a coarse bright grid beside a very fine one beside a high-contrast wide one. Their
+`src/presets.py` has six DRAM presets spanning **48 nm to 240 nm** of bit-line pitch, a 5× range.
+
+Measured directly, dominant x-period per 3×3 block of the search image:
+
+| | block periods (px) | spread |
+|---|---|---|
+| **sponsor, id 0** | 23.8, 7.2, 17.6 / 14.5, 14.5, 18.6 / 14.5, 10.7, 9.5 | **16.6** |
+| sponsor, id 1 | 9.5, 7.1, 14.5 / 7.2, 14.5, 7.1 / 10.7, 9.5, 14.5 | 7.4 |
+| sponsor, id 2 | 7.2, 23.8, 7.3 / 7.2, 7.2, 9.5 / 10.7, 10.7, 23.9 | 16.7 |
+| **ours, bench id 0** | 23.8 × 9 | **0.1** |
+| ours, bench id 1 | 6.8 × 9 | 0.0 |
+| ours, bench id 2 | 23.8 × 8, 25.7 | 1.9 |
+
+> **The sponsor's search fields carry substantial spatial variation in lattice pitch, consistent
+> with several layout/preset types in one image. Ours are near-uniform** — `_pick_preset` is called
+> once per sample and the whole canvas is built from it.
+
+*Stated at exactly the strength the evidence supports.* The measurement establishes **pitch
+heterogeneity within their fields and near-uniformity within ours**. It does not establish that the
+generator assigns one preset per mat — that would need their layout source, which the published
+summary does not expose. The visual impression from their sample images is consistent with per-mat
+variation, and it is left as an impression.
+
+### Why this matters more than it looks
+
+**It explains the sponsor split being easier than our own bench.** On a multi-pitch field, most mats
+are trivially wrong — a reference whose lattice is 9.6 px cannot be confused with a mat at 23.8 px,
+because ZNCC collapses. The effective impostor population is only the mats that share the
+reference's preset. On our uniform field **every mat is a plausible impostor**.
+
+That reframes the reporting table. sponsor is at 0.0% and our bench at 16.7%, and the natural
+reading is that we tuned to the sponsor. The measurement points the other way: **our uniform-pitch
+generator removes the cheap pitch-based rejection cue and therefore stress-tests within-pitch
+ambiguity far more aggressively.** How much of the 0.0%-versus-16.7% gap that accounts for is *not*
+established here — only that a mechanism exists which cuts in that direction.
+
+### What is NOT claimed
+
+This does not say the evaluation data will be easy. It says one specific axis — inter-mat pitch
+diversity — is present in the sponsor's generator and absent from ours, and that its presence
+*reduces* ambiguity rather than adding it. Our splits are the conservative case on this axis, which
+is the right side to be wrong on.
+
+**Deliberately not "fixed".** Adding multi-preset mats to our generator would make our numbers look
+better while testing less. The uniform-pitch field is retained precisely because it is the harder
+one, and this section is the evidence for saying so rather than an assertion that our data is
+harder.
+
+---
+
 ## 41. The RGB optical extension: the pipeline transfers, and the colour is worth measuring ✅
 
 The problem statement lists an "RGB optical-image extension" as a bonus after the grayscale SEM

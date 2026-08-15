@@ -1,11 +1,13 @@
 metric,value
 split,bench
 n_pairs,30
-n_failures,6
-worst_id,4
-worst_error_px,148.57
+n_failures,5
+worst_id,13
+worst_error_px,628.24
 worst_ambiguity,med
-worst_rank_of_truth,not in top-K
+worst_rank_of_truth,2
+worst_margin_zncc,0.0013
+worst_margin_pct,0.15
 candidate_recall_topk,28/30
 candidate_recall_pct,93.3
 top_k,20
@@ -14,6 +16,6 @@ strata_low_mislock_pct,5
 strata_low_pass1_pct,95
 strata_low_failures,1
 strata_med_n,9
-strata_med_mislock_pct,56
-strata_med_pass1_pct,33
-strata_med_failures,5
+strata_med_mislock_pct,44
+strata_med_pass1_pct,44
+strata_med_failures,4
