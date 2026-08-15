@@ -16,7 +16,7 @@ has the full experiment write-ups this summarises; `docs/DECISIONS.md` has the A
 | | |
 |---|---|
 | `scripts/verify_submission.py --strict` | **19 passed, 0 failed, 0 pending** |
-| tests | **52 pass** |
+| tests | **59 pass** |
 | lint | ruff clean |
 | clean extract of `dist/` | reproduces all 15 accuracy metrics **exactly** |
 | deck | `solution_presentation.pptx`, 12 slides, every number generated from `results/` |
@@ -195,11 +195,15 @@ tried; that rests on the ablation, which is unaffected.
 
 `results/failure_decomposition.csv`, 100 pairs:
 
-| stage that lost it | **now** | before §40 | after §40 | after §40i |
+| stage that lost it | **now** | start of 15 Aug | after §40 | after §40i |
 |---|---|---|---|---|
 | never a candidate | **1** | 3 | 3 | 3 |
 | cut by the screen | **1** | 4 | 4 | 0 |
 | outscored at the final comparison | **4** | 9 | 4 | 5 |
+
+**6 failures total: 1 absent, 1 screened, 4 outscored.** All five bench failures and the single
+FinFET failure are locally-plausible same-pitch candidates — `bench 17` (absent, a pose-search
+interaction) and `finfet 25` (screened at rank 32) are the two named ones.
 
 **Each stage moved exactly the bucket it addresses.** Pose evidence cut *outscored* 9 → 4; widening
 the screen emptied *screened* 4 → 0; residual proposals took *absent* 3 → 1.
@@ -295,6 +299,25 @@ overlap, patterns non-monotone).
 | **global scan-field calibration** | lifts the truth **+0.0297** and the impostor **+0.0301** — differential **−0.0003**, 8/27. dev mis-lock 12.5% → 15.0%, +101 ms. Declines every pair at σ = 1.5 and σ = 3.0, so it has **no operating regime** (§38) |
 | supercell / higher-order periodicity | order 2 only — the checkerboard parity, which is **blind to the parity-preserving diagonal shift** that causes our failures (§39) |
 
+### Generator distribution (§43)
+| finding | evidence |
+|---|---|
+| **H11 — the sponsor's fields are pitch-heterogeneous; ours are near-uniform** | per-3×3-block dominant period spread **16.6 px** on their data vs **0.1 px** on ours; their `presets.py` spans 48–240 nm bit-line pitch |
+
+On a multi-pitch field most mats are trivially wrong (a 9.6 px lattice cannot be confused with a
+23.8 px one), so the impostor population collapses to mats sharing the reference's preset. On our
+uniform field **every mat is live**. Stated at that strength only: this establishes *heterogeneity
+vs uniformity*, **not** one-preset-per-mat, and **not** that our benchmark is "harder" — only that a
+mechanism exists which removes a cheap rejection cue.
+
+**Deliberately not "fixed".** Adding heterogeneous pitch would make our numbers look better while
+testing less. A sponsor-like second family is worth adding as *validation*, never as a replacement.
+
+**Consequence for the roadmap:** a regional-pitch candidate prior — the obvious idea from these
+images — **cannot help our remaining failures**, because bench pitch spread is 0.1 px and every
+impostor already matches the truth's pitch by construction. It is a *runtime* idea for
+heterogeneous data, not an accuracy idea for the 6 failures.
+
 ### Candidate generation, second round
 | direction | result |
 |---|---|
@@ -336,15 +359,28 @@ margin (H7 ≈ 0.057) is not swamped, then reads an ordinary correlation.
 
 ## 7. What is genuinely left
 
-Nothing algorithmic is queued. The last open lead (§37d) was built and closed in §38, and the last
-untested structural idea was closed in §39.
+### The one direction with a live hypothesis
 
-1. **Determinism test** (PROGRESS 3.8) — still outstanding.
-2. **RGB optical extension** — an explicit scored bonus. The public hackathon page says the
-   challenge images are grayscale, which is true of the *task*; the Drift-Sense problem statement
-   itself lists "RGB optical-image extension | Bonus | Optional generalization after completing the
-   grayscale SEM task". Primary source wins — the bonus is real. Never started.
-3. **Deck and demo polish** — where the remaining marks are.
+**Multi-scale context for the 4 `outscored` failures.** They are same-pitch, same-region, locally
+plausible candidates, and the only information the current matcher deliberately discards is
+everything outside the 100×100 footprint. The experiment is cheap and falsifiable: for each of the
+4, compare the truth against the winning impostor using a 20–40 px surrounding ring, and ask **only**
+whether context separates them. **0 of 4 → drop it. 2 of 4 → build the verifier.** Do not tune a
+weighted score first — that is how PADM died.
+
+Explicitly **not** worth building (§43): a regional-pitch candidate prior. It is the obvious idea
+from the sponsor's images and it cannot reach these failures, because our fields are uniform-pitch
+by construction and every impostor already matches the truth's pitch. It is a *runtime* idea for
+heterogeneous data only.
+
+### Everything else
+
+1. **Runtime dispersion gate** — 1.19 against a 1.18 threshold on a healthy machine. Either
+   re-measure on a quieter box or re-derive the threshold from several sessions. **Do not widen it
+   to make a number pass.**
+2. **RGB optical extension** — shipped as a bonus (§41, ADR-0033), not polished.
+3. **Determinism test** (PROGRESS 3.8) — still outstanding.
+4. **Deck and demo polish** — where the remaining marks are.
 
 Open user actions: no GitHub remote configured; git identity is repo-local "DriftLock Team".
 
