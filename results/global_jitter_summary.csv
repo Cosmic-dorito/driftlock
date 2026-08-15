@@ -1,0 +1,15 @@
+metric,value,note
+n_pairs,40,pairs measured
+mislock_base,0.125,shipped pipeline
+mislock_calibrated,0.15,with the global scan-field correction
+fixed,0,"base wrong, calib right"
+broke,1,"base right, calib wrong"
+applied,27,pairs where the gates let the correction run
+zncc_lift_truth,0.0297,mean ZNCC lift at the TRUE location
+zncc_lift_winner,0.0301,mean ZNCC lift at the CHOSEN location
+zncc_lift_differential,-0.0003,truth minus winner - the only form that changes a decision
+truth_lifted_more_in,8,of 27
+calibration_ms_median,101.3,cost of measuring and applying the field
+field_rms_px_median,0.5467,measured field RMS; the generator's jitter sigma is the number to compare
+median_error_base_px,0.2575,on the 34 pairs both arms locate
+median_error_calibrated_px,0.2963,

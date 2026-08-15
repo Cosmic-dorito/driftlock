@@ -1,0 +1,36 @@
+split,id,err_base_px,err_cal_px,zncc_lift_truth,zncc_lift_winner,ok_base,ok_cal,applied,reason,period_px,confidence,agreement_px,field_rms_px,accepted_rows,calibration_ms
+jitter3,0,0.2452,0.2452,0.0,0.0,1,1,0,estimators disagree by 3.58 px,9.343,0.1316,3.5824,2.1149,949,124.9
+jitter3,1,17.1706,17.1706,0.0,0.0,0,0,0,estimators disagree by 3.31 px,14.919,0.0878,3.3051,2.2274,951,129.7
+jitter3,2,2.0815,2.0815,0.0,0.0,1,1,0,estimators disagree by 3.33 px,10.164,0.1169,3.3331,2.1514,956,128.8
+jitter3,3,438.9901,438.9901,0.0,0.0,0,0,0,estimators disagree by 3.33 px,6.061,0.1281,3.3269,2.1187,937,122.8
+jitter3,4,307.8962,307.8962,0.0,0.0,0,0,0,estimators disagree by 3.85 px,6.848,0.1205,3.8492,2.2069,931,114.4
+jitter3,5,3.8979,3.8979,0.0,0.0,1,1,0,estimators disagree by 3.21 px,14.771,0.0986,3.2061,2.1172,941,116.6
+jitter3,6,0.536,0.536,0.0,0.0,1,1,0,estimators disagree by 3.44 px,17.294,0.082,3.4429,2.1294,911,125.3
+jitter3,7,170.6479,170.6479,0.0,0.0,0,0,0,estimators disagree by 3.00 px,5.075,0.1692,3.0,1.9654,956,120.6
+jitter3,8,408.3011,408.3011,0.0,0.0,0,0,0,estimators disagree by 3.45 px,9.062,0.1411,3.4499,2.1732,956,118.0
+jitter3,9,0.4873,0.4873,0.0,0.0,1,1,0,estimators disagree by 3.53 px,14.807,0.1014,3.5285,2.1813,933,117.9
+jitter3,10,357.8309,357.8309,0.0,0.0,0,0,0,estimators disagree by 3.39 px,5.844,0.1163,3.3878,2.1151,927,121.1
+jitter3,11,118.8912,118.8912,0.0,0.0,0,0,0,estimators disagree by 3.00 px,5.124,0.1297,3.0,2.0372,936,117.0
+jitter3,12,17.7958,17.7958,0.0,0.0,0,0,0,estimators disagree by 3.27 px,8.909,0.1179,3.2725,2.1822,963,115.6
+jitter3,13,5.2508,5.2508,0.0,0.0,0,0,0,estimators disagree by 3.76 px,10.406,0.129,3.76,2.1936,938,121.2
+jitter3,14,691.0636,691.0636,0.0,0.0,0,0,0,estimators disagree by 3.01 px,5.037,0.1756,3.0066,1.9847,940,121.6
+jitter3,15,1.9154,1.9154,0.0,0.0,1,1,0,estimators disagree by 3.45 px,16.374,0.078,3.4479,2.2447,930,113.6
+jitter3,16,816.3543,816.3543,0.0,0.0,0,0,0,estimators disagree by 3.41 px,9.134,0.1416,3.4097,2.155,944,124.9
+jitter3,17,617.2461,617.2461,0.0,0.0,0,0,0,estimators disagree by 2.23 px,4.398,0.2012,2.2325,1.8182,934,126.6
+jitter3,18,10.3688,10.3688,0.0,0.0,0,0,0,estimators disagree by 3.29 px,5.264,0.1384,3.2859,2.0366,931,143.1
+jitter3,19,1.1086,1.1086,0.0,0.0,1,1,0,estimators disagree by 3.70 px,6.42,0.15,3.6962,2.141,944,121.7
+jitter3,20,1.0479,1.0479,0.0,0.0,1,1,0,estimators disagree by 2.82 px,4.74,0.1757,2.8159,1.9196,927,120.5
+jitter3,21,145.495,145.495,0.0,0.0,0,0,0,estimators disagree by 3.11 px,17.177,0.0771,3.1104,2.1395,910,123.4
+jitter3,22,0.3145,0.3145,0.0,0.0,1,1,0,estimators disagree by 3.42 px,16.163,0.0828,3.4202,2.19,948,129.5
+jitter3,23,0.5641,0.5641,0.0,0.0,1,1,0,estimators disagree by 3.93 px,17.213,0.0892,3.9282,2.1537,897,122.7
+jitter3,24,1020.2837,1020.2837,0.0,0.0,0,0,0,estimators disagree by 2.83 px,4.902,0.1529,2.8313,1.9329,962,128.2
+jitter3,25,270.2889,270.2889,0.0,0.0,0,0,0,estimators disagree by 3.06 px,5.158,0.1587,3.0613,2.0165,949,124.9
+jitter3,26,8.8836,8.8836,0.0,0.0,0,0,0,estimators disagree by 3.45 px,16.256,0.0893,3.4463,2.1723,935,126.3
+jitter3,27,0.1244,0.1244,0.0,0.0,1,1,0,estimators disagree by 3.53 px,16.957,0.0896,3.5281,2.1778,915,129.4
+jitter3,28,743.2105,743.2105,0.0,0.0,0,0,0,estimators disagree by 3.46 px,15.361,0.1011,3.4583,2.1467,929,119.6
+jitter3,29,7.8877,7.8877,0.0,0.0,0,0,0,estimators disagree by 3.46 px,14.806,0.0905,3.4621,2.1735,949,234.0
+
+# The frozen pipeline, run twice on the same pair. The only difference is that
+# the search image has had its per-row scan jitter measured and removed FIRST,
+# from the whole image, before any candidate exists - so the same correction
+# applies to the true site and to every impostor.

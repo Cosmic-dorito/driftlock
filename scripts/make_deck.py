@@ -562,6 +562,31 @@ def load_pose_ceiling() -> dict[str, str]:
                 if row.get("metric") and not row["metric"].startswith("#")}
 
 
+def load_scan_calibration() -> dict[str, str]:
+    """The global scan-field result: how much the correction lifts each of the two candidates.
+
+    Averaged here rather than in the CSV because the CSV is per-pair — but the two figures printed
+    on the slide are the two means, so they must be derived from the same rows the verifier will
+    check, not carried alongside them.
+    """
+    path = RESULTS / "global_jitter.csv"
+    if not path.exists():
+        return {}
+    truth, winner = [], []
+    with path.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if not row.get("split") or row["split"].startswith("#") or row.get("applied") != "1":
+                continue
+            if row.get("zncc_lift_truth") and row.get("zncc_lift_winner"):
+                truth.append(float(row["zncc_lift_truth"]))
+                winner.append(float(row["zncc_lift_winner"]))
+    if not truth:
+        return {}
+    return {"truth": f"{sum(truth) / len(truth):+.4f}",
+            "winner": f"{sum(winner) / len(winner):+.4f}",
+            "n": str(len(truth))}
+
+
 def load_decomposition() -> dict[str, dict[str, int]]:
     """Failures split by the stage that actually lost them, per split.
 
@@ -845,11 +870,13 @@ def slide_ablation(prs, M, ABL):
          "Mis-lock rate. Rows are baseline plus the named stage, not a cumulative chain.",
          size=9.5, color=GREY, italic=True)
 
-    card(s, 8.5, 1.72, 4.2, 4.6, INK, None)
-    text(s, 8.75, 1.92, 3.7, 0.55, "Four attempts at selection, and why the fourth worked",
+    # Height covers five entries now, not four. Rendered and checked - the fifth used to print
+    # through the bottom border of the panel.
+    card(s, 8.5, 1.72, 4.2, 5.15, INK, None)
+    text(s, 8.75, 1.92, 3.7, 0.55, "Five attempts at selection, and why only one worked",
          size=14, bold=True, color=AMBER, font=HEAD)
     grey = RGBColor(0x9F, 0xB4, 0xC2)
-    text(s, 8.75, 2.55, 3.7, 3.7, [
+    text(s, 8.75, 2.48, 3.7, 3.7, [
         ("PADM residual scoring — overfit", {"bold": True, "color": WHITE}),
         ("Two tuned constants. Gained on the split it was tuned on, lost on both held-out splits.",
          {"color": grey}),
@@ -868,6 +895,25 @@ def slide_ablation(prs, M, ABL):
          "re-SCORED at its own best pose — no new criterion, so it cannot invent a preference.",
          {"color": grey}),
     ], size=9.5, spacing=2)
+
+    # The result that closes the forward-model direction, and the sharpest sentence in the project.
+    # It belongs beside the four selection attempts because it is the same asymmetry approached from
+    # the opposite side: unfair freedom flows to the wrong candidate, fair improvement flows to both.
+    lift = load_scan_calibration()
+    calibration = (
+        f"We measured the scanner from the array itself and corrected the whole image once, before "
+        f"any candidate existed. It lifted the true site by {lift['truth']} — three times the "
+        f"margin — and the impostor by {lift['winner']}."
+    ) if lift else (
+        "We measured the scanner from the array itself and corrected the whole image once, before "
+        "any candidate existed. It lifted the true site and the impostor alike."
+    )
+    text(s, 8.75, 5.62, 3.7, 1.15, [
+        ("Global scanner calibration — fair, and useless",
+         {"bold": True, "color": WHITE, "size": 9.5}),
+        (calibration + " A global correction is fair by construction, which is exactly why it "
+         "cannot break a tie.", {"color": grey, "size": 8.5}),
+    ], size=8.5, spacing=1)
 
     text(s, 0.6, 5.30, 7.6, 1.0,
          "Two rules these bought. Downsampling is free for measuring pose and ruinous for deciding "

@@ -2749,6 +2749,230 @@ claim the remaining 16 failures *mean*.
 
 ---
 
+## 38. Global scan-field calibration: the correction is fair, and fairness is why it fails ❌
+
+An external review proposed the one architecture the project had not tried, and proposed it for the
+right reason. Every deformation experiment so far (§36b, §36c) estimated a correction from **each
+candidate's own patch**, which hands every candidate its own geometry — exactly the freedom that
+flows to whoever has more mismatch to absorb. The alternative: measure the scanner **once, from the
+whole search image, before any candidate exists**, and correct the image every candidate is scored
+against. Lattice-averaging followed by line-by-line registration is established practice for
+periodic scanned microscopy, so this is not a novel gamble.
+
+Built as `src/driftlock/scanfield.py`, measured by `scripts/global_jitter.py` into
+`results/global_jitter.csv`, validated by `tests/test_scanfield.py`. ADR-0030 applied from the start.
+
+### 38a. There is genuinely something to correct, and the estimator finds it
+
+The generator's raster stage is `out[y, x] = clean[y, x + shear·y/(H−1) + jitter_y]`. On every
+split here that is a **1.5 px** shear and a **0.5 px** per-row jitter, and they are not comparable:
+
+| | across a 100 px footprint | reachable by the shipped pipeline |
+|---|---|---|
+| shear, 1.5 px end-to-end | **0.15 px** | yes — the drift stage removes its linear part |
+| jitter, σ = 0.5 px, **white in y** | **0.5 px per row** | **no** — no smooth model can represent it |
+| reference's own jitter | 0.5 px at 1 nm/px → **0.05 px** after ↓10 | negligible |
+
+**The search image's per-row jitter is the largest uncorrected geometric error in the pipeline.**
+
+The estimator recovers it. On a synthetic lattice with a jitter we chose, the residual is under half
+the input RMS (`tests/test_scanfield.py`), and on real pairs the measured field RMS is **0.547 px**
+against the generator's 0.500 px.
+
+### 38b. It sharpens the true site — and the impostor by the same amount
+
+ZNCC at the true location, at the generator's exact pose, rises **+0.0226** on ten dev pairs
+(0.8553 → 0.8779), up on 8 of 10. A control that resamples the image with an all-zero field moves it
+by **+0.0000**, so interpolation costs nothing and the gain is the correction.
+
+That lift is **twice the entire +0.0114 fixed-pose deficit** (§37c). It should have been decisive.
+Measured as a *differential* on the 27 dev pairs where the gates fired:
+
+| ZNCC lift from the global correction | |
+|---|---|
+| at the **true** location | **+0.0297** |
+| at the **chosen** (impostor) location | **+0.0301** |
+| **differential** | **−0.0003**, truth lifted more in **8 / 27** |
+
+> **The impostor is a real lattice site, imaged through the same scanner, so removing the scanner's
+> jitter sharpens it by exactly as much. A global correction is fair by construction — and being
+> fair is precisely why it cannot break a tie.**
+
+This is the sharpest statement of the project's central asymmetry yet, and it arrives from the
+opposite direction to all the others. §15d, §23f and §36b showed that *unfair* freedom flows to the
+wrong candidate. §38b shows that *fair* improvement flows to both. **There is no third option: a
+correction either privileges a candidate or it does not, and neither one selects the truth.**
+
+It also retires §36c. Two candidate-local implementations disagreed about the sign of a per-row
+jitter correction (+0.0378 against −0.0310, §37d). Neither was measuring physics — both were
+measuring how much unfairness their particular estimator happened to hand each candidate. The
+physical version of the same correction has a differential of **−0.0003**, at the fourth decimal,
+alongside PSF blur (+0.0000, §36a) and micro-warp (−0.0004, §36b). **Every fair forward-model
+improvement this project has measured lands at the fourth decimal.**
+
+### 38c. The trap: correcting the image destroys the drift estimator
+
+Worth recording on its own, because the obvious implementation is wrong in a way that produces no
+error and no warning.
+
+`estimate_drift_shear` measures the shear as a **median over row pairs** whose displacement is
+`shear·gap/(H−1)` plus the difference of two per-row jitters. At a 1.5 px shear the signal in any
+one pair is ~0.15 px and the jitter difference is ~0.7 px: **the estimator works precisely because
+the jitter is zero-median noise it can average away.** Remove the jitter first and that noise is
+replaced by the calibration's own correlated residual, which does not cancel.
+
+Measured on ten dev pairs, shear estimated on the corrected image against a true 1.50:
+
+| | |
+|---|---|
+| estimates on the **original** image | median 1.074 — noisy but sane |
+| estimates on the **corrected** image | **−1.96, +2.89, −3.95, +17.04** — median 1.094, spread destroyed |
+| position error | **0.139 → 1.173 px** |
+
+The fix is exact rather than empirical: the correction does not touch the shear, so the shear is
+read off the **original** image and applied to the coordinate found in the corrected one. That
+recovers 1.173 → 0.296 px. A stage that removes noise another stage depends on is a real class of
+bug, and the only reason it was caught is that the position metric moved.
+
+### 38d. Pipeline result on dev — the split we are allowed to tune on
+
+Frozen configuration, same pairs, the only difference being the corrected search image:
+
+| dev, 40 pairs | mis-lock | median error, located | runtime |
+|---|---|---|---|
+| shipped | **12.5%** | **0.2575 px** | — |
+| + global scan calibration | **15.0%** | 0.2963 px | **+101 ms** |
+| | 0 fixed, **1 broke** | | |
+
+**It does not improve mis-lock; it costs a pair, costs precision, and costs 26% of the runtime
+budget.** The gates declined 13 of 40 pairs on estimator disagreement, so a third of the time it
+correctly refuses to act.
+
+The residual precision cost has a mechanism too. The template can only reference a row against its
+own neighbourhood, so the field measured is `jitter_y − local_mean_jitter(y)`; what remains in the
+corrected image is that local mean, ~0.14 px and **correlated** across nearby rows. White noise
+averages away over the 100 rows of a footprint (0.5/√100 = 0.05 px); correlated noise does not.
+**The correction trades white error for smaller-but-correlated error, and the matcher was already
+exploiting the whiteness.**
+
+Because the *selection* is what fails, a hybrid that took the coordinate from the original image
+could recover the precision but not the mis-lock — the sites chosen are the ones measured above. Not
+built, for that reason.
+
+### 38e. Judged in the regime it targets — and it has no operating regime
+
+ADR-0027 is the standing warning here: the median filter sat switched off for three days on a "no
+effect" measured against data with no impulse noise. Every reporting split is generated at the same
+nominal **0.5 px** jitter, so measuring a jitter corrector only there would repeat that mistake
+exactly. Two stress splits, 6× apart, validation-only seeds:
+
+| split | jitter σ | base mis-lock | with calibration | applied |
+|---|---|---|---|---|
+| dev | 0.5 px | 12.5% | **15.0%** (0 fixed, 1 broke) | 27 / 40 |
+| `_stress/jitter15` | 1.5 px | 25.0% | **25.0%** (0, 0) | **0 / 24** |
+| `_stress/jitter3` | 3.0 px | 63.3% | **63.3%** (0, 0) | **0 / 30** |
+
+**Above the nominal jitter the gates decline every single pair** — the two estimators disagree by
+2.0–2.7 px at σ = 1.5 and 2.2–3.9 px at σ = 3.0, against a 0.75 px tolerance. The gate is working;
+there is simply nothing trustworthy to measure.
+
+And the reason is structural rather than a tuning limit:
+
+> A per-row lag search must stay below **half the lattice period** or the row locks onto the
+> neighbouring repeat. At the DRAM bit-line pitch of 96 nm that is ~4.8 px at 10:1. **The
+> correctable jitter range is bounded by exactly the periodicity that makes the localization problem
+> hard in the first place.**
+
+So the stage fires only in the regime where the jitter is small enough not to matter, and refuses in
+every regime where it would. **There is no operating point at which it both fires and helps** — this
+is not ADR-0027's mistake repeated, it is three regimes across a 6× range with the same answer.
+
+### 38f. A defect in this experiment, found and fixed
+
+The first jitter3 run reported **2 fixed and 3 broke on a split where the calibration never fired
+once**. That is impossible if the arms are identical when the gates decline — and they were not: the
+shipped drift stage sizes its row separation with `gap_for_rotation(measured_rotation)`, while the
+reroute in §38c calls `estimate_drift_shear` at its default gap. The declined arm now reuses the
+base result by construction, and the clean re-run is **63.3% → 63.3%, 0 fixed, 0 broke**.
+
+Worth recording because the wrong version was *plausible* — five pairs moving on a heavy stress
+split reads like a real effect, and it would have been reported as one.
+
+### 38g. What this settles
+
+The review that proposed this was right about the architecture and right that it was untested. The
+answer is not "the idea was bad" but something more useful:
+
+* **Global is the correct design.** The candidate-local versions (§36c) were not measuring physics;
+  they were measuring how much unfairness their particular estimator handed each candidate, which is
+  why two implementations disagreed about the sign. Building it fairly resolved that contradiction.
+* **And fairness is fatal.** A correction applied to the whole image lifts every lattice site
+  equally, because every lattice site was imaged through the same scanner. There is no third
+  option: a correction either privileges a candidate or it does not, and neither selects the truth.
+* **The forward model has nothing material left in it.** Four independent additions — PSF blur
+  (+0.0000), micro-warp (−0.0004), candidate-local jitter (contradictory), global scan field
+  (−0.0003) — all land at the fourth decimal against a margin of 0.0114.
+
+Not shipped. `src/driftlock/scanfield.py` is kept, tested and unreferenced by the pipeline, because
+the measurement is the deliverable.
+
+---
+
+## 39. Supercell search: the only higher-order structure is the one blind to our failure ❌
+
+The second idea from the same review, and the cheapest high-information experiment available. If the
+array were secretly `A B A C A B A D` rather than `A A A A`, a site would carry a *context* even
+though a cell does not, and identity would be readable from structure instead of from an aperiodic
+fingerprint sitting near the noise floor. That would attack the failure mechanism without inventing
+a new final score — the one shape of idea this project had not exhausted.
+
+`scripts/supercell.py` → `results/supercell.csv`. 72 measurements: 6 pairs × 3 splits × both images
+× both axes.
+
+### 39a. The statistic, and the null that makes it mean anything
+
+Correlate each image with itself displaced by `k` primitive lattice periods, k = 1…24. A plain
+lattice gives a smoothly decaying `r(k)`. A supercell of order N adds a **modulation** — `r(k)` runs
+high whenever k is a multiple of N, because those displacements land on the same cell type. Detrend
+`r(k)` in log-k, then take the strongest spectral component of the residual.
+
+**The first run of this was uninterpretable and it is worth saying why.** It reported a median
+"modulation strength" of 0.94, which reads like a strong effect. It is not: on a 24-point series the
+largest of ~12 spectral components is *naturally* about one RMS. The statistic is scale-free but not
+self-calibrating. A 400-permutation null — shuffle the residual, which destroys ordering while
+preserving the values exactly — is what turns it into a measurement. Given §37, shipping a
+statistic without its null was not an option.
+
+### 39b. There IS higher-order structure, and it is order 2
+
+| | |
+|---|---|
+| measurements with p < 0.05 | **33 / 72** (3.6 expected by chance) |
+| measurements with p < 0.01 | 17 |
+| median p | 0.057 |
+| order among the significant hits | **2 → 17 hits**, 3 → 6, 24 → 6 (series length, a detrend artifact), others → 4 |
+
+So the array is not a plain lattice, and the statistic is sensitive enough to prove it. But the
+order is **2**, and order 2 is the `(i+j)%2` contact checkerboard — H8, confirmed on day one and
+already modelled by the generator. Nothing at order 4, 8 or any larger repeating motif survives.
+That is exactly what the generator predicts: line positions are a random walk
+(`pos += pitch + N(0, 1.5 nm)`, H7), and a random walk has no repeating motif to find.
+
+### 39c. Why the structure that exists cannot help
+
+> **The dangerous confusion is the parity-*preserving* diagonal shift** (+1 word-line *and* +1
+> bit-line, H8). By construction that shift leaves `(i+j)%2` unchanged.
+
+So the single piece of higher-order periodic structure in these images is precisely **blind to the
+one confusion that produces our failures**. A parity-aware test rejects single-axis shifts — which
+the pipeline already gets right — and says nothing whatever about the diagonal shift, which is what
+it gets wrong.
+
+This is a negative result with a positive control inside it: the method detected real structure at
+9× the chance rate, so its silence about larger orders is evidence rather than insensitivity.
+
+---
+
 ## 13. What this means for the plan
 
 **Confirmed as valuable:** verifying foundations before building (§1 caught two of my own broken

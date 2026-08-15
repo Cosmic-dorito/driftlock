@@ -843,6 +843,66 @@ is the credibility of everything next to it.
 
 ---
 
+## ADR-0031 · 2026-08-15 · accepted · The forward model is closed: fair corrections cannot select
+
+**Decision.** No further work on the acquisition forward model. `src/driftlock/scanfield.py` is kept,
+tested and **unreferenced by the pipeline** — the measurement is the deliverable, not the stage.
+
+**What forced it.** An external review proposed the one architecture never tried, and proposed it for
+a good reason: every deformation experiment so far estimated a correction from each *candidate's own
+patch*, and a candidate allowed to choose its own geometry is being handed freedom that flows to
+whoever has more mismatch to absorb. The alternative is to measure the scanner **once, from the whole
+search image, before any candidate exists**.
+
+The physics supported it. The generator applies `shear·y/(H−1) + jitter_y`; across a 100 px footprint
+the 1.5 px shear contributes 0.15 px and its linear part is already removed, while the 0.5 px jitter
+is **white in y** and unreachable by any smooth model. The reference's own jitter is 0.05 px after
+the ↓10. So the search image's per-row jitter was the largest uncorrected geometric error in the
+pipeline, and correcting it raised ZNCC at the true site by **+0.0297** — nearly 3× the +0.0114
+margin (ADR-0030). It should have been decisive.
+
+| ZNCC lift from the global correction, 27 dev pairs | |
+|---|---|
+| at the **true** location | **+0.0297** |
+| at the **impostor** location | **+0.0301** |
+| **differential** | **−0.0003**, truth ahead in 8/27 |
+
+> **The impostor is a real lattice site imaged through the same scanner, so removing the scanner's
+> jitter sharpens it by exactly as much. A global correction is fair by construction — and being
+> fair is precisely why it cannot break a tie.**
+
+**Why this closes the whole direction rather than one stage.** There is no third option: a
+correction either privileges a candidate or it does not. Unfair freedom flows to the wrong candidate
+(§15d at 80–92% mis-lock, §23f, §36b); fair improvement flows to both (§38b). Four independent
+additions to the forward model now sit at the fourth decimal — PSF blur +0.0000, micro-warp −0.0004,
+candidate-local jitter (two implementations, opposite signs), global scan field −0.0003 — against a
+margin of 0.0114.
+
+**It also retires §36c.** The +0.0378 and −0.0310 that disagreed about sign were never measuring
+physics; each was measuring how much unfairness its own estimator handed each candidate. The
+physical version of that correction has a differential of −0.0003.
+
+**Judged in the regime it targets**, per ADR-0027, across a 6× range:
+
+| jitter σ | base | with calibration | applied |
+|---|---|---|---|
+| 0.5 px (all reporting splits) | 12.5% | **15.0%** | 27/40 |
+| 1.5 px | 25.0% | 25.0% | **0/24** |
+| 3.0 px | 63.3% | 63.3% | **0/30** |
+
+Above nominal the gates decline every pair, and structurally so: a per-row lag search must stay
+below half the lattice period (~4.8 px at the 96 nm bit-line pitch, 10:1), so **the correctable
+jitter range is bounded by the very periodicity that makes localization hard**. The stage fires only
+where the jitter is too small to matter. That is not ADR-0027's mistake repeated — it is three
+regimes with the same answer.
+
+**Two things worth keeping from the attempt.** Correcting the image *destroys* the drift estimator,
+which works precisely because jitter is zero-median noise it can average away — shear estimates went
+to −3.9 and +17.0 against a true 1.50 (§38c). And scan jitter turns out to be the harshest
+robustness axis measured, 63.3% at σ = 3.0, now recorded in the envelope.
+
+---
+
 # Hypothesis verification log (rule R3)
 
 The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,

@@ -1,0 +1,9 @@
+metric,value,note
+n_pairs,30,pairs measured
+mislock_base,0.6333,shipped pipeline
+mislock_calibrated,0.6333,with the global scan-field correction
+fixed,0,"base wrong, calib right"
+broke,0,"base right, calib wrong"
+applied,0,pairs where the gates let the correction run
+median_error_base_px,0.5641,on the 11 pairs both arms locate
+median_error_calibrated_px,0.5641,

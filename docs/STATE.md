@@ -120,10 +120,11 @@ What survives: **PSF blur is real and negligible** (consistent 7/8, differential
 decimal), and **spatial micro-deformation helps the impostor more** (−0.0004, exactly reproduced).
 Neither justifies a richer forward model.
 
-**The one live lead in the project.** The line-jitter differential is **+0.0378 against a +0.0114
-deficit** — if real, it flips these pairs. It is not a finding: n = 8, oracle-only, p = 0.070, and
-an earlier implementation measured the opposite sign. Settle it the only way that counts —
-implemented in the pipeline, measured on all four splits — or leave it alone. See §37d.
+**That lead is now closed (§38).** The line-jitter differential of +0.0378 was never physics. Built
+properly — measured once from the whole search image, before any candidate exists, so the same
+correction applies to every candidate — the differential is **−0.0003** (truth +0.0297, impostor
++0.0301, truth ahead in 8/27). Both earlier implementations were measuring how much *unfairness*
+their particular estimator handed each candidate, which is why they disagreed about the sign.
 
 The shipped `rigid pose + bounded refit` remains the measured optimum among everything actually
 tried; that rests on the ablation, which is unaffected.
@@ -165,6 +166,14 @@ every reporting and tuning split.
 | salt-and-pepper | — | 6.7% (with the median filter) |
 | mixed (spec + 4× noise) | — | 23.3% |
 | mixed (everything, beyond spec) | — | 46.7% |
+| **scan jitter** | 12.5% at σ = 0.5 | **25.0%** at σ = 1.5, **63.3%** at σ = 3.0 (§38e) |
+
+**Scan jitter is the most damaging degradation found so far**, and it was only measured because the
+scan-field experiment needed a regime to be tested in (`results/global_jitter_edge.csv` and
+`results/global_jitter_stress.csv`, validation seeds 91,000,001–2). At the nominal 0.5 px it is
+invisible; by 3.0 px it takes mis-lock to 63.3% — worse than barrel distortion (43.3%) or charging
+streaks (33.3%). It is 6× beyond anything the spec names, so this is an envelope boundary rather
+than a shipping risk, but no other single axis reaches two thirds.
 
 Degradations **compose roughly additively**; no new failure mode emerges. Target position: no
 dependence detectable in this 100-pair sample (`results/position_strata.csv`, all Wilson intervals
@@ -207,7 +216,9 @@ overlap, patterns non-monotone).
 |---|---|
 | PSF blur | differential at the fourth decimal, 7/8 (§36a) |
 | micro-warp | −0.0004, 4/8 — the impostor gains more (§36b, reproduced exactly) |
-| line-jitter correction | ⚠️ **unsettled** — two implementations disagree on the sign (§36c vs §37d) |
+| candidate-local line-jitter | superseded: both implementations were measuring their own unfairness, not physics (§38b) |
+| **global scan-field calibration** | lifts the truth **+0.0297** and the impostor **+0.0301** — differential **−0.0003**, 8/27. dev mis-lock 12.5% → 15.0%, +101 ms. Declines every pair at σ = 1.5 and σ = 3.0, so it has **no operating regime** (§38) |
+| supercell / higher-order periodicity | order 2 only — the checkerboard parity, which is **blind to the parity-preserving diagonal shift** that causes our failures (§39) |
 
 ### Other
 | direction | result |
@@ -241,12 +252,15 @@ margin (H7 ≈ 0.057) is not swamped, then reads an ordinary correlation.
 
 ## 7. What is genuinely left
 
-1. **The line-jitter lead** (§37d) — the only open algorithmic question. A differential of +0.0378
-   favouring the truth, against a +0.0114 deficit, on 8 pairs, from an oracle. Either settle it in
-   the pipeline across all four splits or leave it; do not quote it.
-2. **Determinism test** (PROGRESS 3.8) — still outstanding.
-3. **RGB optical extension** — the explicit scored bonus, never started.
-4. **Deck and demo polish** — where the remaining marks are.
+Nothing algorithmic is queued. The last open lead (§37d) was built and closed in §38, and the last
+untested structural idea was closed in §39.
+
+1. **Determinism test** (PROGRESS 3.8) — still outstanding.
+2. **RGB optical extension** — an explicit scored bonus. The public hackathon page says the
+   challenge images are grayscale, which is true of the *task*; the Drift-Sense problem statement
+   itself lists "RGB optical-image extension | Bonus | Optional generalization after completing the
+   grayscale SEM task". Primary source wins — the bonus is real. Never started.
+3. **Deck and demo polish** — where the remaining marks are.
 
 Open user actions: no GitHub remote configured; git identity is repo-local "DriftLock Team".
 
