@@ -189,7 +189,7 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 | **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 20 ms |
 | *their generator, fixed 10:1, no rotation* | **DriftLock** | **0.0%** | **0.179** | **97.5%** | **92.5%** | 90.0% | 632 ms (32x base) |
 | **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 19 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **16.7%** | **0.300** | **80.0%** | **66.7%** | 86.7% | 568 ms (29x base) |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **13.3%** | **0.300** | **83.3%** | **66.7%** | 86.7% | 568 ms (29x base) |
 | **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 20 ms |
 | *held-out architecture, never tuned on* | **DriftLock** | **3.3%** | **0.214** | **90.0%** | **76.7%** | 90.0% | 564 ms (29x base) |
 
@@ -276,27 +276,29 @@ Stated plainly rather than left for a judge to find.
    intervals are wide. It is also why the spec's closest-to-centre tie-break cannot help here
    ([ADR-0021](docs/DECISIONS.md)).
 7. **Degradations are now stratified — and two of them hurt.**
-   [`results/robustness.csv`](results/robustness.csv) sweeps 22 operating points across dose, read
+   [`results/robustness.csv`](results/robustness.csv) sweeps 25 operating points across dose, read
    noise, scale, rotation and five degradations, deliberately running *past* the envelope the
-   problem statement promises. Accuracy is essentially flat across a 32× dose range and across
-   0°/±1°/±2° of rotation. The two soft spots are **charging streaks (33.3%)** — which the spec
-   names explicitly as a possible degradation — and **barrel distortion (43.3%)**, which it does
-   not. Scale beyond the promised range is the envelope limit: 16.7% inside 9–11:1, 40.0% at
+   problem statement promises. Accuracy is essentially flat across a 32× dose range (0.0–16.7%) and
+   across 0°/±1°/±2° of rotation. The two soft spots are **charging streaks (26.7%)** — which the
+   spec names explicitly as a possible degradation — and **barrel distortion (33.3%)**, which it
+   does not. Scale beyond the promised range is the envelope limit: 16.7% inside 9–11:1, 36.7% at
    8–12:1. This is validation only; nothing is tuned on those seeds.
 
    **Charging streaks are the dominant degradation-specific weakness, and we know why.** The failure
    decomposition inverts there: 23.3% of pairs lose the true location *before* it is ever a
    candidate, against 3.3% lost at final ranking — so it is a signal-recovery problem, not a
-   ranking one. Raising `top_k` to 20 or 30 changes nothing (33.3% at all three), which says the
+   ranking one. Raising `top_k` to 20 or 30 changes nothing, which says the
    correlation peak is **erased rather than demoted**. An artifact-aware correction was built and
    measured: it recovers one absent peak in thirty and regresses the primary benchmark, so it is
    not shipped ([FINDINGS §26](docs/FINDINGS.md)).
 8. **Small differences between splits are not resolved, and we say so.**
    [`results/significance.csv`](results/significance.csv) carries Wilson intervals and a paired
    McNemar test. Two stress splits with *identical* generator parameters differing only by seed
-   measured 20.0% and 26.7%, so cross-split gaps of a few points are directional only. The headline
-   configuration change is quoted as a paired comparison on the same 100 pairs — 0 regressions,
-   6 fixes, exact p = 0.031 — because that is the test the design actually supports.
+   differ by several points on identical parameters, so cross-split gaps of a few points are
+   directional only; the exact figure is derived into `results/significance.csv` rather than quoted
+   here, because it moves whenever the sweep is regenerated. The comparison against the sponsor's
+   baseline is quoted as a paired test on the same 100 pairs — **0 regressions, 55 fixes** — because
+   that is the test the design actually supports.
 9. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
    implementation failure — that is a different claim from "we tried it and it does not help".
 

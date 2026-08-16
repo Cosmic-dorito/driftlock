@@ -168,6 +168,18 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         label="driftlock",
         subpixel=True,
         drift_correction=True,
+        # Reject an implausible shear instead of applying it (16 Aug). The drift step is the LAST
+        # thing localize() does, so a bad estimate lands straight in the answer with nothing to
+        # catch it - and it is the only stage that can take a CORRECTLY SELECTED candidate and
+        # report a mis-lock. Measured over 354 pairs (results/refine_forensics.csv):
+        #   |shear| on the 283 clean pairs that are correct today   max  4.56 px
+        #   |shear| on the two pairs lost this way                 14.75 and 50.39 px
+        # so 6.0 clips exactly those two and nothing else. It is not a tuned knob: every threshold
+        # in [6, 12] clips the same two clean pairs, and 3 through 12 all give the same reporting
+        # result. 6 rather than 8 only because it is also best-or-tied under the jitter stress
+        # splits, where a noisy estimate is likeliest. Below ~4 it starts clipping legitimate
+        # corrections and costs precision. See ADR-0036 and FINDINGS section 44.
+        drift_max_shear_px=6.0,
         pose_search=True,
         top_k=10,
         # Impulse-noise removal (14 Aug). Free, and only measurable where impulse noise exists -

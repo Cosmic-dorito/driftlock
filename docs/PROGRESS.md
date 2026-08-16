@@ -402,6 +402,47 @@ p95 error from 11.94 px to **0.51 px**.
 
 ---
 
+## Stage 11 — A failure bucket that did not exist ✅ (16 Aug, win-2)
+
+> Current numbers live in the generated headline in `docs/RESULTS.md`.
+
+| | aggregate mis-lock |
+|---|---|
+| start of the day | 6.0% |
+| after bounding the drift correction (ADR-0036) | **5.0%** |
+
+**The day began as an audit, not as algorithm work.** `scripts/audit_results.py` re-derives every
+headline metric from `predictions_*.csv` and the manifests without importing anything from `src/` or
+`evaluate.py`, so a defect in our own metric code cannot reproduce itself. All fifteen accuracy
+figures reproduced exactly. The audit did find five stale numbers, all in the hand-maintained
+`docs/STATE.md` table and none in any generated artefact — and all of them *pessimistic*.
+
+**Then the audit found a forensics file that could not have been right.**
+`results/failure_mechanism.csv` reported `score_margin = 0.0` on all four outscored failures with
+identical winner and truth pose in every row. Cause: `failure_decomposition.py` read the winner off
+`_refit_once`, but ADR-0032 re-orders candidates *after* the refit returns, so it had been comparing
+the truth against itself. `pose_ceiling.py` had been fixed for exactly this; the fix was never
+propagated.
+
+**Correcting it exposed a failure mode with no bucket.** `bench 21` had truth rank **0** — the
+pipeline chose the true candidate, 0.92 px from ground truth, and reported 6.54 px.
+`scripts/refine_forensics.py` measured all three post-selection stages over 354 pairs and found the
+terminal drift correction moving the answer a median 0.65 px but a maximum of **24.25 px**. Two
+pairs in 300 selected correctly and were reported as mis-locks; both are that stage and nothing else
+is.
+
+**ADR-0036** bounds the shear estimate at 6.0 px. On the 283 clean pairs correct today `|shear|`
+tops out at 4.56; the two pathological pairs read 14.75 and 50.39, so the bound clips exactly those
+two. Every threshold from 3 to 12 gives the same reporting result — it is not a tuned knob.
+**Zero regressions; median error and pass@0.5px unchanged on all three splits.**
+
+Also this day: a contradiction inside `STATE.md` retracted — "multi-scale context" was listed as the
+one live hypothesis in §7 while §5 recorded it as closed. §31a closes it by arithmetic (the
+reference is 1000 nm across, which *is* the 100×100 footprint, so there is no reference-side context
+to correlate against). There is now no direction left with a live accuracy hypothesis.
+
+---
+
 ## Stage 7 — Stretch, all flag-gated
 
 Stop wherever time runs out; each is independently shippable.

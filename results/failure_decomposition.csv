@@ -60,7 +60,7 @@ bench,17,absent,66.891,72,-1
 bench,18,correct,0.099,63,0
 bench,19,outscored,56.211,66,0
 bench,20,correct,0.370,60,0
-bench,21,outscored,6.539,61,0
+bench,21,correct,0.923,61,0
 bench,22,correct,0.097,65,0
 bench,23,correct,0.317,61,0
 bench,24,correct,0.245,73,26

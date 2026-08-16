@@ -83,6 +83,28 @@ def load_correct(path: Path, gt: dict) -> dict[str, bool]:
     return out
 
 
+def nominal_pair_spread() -> tuple[float | None, float | None]:
+    """The mis-lock rates of the two stress splits whose parameters are identical.
+
+    The sweep's ladder contains two NOMINAL points - one anchoring the dose axis, one anchoring the
+    read-noise axis - which draw from the same generator parameters and differ only in seed. Their
+    gap is a direct read of the sampling floor at n=30, so it belongs in the output of the script
+    whose entire subject is what a single split can resolve.
+
+    Derived rather than quoted: this number changes every time the sweep is regenerated, and the
+    hardcoded version of it disagreed with four other documents before it was noticed.
+    """
+    path = REPO_ROOT / "results" / "robustness.csv"
+    if not path.exists():
+        return None, None
+    with path.open(newline="", encoding="utf-8") as fh:
+        rates = [float(r["driftlock_mislock"]) for r in csv.DictReader(fh)
+                 if r.get("point") and "NOMINAL" in r["point"]]
+    if len(rates) < 2:
+        return None, None
+    return min(rates), max(rates)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -154,6 +176,7 @@ def main() -> int:
 
     out = REPO_ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
+    # (nominal_pair_spread is defined at module level; called below while the file is open.)
     with out.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["scope", "mislock_k", "n", "mislock_rate",
                                                 "ci95_low", "ci95_high"])
@@ -161,8 +184,16 @@ def main() -> int:
         writer.writerows(rows)
         fh.write("\n# Wilson score intervals; normal-approximation intervals go negative at n=30.\n")
         fh.write("# For scope=paired_vs_baseline: mislock_k=b, mislock_rate=c, ci95_low=exact p.\n")
-        fh.write("# Two parameter-identical stress splits differing only by seed measured 20.0%\n")
-        fh.write("# and 33.3% at n=30 - the sampling floor for reading any single split.\n")
+        lo, hi = nominal_pair_spread()
+        if lo is None:
+            fh.write("# Sampling floor: results/robustness.csv absent, so the two nominal stress\n"
+                     "# splits could not be read. Regenerate it with scripts/robustness_sweep.py.\n")
+        else:
+            fh.write(f"# Two parameter-identical stress splits differing only by seed measured\n"
+                     f"# {100 * lo:.1f}% and {100 * hi:.1f}% at n=30 - the sampling floor for\n"
+                     f"# reading any single split. Derived from results/robustness.csv rather than\n"
+                     f"# typed - the figure moves every time the sweep is regenerated, and the\n"
+                     f"# hardcoded version of it went stale here for three days.\n")
     print(f"\n  Wrote {out.relative_to(REPO_ROOT).as_posix()}\n")
     return 0
 

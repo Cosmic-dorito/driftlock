@@ -103,6 +103,11 @@ def ladder() -> list[PipelineConfig]:
         # unlike the pair above which are not.
         replace(build_config(argparse.Namespace(config="driftlock")),
                 proposal_channels="", label="   the DEFAULT minus residual proposals"),
+        # The drift guard (ADR-0036) targets a bucket none of the rows above can reach: pairs where
+        # selection was CORRECT and the terminal drift correction moved the answer off it. It is the
+        # only stage here that is not about choosing a candidate.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                drift_max_shear_px=0.0, label="   the DEFAULT minus the drift guard"),
         # The two channels the per-channel ablation rejected, kept as measured negatives (R9): both
         # cost runtime and neither changes a single pair.
         replace(build_config(argparse.Namespace(config="driftlock")),

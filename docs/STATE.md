@@ -1,4 +1,4 @@
-# STATE — complete snapshot, 15 Aug 2026
+# STATE — complete snapshot, 16 Aug 2026
 
 **One file, self-contained.** If you read nothing else, read this. It carries the shipped
 configuration, every measured number, every closed direction with its evidence, and the reasons the
@@ -15,8 +15,8 @@ has the full experiment write-ups this summarises; `docs/DECISIONS.md` has the A
 
 | | |
 |---|---|
-| `scripts/verify_submission.py --strict` | **19 passed, 0 failed, 0 pending** |
-| tests | **59 pass** |
+| `scripts/verify_submission.py --strict` | **20 checks** |
+| tests | **65 pass** |
 | lint | ruff clean |
 | clean extract of `dist/` | reproduces all 15 accuracy metrics **exactly** |
 | deck | `solution_presentation.pptx`, 12 slides, every number generated from `results/` |
@@ -26,7 +26,7 @@ has the full experiment write-ups this summarises; `docs/DECISIONS.md` has the A
 | Split | mis-lock | median px | pass@1px | pass@0.5px | runtime p50 |
 |---|---|---|---|---|---|
 | sponsor `verify` (40) | **0.0%** | 0.179 | 97.5% | 92.5% | 632 ms (32.4×) |
-| bench (30, ours) | **16.7%** | 0.300 | 80.0% | 66.7% | 568 ms (29.1×) |
+| bench (30, ours) | **13.3%** | 0.300 | 83.3% | 66.7% | 568 ms (29.1×) |
 | holdout FinFET (30) | **3.3%** | 0.214 | 90.0% | 76.7% | 564 ms (28.9×) |
 
 *Every cell above is `results/metrics_{sponsor,bench,finfet}.csv` and `results/runtime.csv`.
@@ -34,36 +34,58 @@ Re-derived independently from `predictions_*.csv` + manifests on 16 Aug: all fif
 figures reproduce exactly. **Do not hand-edit this table** — an earlier version carried
 pass@0.5px 63.3/73.3 and runtimes 664/590/586 from a superseded benchmark pass.*
 
-**Aggregate 6/100 = 6.0%.** Baselines 25.0 / 76.7 / 90.0%. Three stages landed on 15 Aug, each one
-only working because of the one before it:
+**Aggregate 5/100 = 5.0%.** Baselines 25.0 / 76.7 / 90.0%. Four stages, three on 15 Aug (each only
+working because of the one before it) and one on 16 Aug:
 
 | change | aggregate | bucket it moved |
 |---|---|---|
 | pose grid read as evidence (ADR-0032) | 16.0% → 11.0% | outscored 9 → 4 |
 | screen widened 10 → 30 (ADR-0034) | 11.0% → 8.0% | screened 4 → 0 |
-| lattice residual proposals (ADR-0035) | 8.0% → **6.0%** | absent 3 → 1 |
+| lattice residual proposals (ADR-0035) | 8.0% → 6.0% | absent 3 → 1 |
+| drift correction bounded (ADR-0036) | 6.0% → **5.0%** | a bucket that did not exist |
+
+**ADR-0036 is a different kind of fix and worth reading as one.** The first three all improve
+*candidate selection*. The fourth is the first failure in the project that was **never a selection
+error**: on `bench 21` the pipeline chose the true candidate — rank 0, 0.92 px from ground truth —
+and the terminal drift correction then moved the answer 7.5 px off it. It stayed invisible for six
+days because the failure decomposition had only selection buckets (ABSENT / SCREENED / OUTSCORED) in
+it, and *a decomposition can only find failures of the kinds it has names for*. See §44.
 
 The residual proposal runs at **half resolution** (`proposal_level=2`): +0/−0 across all 300 pairs
 at **0.79× the full-resolution *residual configuration*** — not 0.79× baseline; the whole system still runs 26–30× the control — because a proposal only has to say "look near here" and the refit
 finds the exact location on the intensity image. L4 was also tested and loses 2 pairs — the
 aperiodic signal survives one halving, not two.
 
-**Runtime measured on a cool machine, and the gate does NOT pass.** The run held in
-`results/runtime.csv` has control **19.5 ms**, at or below the quiet-machine reference, so the
-control axis is healthy. But dispersion read **1.186** against the benchmark's **1.18** threshold,
-and the file's own footer therefore records
+**Runtime: the file is valid, but it predates ADR-0036 and the gate does NOT pass.**
+`results/runtime.csv` holds the measurement taken at commit 204ddfb — control **19.5 ms**, at or
+below the quiet-machine reference, so its control axis is healthy. But dispersion read **1.186**
+against the benchmark's **1.18** threshold, and the file's own footer records
 `absolute_ms_representative, no`. That is a *marginal gate failure*, not a certification.
 
+⚠️ **It describes the pre-guard configuration.** Two attempts on 16 Aug to re-measure with ADR-0036
+were both refused by the benchmark's own control gate (86–88 ms against the 22 ms reference), and
+the cause was measured rather than guessed: after an hour of robustness sweeps the CPU sat at
+**1400 MHz against a 3800 MHz maximum on an idle machine at 2% load**. A 2.7× clock deficit accounts
+for essentially the whole gap, and sustained down-clocking does not clear in the seven minutes the
+cooldown allowed.
+
+What can be said: across both throttled runs the ratio was **25–28× the baseline control**, against
+**29–32×** in the unthrottled 204ddfb run, so the shipped figure is of that order. ADR-0036 replaces
+a multiply-add with a comparison and cannot plausibly move it — but that is reasoning, not a
+measurement, and it is written here as reasoning. **Re-run `scripts/benchmark_runtime.py` on a
+machine that has been idle long enough for the clock to return to its maximum, and take whatever it
+reports.**
+
 Say **"stable measured runtime on a healthy machine, marginal dispersion gate failure at
-1.19 vs 1.18"** — never "runtime certified" or "strict certification passed" while the gate itself
-reports otherwise. The threshold was deliberately *not* widened to make the number pass; 1.19 looks
+1.186 vs 1.18"** — never "runtime certified" or "strict certification passed" while the gate itself
+reports otherwise. The threshold was deliberately *not* widened to make the number pass; 1.186 looks
 like this machine's steady value rather than instability, but that is a hypothesis about the
 threshold's calibration, not a pass.
 
-**The day's trade, measured:** this morning's configuration ran 394/377/382 ms at ~20× baseline at
-16.0% mis-lock. The three changes cost **≈×1.5 runtime for 16.0% → 6.0%**. There is no published
+**The trade, measured:** the 15 Aug morning configuration ran 394/377/382 ms at ~20× baseline at
+16.0% mis-lock. The four changes cost **≈×1.5 runtime for 16.0% → 5.0%**. There is no published
 runtime limit; the faster narrow-refit configuration remains reachable by config and is in the
-ablation.
+ablation. ADR-0036 itself is free — it replaces a correction with a comparison.
 
 Paired against the previous configuration (§40, ADR-0032), stated at both levels because the two
 answer different questions:
@@ -93,7 +115,8 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                refit_screen_steps=2, refit_screen_top_n=30,   # 15 Aug, ADR-0034
                pose_evidence_beta=5.0,                        # 15 Aug, ADR-0032
                proposal_channels="residual", proposal_top_k=3,
-               proposal_level=2)                              # 15 Aug, ADR-0035
+               proposal_level=2,                              # 15 Aug, ADR-0035
+               drift_max_shear_px=6.0)                        # 16 Aug, ADR-0036
 ```
 
 **Newest stage — read the pose grid as evidence, not as its maximum (§40, ADR-0032).** The maximum
@@ -109,10 +132,8 @@ the candidates it recovered were handed to the plain maximum. Once the selector 
 knob was worth **+4 fixed / 0 broken over 140 pairs**. *A parameter measured as "flat" is flat
 against the pipeline it was measured in.*
 
-⚠️ **Its runtime cost is not yet certified.** The interleaved sweep says ×1.05 but ran on a loaded
-machine; the clean re-measure was refused by the benchmark's own gate (baseline control 76 ms
-against a quiet-machine 22 ms). Bound it at **×1.05 to ~×1.9 and re-measure on a settled machine
-before quoting any p50.** `results/runtime.csv` currently holds the rejected run.
+Its runtime cost was re-measured on a settled machine and is in `results/runtime.csv`
+(632/568/564 ms p50, control 19.5 ms). Only the dispersion gate is marginal — see above.
 
 ---
 
@@ -201,15 +222,29 @@ tried; that rests on the ablation, which is unaffected.
 
 `results/failure_decomposition.csv`, 100 pairs:
 
-| stage that lost it | **now** | start of 15 Aug | after §40 | after §40i |
-|---|---|---|---|---|
-| never a candidate | **1** | 3 | 3 | 3 |
-| cut by the screen | **1** | 4 | 4 | 0 |
-| outscored at the final comparison | **4** | 9 | 4 | 5 |
+| stage that lost it | **now** | start of 15 Aug | after §40 | after §40i | after §42 |
+|---|---|---|---|---|---|
+| never a candidate | **1** | 3 | 3 | 3 | 1 |
+| cut by the screen | **1** | 4 | 4 | 0 | 1 |
+| outscored at the final comparison | **3** | 9 | 4 | 5 | 4 |
+| *selected correctly, then moved off* | **0** | — | — | — | 1 |
 
-**6 failures total: 1 absent, 1 screened, 4 outscored.** All five bench failures and the single
-FinFET failure are locally-plausible same-pitch candidates — `bench 17` (absent, a pose-search
-interaction) and `finfet 25` (screened at rank 32) are the two named ones.
+**5 failures total: 1 absent, 1 screened, 3 outscored.** The named ones are `bench 17` (absent, a
+pose-search interaction) and `finfet 25` (screened at rank 32). The fourth row did not exist as a
+category until §44; `bench 21` occupied it and ADR-0036 emptied it.
+
+**The three `outscored` failures lose on evidence, not on correlation.** With the forensics
+corrected (§44a), the ZNCC margin is **negative** on all three — the truth correlates *better* and
+still loses, because since ADR-0032 the pipeline does not rank on correlation:
+
+| pair | ZNCC margin | evidence margin | truth rank |
+|---|---|---|---|
+| `bench 3` | −0.0018 | +0.0014 | 2 |
+| `bench 13` | −0.0312 | +0.0105 | 3 |
+| `bench 19` | −0.0060 | +0.0003 | 1 |
+
+That is ADR-0032 working as designed — it buys 5 pairs and costs these three — but it had never been
+visible, because the mechanism file was comparing the truth against itself (§44a).
 
 **Each stage moved exactly the bucket it addresses.** Pose evidence cut *outscored* 9 → 4; widening
 the screen emptied *screened* 4 → 0; residual proposals took *absent* 3 → 1.
@@ -236,26 +271,37 @@ flat at 33.3%, so the peak is **erased, not demoted**.
 `results/robustness.csv`, 25 operating points, validation-only seeds (90,000,000+), disjoint from
 every reporting and tuning split.
 
+*Regenerated 16 Aug for ADR-0035 + ADR-0036. It had been stale since 68d1ef0 — it survived the
+ADR-0035 config change untouched and four documents quoted it. Every figure below is
+`results/robustness.csv`; do not hand-edit them.*
+
 | axis | in-spec | beyond spec |
 |---|---|---|
-| dose (32× range) | 3.3–20.0% | 10.0–13.3% at 2–8× noisier |
-| read noise σ | 20.0% at nominal | 3.3% at 4× |
-| **scale** | 13.3% at 9–11:1 | **36.7%** at 8–12:1 |
-| rotation | **6.7%** at ±2°, 3.3% at ±1° | 13.3% at ±3°, **30.0%** at ±5° |
-| charging streaks | — | **30.0%** ← named by the spec |
-| barrel distortion | — | 36.7% ← *not* named by the spec |
+| dose (32× range) | 0.0–16.7% | 6.7–13.3% at 2–8× noisier |
+| read noise σ | 13.3% at nominal | 3.3% at 2×, 6.7% at 4× |
+| **scale** | 16.7% at 9–11:1, 10.0% at fixed 10:1 | **36.7%** at 8–12:1 |
+| rotation | **3.3%** at ±2° and ±1°, 13.3% at 0° | 10.0% at ±3°, **23.3%** at ±5° |
+| charging streaks | — | **26.7%** ← named by the spec |
+| barrel distortion | — | **33.3%** ← *not* named by the spec |
 | salt-and-pepper + speckle | — | 6.7% (with the median filter) |
+| beam spot 12 nm | — | 6.7% |
 | gamma + vignette | — | 3.3% |
-| mixed (spec + 4× noise) | — | 16.7% |
-| mixed (everything, beyond spec) | — | 43.3% |
+| mixed (spec + 4× noise) | — | 13.3% |
+| mixed (everything, beyond spec) | — | **40.0%** |
 | **scan jitter** | 12.5% at σ = 0.5 | **25.0%** at σ = 1.5, **63.3%** at σ = 3.0 (§38e) |
+
+⚠️ **The scan-jitter row predates ADR-0036 and is the one figure here not regenerated**, because it
+comes from a separate experiment (`results/global_jitter_*.csv`), not from the sweep. §44c measures
+the same regime under the guard and puts jitter σ=3.0 at 14 of 30 rather than 19, so 63.3% is
+an upper bound on the current pipeline, not its measured value. Re-run
+`scripts/global_jitter.py` before quoting it.
 
 **Scan jitter is the most damaging degradation found so far**, and it was only measured because the
 scan-field experiment needed a regime to be tested in (`results/global_jitter_edge.csv` and
 `results/global_jitter_stress.csv`, validation seeds 91,000,001–2). At the nominal 0.5 px it is
-invisible; by 3.0 px it takes mis-lock to 63.3% — worse than barrel distortion (43.3%) or charging
-streaks (33.3%). It is 6× beyond anything the spec names, so this is an envelope boundary rather
-than a shipping risk, but no other single axis reaches two thirds.
+invisible; by 3.0 px it took mis-lock to 63.3% on the pre-guard pipeline — worse than barrel
+distortion (33.3%) or charging streaks (26.7%). It is 6× beyond anything the spec names, so this is
+an envelope boundary rather than a shipping risk, but no other single axis comes close.
 
 Degradations **compose roughly additively**; no new failure mode emerges. Target position: no
 dependence detectable in this 100-pair sample (`results/position_strata.csv`, all Wilson intervals
@@ -365,19 +411,33 @@ margin (H7 ≈ 0.057) is not swamped, then reads an ordinary correlation.
 
 ## 7. What is genuinely left
 
-### The one direction with a live hypothesis
+### ⚠️ Retracted: the "one live hypothesis" was already closed
 
-**Multi-scale context for the 4 `outscored` failures.** They are same-pitch, same-region, locally
-plausible candidates, and the only information the current matcher deliberately discards is
-everything outside the 100×100 footprint. The experiment is cheap and falsifiable: for each of the
-4, compare the truth against the winning impostor using a 20–40 px surrounding ring, and ask **only**
-whether context separates them. **0 of 4 → drop it. 2 of 4 → build the verifier.** Do not tune a
-weighted score first — that is how PADM died.
+An earlier version of this section proposed **multi-scale context for the `outscored` failures** —
+comparing truth against impostor over a 20–40 px surrounding ring — and called it the one direction
+with a live hypothesis. **It is not well-posed, and §31a had already closed it by arithmetic.**
 
-Explicitly **not** worth building (§43): a regional-pitch candidate prior. It is the obvious idea
-from the sponsor's images and it cannot reach these failures, because our fields are uniform-pitch
-by construction and every impostor already matches the truth's pitch. It is a *runtime* idea for
-heterogeneous data only.
+The reference is 1000×1000 px at 1 nm/px: **1000 nm across, which is the whole of it.** At 10 nm/px
+that is exactly the 100×100 footprint, so there is *no reference content outside the footprint* to
+build a context window from. Widening the search window is free but there would be nothing to
+correlate it against. Worse for the idea, the reference already spans ≈163 lattice cells, so a
+100×100 ZNCC **is** multi-cell contextual verification — "add context" describes what the matcher
+does today.
+
+Listing it as live in §7 while §5 recorded it as closed was a contradiction inside this file. Kept
+here rather than deleted, because the failure mode — a closed direction reappearing as a fresh idea
+one section later — is the one this document exists to prevent.
+
+Also still **not** worth building (§43): a regional-pitch candidate prior. It cannot reach these
+failures, because our fields are uniform-pitch by construction and every impostor already matches
+the truth's pitch. It is a *runtime* idea for heterogeneous data only.
+
+### What is actually left
+
+Nothing with a live accuracy hypothesis. The three remaining `outscored` failures lose on pose
+evidence while winning on correlation (§3), which is the designed trade of ADR-0032 and not a defect
+to fix; the oracle-pose measurement (§2a) says the available margin there is ~0.01 and six criteria
+aimed at it have failed.
 
 ### Everything else
 
@@ -420,7 +480,18 @@ Open user actions: no GitHub remote configured; git identity is repo-local "Drif
     narrow grid is flat and high by construction, so its log-sum-exp sits near its maximum while a
     wide grid averages in poses that are genuinely wrong. Ranking them together promotes exactly the
     candidates the screen rejected (§40d).
-11. **An offline proxy and the pipeline can disagree for reasons that exist only in the pipeline.**
+11. **A decomposition can only find failures of the kinds it has names for.** ABSENT / SCREENED /
+    OUTSCORED are three ways of choosing the wrong candidate, so for six days a pair that chose the
+    *right* candidate and was then moved off it by the terminal drift correction had nowhere to go
+    and was silently filed as `outscored`. Adding one column — how far the answer moved after
+    selection — found it immediately (§44, ADR-0036).
+12. **When a stage changes what the pipeline decides, every instrument that reads a decision goes
+    stale.** ADR-0032 re-orders candidates *after* the refit returns. `pose_ceiling.py` was fixed
+    for that; `failure_decomposition.py` was not, so its mechanism file compared the truth against
+    itself and printed a score margin of exactly 0.0 on every row for a day (§44a). A forensics
+    output that cannot come out any other way is a bug, not a finding — treat an impossibly clean
+    number as a defect report.
+13. **An offline proxy and the pipeline can disagree for reasons that exist only in the pipeline.**
     The cached-grid sweep was unaffected by the bug above, because it keeps only the top 10 and
     those were all survivors. A proxy result is a reason to run the real thing, never a substitute.
 

@@ -198,6 +198,10 @@ class PipelineConfig:
     # Drift correction is only applied when the measured rotation is this small. Not a tuning knob
     # so much as a statement of when the measurement is identifiable at all - see localize().
     drift_max_rotation_deg: float = 0.25
+    # Reject a shear estimate larger than this many pixels and leave the coordinate alone.
+    # The correction is x + shear*(y/(H-1)), so |shear| bounds how far the answer can move; an
+    # estimator blow-up therefore shows up directly as an implausible shear. 0 disables the guard.
+    drift_max_shear_px: float = 0.0
 
     label: str = "baseline"
 
@@ -585,6 +589,7 @@ def localize(
         final_x, _ = estimate_and_correct(
             search, final_x, final_y,
             gap=gap_for_rotation(measured_rotation), rotation_deg=None,
+            max_shear_px=config.drift_max_shear_px,
         )
 
     elapsed_ms = (time.perf_counter() - started) * 1000.0

@@ -182,6 +182,19 @@ def main() -> int:
               "representative.")
         print("     The x-baseline column is unaffected. Re-run when the control returns to "
               "normal before quoting p50.")
+        # Say HOW to tell the two apart. "Throttled or loaded" is a guess, and on 16 Aug it cost a
+        # detour: the machine was idle at 2% CPU and the control still read 86 ms, which looks like
+        # a mystery until you read the clock - 1400 MHz against a 3800 MHz maximum, a 2.7x deficit
+        # that accounts for essentially the whole gap. Sustained down-clocking after a long sweep
+        # does not clear in a few minutes, so "wait a bit and re-run" is the wrong advice for it.
+        print("     To tell throttling from load, read the clock rather than guessing:")
+        print("       Windows  powershell \"(Get-CimInstance Win32_Processor)"
+              ".CurrentClockSpeed\"")
+        print("       Linux    grep 'cpu MHz' /proc/cpuinfo | head -1")
+        print("     A current clock well below the maximum on an IDLE machine is sustained "
+              "down-clocking,")
+        print("     which can take tens of minutes to recover. Load shows up as busy processes "
+              "instead.")
 
     env = {
         "platform": f"{platform.system()} {platform.release()} ({platform.machine()})",

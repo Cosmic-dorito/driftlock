@@ -1,11 +1,14 @@
 scope,mislock_k,n,mislock_rate,ci95_low,ci95_high
 sponsor,0,40,0.0000,0.0000,0.0876
-bench,5,30,0.1667,0.0734,0.3356
+bench,4,30,0.1333,0.0531,0.2968
 finfet,1,30,0.0333,0.0059,0.1667
-aggregate,6,100,0.0600,0.0278,0.1248
-paired_vs_baseline,0,100,54,0.0000,strictly dominant (no regressions)
+aggregate,5,100,0.0500,0.0215,0.1118
+paired_vs_baseline,0,100,55,0.0000,strictly dominant (no regressions)
 
 # Wilson score intervals; normal-approximation intervals go negative at n=30.
 # For scope=paired_vs_baseline: mislock_k=b, mislock_rate=c, ci95_low=exact p.
-# Two parameter-identical stress splits differing only by seed measured 20.0%
-# and 33.3% at n=30 - the sampling floor for reading any single split.
+# Two parameter-identical stress splits differing only by seed measured
+# 13.3% and 16.7% at n=30 - the sampling floor for
+# reading any single split. Derived from results/robustness.csv rather than
+# typed - the figure moves every time the sweep is regenerated, and the
+# hardcoded version of it went stale here for three days.

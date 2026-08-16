@@ -3507,6 +3507,131 @@ harder.
 
 ---
 
+
+## 44. The bucket that was never in the decomposition: a correct pick, moved off ✅
+
+The failure decomposition has sorted every mis-lock into ABSENT / SCREENED / OUTSCORED since §30.
+All three are ways of **choosing** the wrong candidate. It never had a bucket for choosing the right
+one and then moving off it, so for six days that failure mode could not be counted — and one of the
+six remaining failures was it.
+
+### 44a. How it surfaced: a forensics file that could not have been right
+
+`results/failure_mechanism.csv` reported `score_margin = 0.0` on all four outscored failures, with
+`winner_scale` and `truth_scale` identical to the last decimal in every row. That is not a
+measurement, it is a fixed point: the script was comparing the truth against itself.
+
+The cause is ADR-0032. `failure_decomposition.py` hooks `_refit_once` and reads the winner off
+`out[0]`, but two things happen after that call returns — `refit_candidates` merges the screened-out
+candidates back in, and the pipeline then re-orders the wide-refit survivors by pose evidence before
+taking `candidates[0]`. **The truth is frequently still rank 0 by refit score while losing on
+evidence**, which is exactly the effect ADR-0032 introduced, so `out[0]` *was* the truth on all four.
+`pose_ceiling.py` had been fixed for this; the fix was never propagated.
+
+Corrected, the same four pairs report something worth knowing:
+
+| pair | ZNCC margin | evidence margin | truth rank |
+|---|---|---|---|
+| `bench 3` | **−0.0018** | +0.0014 | 2 |
+| `bench 13` | **−0.0312** | +0.0105 | 3 |
+| `bench 19` | **−0.0060** | +0.0003 | 1 |
+| `bench 21` | 0.0000 | 0.0000 | **0** |
+
+The ZNCC margin is **negative** on three of four: the truth correlates *better* and still loses,
+because since ADR-0032 the pipeline does not rank on correlation. That is the stage working as
+designed — it buys 5 pairs and costs these — but it had never been visible.
+
+And `bench 21` has truth rank **0**. The pipeline picked the true candidate and reported 6.54 px.
+
+### 44b. Which stage moves the answer, measured
+
+`scripts/refine_forensics.py` records the position after each of the three stages that run once a
+candidate is committed to. Over 354 pairs:
+
+| stage | median | p95 | max |
+|---|---|---|---|
+| `_refine_pose_local` | 0.000 px | 0.000 | 1.000 |
+| sub-pixel DFT | 0.250 px | 0.424 | 0.707 |
+| **drift correction** (clean 300) | **0.652 px** | **2.077** | **24.254** |
+| **drift correction** (all 354, incl. jitter stress) | **0.713 px** | **3.772** | **33.937** |
+
+The first two stages are bounded by construction — a pose polish and a sub-pixel peak fit cannot
+move an answer far — and they stay bounded under stress. The drift stage is neither.
+
+Two pairs in the 300 clean ones select within 5 px of ground truth and are reported past it. Both
+are the drift stage; nothing else in 300 pairs is:
+
+| pair | selected at | reported at | \|shear\| |
+|---|---|---|---|
+| `dev2 100` | 0.789 px | 23.478 px | **50.386** |
+| `bench 21` | 0.923 px | 6.539 px | **14.751** |
+
+The generator's true shear is **1.50 px on every split**. These are not large corrections, they are
+wrong ones — and the stage is terminal, so nothing downstream can catch them.
+
+### 44c. Why the threshold is not a tuned knob
+
+On the 283 clean pairs correct today, `|shear|` tops out at **4.564**. The two pathological pairs
+read 14.75 and 50.39. Nothing anywhere in the clean 300 falls between 5 and 14, so any bound in
+[6, 12] clips exactly those two and nothing else:
+
+| threshold | clips (of 300 clean) | dev+dev2 | reporting | jitter1.5 | jitter3.0 |
+|---|---|---|---|---|---|
+| off | 0 | 11 | 6 | 6 | 19 |
+| 3 px | 12 | 10 | 5 | 5 | 14 |
+| 4 px | 7 | 10 | 5 | 5 | 14 |
+| **6 px** | **2** | **10** | **5** | **5** | **14** |
+| 8 px | 2 | 10 | 5 | 5 | 15 |
+| 12 px | 2 | 10 | 5 | 6 | 15 |
+| 20 px | 2 | 10 | 6 | 6 | 17 |
+
+Every threshold from 3 to 12 gives the same reporting result. 6 rather than 8 only because it is
+also best-or-tied under jitter stress. Below ~4 the guard starts clipping legitimate corrections and
+buys nothing for the precision it costs.
+
+### 44d. What it is worth, and what it is not
+
+Aggregate **6.0% → 5.0%**, bench 16.7% → 13.3%, sponsor and FinFET unchanged. Zero regressions.
+Median error and pass@0.5px are **identical** on all three reporting splits, because the guard only
+ever touches pairs that were already wrong; pass@1px on bench rises 80.0% → 83.3%.
+
+**One pair on the reporting splits.** The count is not the point — the bucket is. This is the first
+failure in the project that was never a selection error, and it stayed invisible precisely because
+the instrument had only selection buckets in it. The lesson generalises past this fix: *a
+decomposition can only find failures of the kinds it has names for.*
+
+### 44e. Isolated on the stress sweep — and a stale baseline that nearly produced a wrong answer
+
+The guard was re-measured across all 25 robustness operating points with identical generator seeds,
+`--no-drift-guard` against the shipped default:
+
+| | 750 stress pairs |
+|---|---|
+| **ADR-0036 drift guard** | **12 fixed / 0 broken**, improving 10 of 25 points, worsening none |
+
+The largest gains are ±5° rotation (30.0% → 23.3%) and nominal read noise (20.0% → 13.3%) — the
+regimes where drift estimation is hardest, which is the direction the mechanism predicts.
+
+**The first version of this comparison said the opposite about three points, and it was wrong.**
+`results/robustness.csv` had last been regenerated at commit 68d1ef0 and was never re-run for
+ADR-0035, so a diff against it spanned **two** configuration changes. Three stress points had moved
+the wrong way and the obvious reading was that the guard rejects legitimate corrections under heavy
+noise — a plausible mechanism, a clean-looking table, and false. Isolating the two changes assigns
+all three regressions to ADR-0035 and none to the guard.
+
+That produced a second finding nobody had asked for: **ADR-0035 shipped without stress validation**,
+and measured now it is 2 fixed / 3 broken over 750 stress pairs, net −1, against +4/−0 on clean data.
+It stays — the clean gain is paired and targets a bucket nothing else reaches, and −1 of 750 is
+inside this sweep's sampling floor — but "residual proposals cost nothing" was never measured where
+it now turns out to be roughly break-even. Recorded as an amendment on ADR-0035.
+
+**The transferable lesson is about the baseline, not the guard.** A stale comparison baseline does
+not produce a noisy answer, it produces a *confident wrong* one, because every number in it is
+internally consistent — it is consistently describing a build that no longer exists.
+`scripts/verify_submission.py` now carries `check_results_newer_than_config`, which compares each
+measured artefact's timestamp against the pipeline source. It warns rather than fails, because mtime
+is a weak signal, but it would have caught this a day earlier.
+
 ## 41. The RGB optical extension: the pipeline transfers, and the colour is worth measuring ✅
 
 The problem statement lists an "RGB optical-image extension" as a bonus after the grayscale SEM

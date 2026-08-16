@@ -33,6 +33,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -237,11 +238,18 @@ def main() -> int:
     ap.add_argument("--out", default="results/robustness.csv")
     ap.add_argument("--jobs", type=int, default=default_jobs(),
                     help="parallel generator processes; scoring stays sequential")
+    ap.add_argument("--no-drift-guard", action="store_true",
+                    help="disable ADR-0036's shear bound, so its effect can be isolated. The "
+                         "generator seeds are fixed per ladder point, so a run with and a run "
+                         "without this flag are directly comparable point by point.")
     args = ap.parse_args()
 
     import argparse as _ap
     cfg = L.build_config(_ap.Namespace(config="driftlock"))
     base = L.build_config(_ap.Namespace(config="baseline"))
+    if args.no_drift_guard:
+        cfg = replace(cfg, drift_max_shear_px=0.0)
+        print("\n  ADR-0036 drift guard DISABLED for this run", flush=True)
 
     generate_all(LADDERS, args.pairs, args.arch, args.jobs)
 

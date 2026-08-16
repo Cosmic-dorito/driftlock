@@ -58,6 +58,7 @@ SPLITS = [("sponsor", "data/_sponsor/verify"),
 
 STATE: dict = {}
 _original_refit_once = refit_module._refit_once
+_original_refit_candidates = refit_module.refit_candidates
 
 
 def _instrumented(search, reference, candidates, build_template, correlation_surface,
@@ -91,12 +92,36 @@ def _instrumented(search, reference, candidates, build_template, correlation_sur
         gx, gy = STATE["gt"]
         hits = [i for i, c in enumerate(out) if (c.x - gx) ** 2 + (c.y - gy) ** 2 <= NEAR_PX ** 2]
         STATE["screen_rank"] = hits[0] if hits else -1
-    # Always refresh: the last call is the wide pass, whose output is the final ranking.
+    return out
+
+
+def _instrumented_refit(search, reference, candidates, bt, cs, config):
+    """Capture the ordering the PIPELINE decides on, not the one the refit returns.
+
+    Hooking ``_refit_once`` cannot answer "who won". Two things happen after it returns:
+    ``refit_candidates`` merges the screened-out candidates back in, and - since ADR-0032 - the
+    pipeline re-orders the wide-refit survivors by pose evidence before taking ``candidates[0]``.
+
+    Reading the winner off the refit's own order was silently wrong in exactly the way that
+    matters here: the truth is frequently still rank 0 by refit score while losing on evidence,
+    which is the effect ADR-0032 introduced. The mechanism file it produced recorded the truth as
+    its own winner on all four outscored failures - hence a score_margin of exactly 0.0, and
+    identical pose and scale in both columns. `pose_ceiling.py` was fixed for this; the fix was
+    never propagated here.
+    """
+    out = _original_refit_candidates(search, reference, candidates, bt, cs, config)
+
+    ordered = out
+    beta = getattr(config, "pose_evidence_beta", 0.0)
+    if beta > 0.0 and len(ordered) > 1:
+        from src.driftlock.match import rescore_by_pose_evidence
+        ordered = rescore_by_pose_evidence(list(ordered), beta)
+
     gx, gy = STATE["gt"]
     STATE["final"] = [
-        (i, c) for i, c in enumerate(out) if (c.x - gx) ** 2 + (c.y - gy) ** 2 <= NEAR_PX ** 2
+        (i, c) for i, c in enumerate(ordered) if (c.x - gx) ** 2 + (c.y - gy) ** 2 <= NEAR_PX ** 2
     ]
-    STATE["winner"] = out[0] if out else None
+    STATE["winner"] = ordered[0] if ordered else None
     return out
 
 
@@ -122,6 +147,7 @@ def main() -> int:
     cfg = L.build_config(_ap.Namespace(config="driftlock"))
     screen_top_n = cfg.refit_screen_top_n
     refit_module._refit_once = _instrumented
+    refit_module.refit_candidates = _instrumented_refit
 
     rows, mech = [], []
     print(f"\n  {'split':<10}{'n':>4}{'correct':>9}{'ABSENT':>8}{'SCREENED':>10}{'OUTSCORED':>11}")
@@ -166,9 +192,24 @@ def main() -> int:
                     dr = (c.rotation_deg - r0) / max(cfg.refit_rotation_span, 1e-9)
                     return float((ds * ds + dr * dr) ** 0.5)
 
+                # Two margins, because since ADR-0032 the pipeline does not rank on ZNCC.
+                # score_margin is the ZNCC gap and can be NEGATIVE - the truth scoring higher on
+                # correlation yet still losing. evidence_margin is the quantity actually ranked on,
+                # and must be >= 0 whenever both candidates are wide-refit survivors.
+                w_ev = winner.extra.get("pose_evidence")
+                t_ev = truth.extra.get("pose_evidence")
+                # How far the answer moved AFTER selection. Sub-pixel refinement and drift
+                # correction run on the winning candidate, so a pair can select the right site and
+                # still be reported past the 5 px threshold. That is a refinement failure wearing
+                # an `outscored` label, and only this column separates the two.
                 mech.append({
                     "split": name, "id": row["id"],
                     "score_margin": float(winner.score - truth.score),
+                    "evidence_margin": ("" if w_ev is None or t_ev is None
+                                        else float(w_ev - t_ev)),
+                    "truth_rank": STATE["final"][0][0],
+                    "refine_shift_px": float(np.hypot(match.x - winner.x, match.y - winner.y)),
+                    "winner_err_px": float(euclidean_error((winner.x, winner.y), gt)),
                     "winner_pose_travel": travel(winner),
                     "truth_pose_travel": travel(truth),
                     "winner_scale": float(winner.scale), "truth_scale": float(truth.scale),

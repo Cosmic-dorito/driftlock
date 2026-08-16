@@ -254,7 +254,7 @@ def gap_for_rotation(rotation_deg: float | None, max_lag: int = DEFAULT_MAX_LAG,
 
 def estimate_and_correct(
     search: np.ndarray, x: float, y: float, gap: int = DEFAULT_GAP,
-    rotation_deg: float | None = None,
+    rotation_deg: float | None = None, max_shear_px: float = 0.0,
 ) -> tuple[float, float | None]:
     """Convenience wrapper: estimate the drift and apply it to one coordinate.
 
@@ -268,5 +268,14 @@ def estimate_and_correct(
     shear = (estimate_drift_shear(search, gap=gap) if rotation_deg is None
              else estimate_shear(search, gap=gap, rotation_deg=rotation_deg))
     if shear is None:
+        return float(x), None
+    # Abandon an implausible estimate rather than apply it. This is the same posture as returning
+    # None above - when the measurement is not identifiable, not correcting beats correcting badly.
+    #
+    # Measured (results/refine_forensics.csv, 300 pairs): the correction moves the answer a median
+    # 0.65 px, but on two pairs it moved 7.5 and 24.3 px and turned a correctly SELECTED candidate
+    # into a mis-lock. Those are the only two pairs in 300 where selection was right and the
+    # reported answer was not, and both are this stage.
+    if max_shear_px > 0.0 and abs(shear) > max_shear_px:
         return float(x), None
     return correct_for_drift(x, y, shear, search.shape[0]), shear

@@ -1,0 +1,30 @@
+axis,point,in_spec_envelope,n_pairs,baseline_mislock,driftlock_mislock,baseline_median_px,driftlock_median_px,driftlock_pass1px,driftlock_p50_ms,seed_base,flags
+noise (dose),dose 800  (4x nominal),True,30,0.6000,0.0333,287.052,0.251,0.9000,2224.7,90000000,--dose-search 800
+noise (dose),dose 400  (2x),True,30,0.6667,0.0333,274.591,0.309,0.8333,704.7,90001000,--dose-search 400
+noise (dose),dose 200  NOMINAL,True,30,0.7333,0.1667,289.192,0.339,0.8333,2287.3,90002000,--dose-search 200
+noise (dose),dose 100  (2x noisier),False,30,0.6667,0.1000,275.816,0.285,0.8667,2273.1,90003000,--dose-search 100
+noise (dose),dose 50   (4x noisier),False,30,0.7333,0.1333,365.814,0.206,0.8667,2246.9,90004000,--dose-search 50
+noise (dose),dose 25   (8x noisier),False,30,0.9000,0.1333,379.464,0.323,0.8333,2258.9,90005000,--dose-search 25
+noise (read sigma),sigma 5   NOMINAL,True,30,0.8667,0.2000,349.572,0.296,0.7333,2247.8,90006000,--detector-noise-sigma-search 5
+noise (read sigma),sigma 10  (2x),False,30,0.7667,0.0333,391.180,0.180,0.9333,2245.6,90007000,--detector-noise-sigma-search 10
+noise (read sigma),sigma 20  (4x),False,30,0.8000,0.0667,398.070,0.229,0.9000,2439.5,90008000,--detector-noise-sigma-search 20
+scale,10:1 fixed  (sponsor-like),True,30,0.4333,0.1000,1.612,0.278,0.8667,2379.4,90009000,--scale-min 10 --scale-max 10
+scale,9-11:1  SPEC ENVELOPE,True,30,0.8667,0.1667,388.182,0.290,0.8333,2285.2,90010000,--scale-min 9 --scale-max 11
+scale,8-12:1  (beyond spec),False,30,0.8333,0.3667,277.314,0.561,0.6000,2115.8,90011000,--scale-min 8 --scale-max 12
+rotation,0 deg,True,30,0.6333,0.1333,244.233,0.236,0.8667,2231.6,90012000,--rotation-max 0
+rotation,+/-1 deg,True,30,0.8000,0.0333,333.913,0.344,0.9333,2240.7,90013000,--rotation-max 1
+rotation,+/-2 deg  SPEC ENVELOPE,True,30,0.8000,0.0333,312.523,0.190,0.9333,2147.2,90014000,--rotation-max 2
+rotation,+/-3 deg  (beyond spec),False,30,0.8667,0.1333,368.325,0.260,0.8333,2124.2,90015000,--rotation-max 3
+rotation,+/-5 deg  (beyond spec),False,30,0.9667,0.3000,380.735,0.738,0.6333,2137.8,90016000,--rotation-max 5
+other degradation,gamma 0.7 + vignette 0.4,False,30,0.7000,0.0333,285.563,0.301,0.9667,2164.1,90017000,--gamma 0.7 --vignette-strength 0.4
+other degradation,charging streaks,False,30,0.9000,0.2667,400.866,0.888,0.6000,2161.4,90018000,--charging-streak-prob 0.3 --charging-streak-intensity 25
+other degradation,salt-and-pepper + speckle,False,30,0.7333,0.0667,265.835,0.337,0.9333,2042.7,90019000,--salt-pepper-prob 0.01 --speckle-sigma 0.1
+other degradation,beam spot 12 nm (heavy blur),False,30,0.7333,0.1000,383.060,0.324,0.9000,1914.4,90020000,--beam-spot-size-nm 12
+other degradation,barrel distortion,False,30,0.7333,0.3667,277.333,0.991,0.5333,2289.0,90021000,--barrel-distortion-k 0.05
+mixed,spec envelope + 4x noise,False,30,0.7333,0.1333,347.398,0.339,0.8000,2057.5,90022000,--dose-search 50 --rotation-max 2 --scale-min 9 --scale-max 11
+mixed,spec envelope + noise + streaks,False,30,0.6333,0.2000,321.213,0.493,0.6333,2260.2,90023000,--dose-search 50 --rotation-max 2 --scale-min 9 --scale-max 11 --charging-streak-prob 0.3 --charging-streak-intensity 25
+mixed,"everything, beyond spec",False,30,0.8333,0.4333,345.950,1.295,0.3333,2205.4,90024000,--dose-search 50 --detector-noise-sigma-search 10 --rotation-max 3 --scale-min 8.5 --scale-max 11.5 --charging-streak-prob 0.3 --charging-streak-intensity 25 --salt-pepper-prob 0.01 --gamma 0.8 --vignette-strength 0.3
+
+# VALIDATION ONLY - nothing is tuned on these splits (rule R5).
+# Seeds 90000000+, disjoint from bench/dev/holdout_finfet by construction.
+# architecture=dram, 30 pairs per point.

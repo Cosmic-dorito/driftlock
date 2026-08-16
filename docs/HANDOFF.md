@@ -18,20 +18,21 @@ work. If time runs out right now, ship what is in `dist/`.
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | p50 |
 |---|---|---|---|---|---|
-| sponsor (40) | **0.0%** | 0.179 | 97.5% | 92.5% | ⚠️ see below |
-| bench (30, ours) | 20.0% | 0.330 | 76.7% | 63.3% | " |
-| holdout FinFET (30) | **6.7%** | 0.214 | 86.7% | 73.3% | " |
+| sponsor (40) | **0.0%** | 0.179 | 97.5% | 92.5% | 632 ms |
+| bench (30, ours) | **13.3%** | 0.300 | 83.3% | 66.7% | 568 ms |
+| holdout FinFET (30) | **3.3%** | 0.214 | 90.0% | 76.7% | 564 ms |
 
-Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **8/100 = 8.0%** (11.0% and 16.0% earlier the
-same day, 22.0% three days ago).
+Baselines: 25.0 / 76.7 / 90.0 % mis-lock. Aggregate **5/100 = 5.0%** (6.0% earlier on 16 Aug;
+8.0%, 11.0% and 16.0% on 15 Aug; 22.0% three days before that).
 
-⚠️ **Runtime is NOT currently certified.** The last benchmark ran on a throttled machine — its own
-gate flagged a baseline control of 76 ms against a quiet-machine 22 ms — so `results/runtime.csv`
-holds a rejected run. Re-run `scripts/benchmark_runtime.py` on a settled machine before quoting any
-p50. The widened screen (ADR-0034) costs somewhere between ×1.05 and ~×1.9 and that is not yet
-pinned down.
+⚠️ **The runtime dispersion gate does NOT pass.** The run in `results/runtime.csv` has a healthy
+control (19.5 ms, at or below the quiet-machine reference) but a p95/p50 dispersion of **1.186**
+against the benchmark's **1.18** threshold, so its own footer records
+`absolute_ms_representative, no`. Say *"stable measured runtime on a healthy machine, marginal
+dispersion gate failure at 1.186 vs 1.18"* — never "certified". **Do not widen the threshold to make
+it pass.**
 
-Paired against the baseline on the same 100 pairs: **0 regressions, 52 fixes, exact McNemar
+Paired against the baseline on the same 100 pairs: **0 regressions, 55 fixes, exact McNemar
 p = 0.000** (`results/significance.csv`). Quote the paired test, not the marginal rates - the
 Wilson intervals overlap and would show nothing either way.
 
@@ -47,8 +48,11 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                pose_search=True, top_k=10, candidate_refit=True,
                median_filter=True,
                refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
-               refit_screen_steps=2, refit_screen_top_n=30,
-               pose_evidence_beta=5.0)
+               refit_screen_steps=2, refit_screen_top_n=30,   # ADR-0034
+               pose_evidence_beta=5.0,                        # ADR-0032
+               proposal_channels="residual", proposal_top_k=3,
+               proposal_level=2,                              # ADR-0035
+               drift_max_shear_px=6.0)                        # ADR-0036
 ```
 
 Changed 15 Aug — `refit_screen_top_n` 10 → 30. §23d had measured this knob at 6/10/15/20 and found

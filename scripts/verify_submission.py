@@ -360,6 +360,43 @@ def check_results_doc_is_current() -> Result:
     return Result(PASS, "RESULTS.md headline is generated and matches results/")
 
 
+def check_results_newer_than_config() -> Result:
+    """Every measured artefact must post-date the configuration it claims to describe.
+
+    `check_results_doc_is_current` compares documents against `results/`. Nothing compared
+    `results/` against the *code*, and that is a real gap rather than a hypothetical one:
+    `results/robustness.csv` was last regenerated at 68d1ef0 and survived the ADR-0035 config change
+    untouched, so its 25 operating points described a pipeline that no longer existed. Four
+    documents quoted it. Nothing failed, because every number in it was internally consistent - it
+    was consistently describing the wrong build.
+
+    Mtime is a weak signal, so this only WARNS via PENDING rather than failing the build: a fresh
+    clone has arbitrary timestamps, and a legitimate comment-only edit to localize.py would trip it.
+    It is here to be noticed at submission time, not to gate a checkout.
+    """
+    config_files = [REPO_ROOT / "localize.py",
+                    REPO_ROOT / "src" / "driftlock" / "match.py",
+                    REPO_ROOT / "src" / "driftlock" / "refit.py"]
+    config_files = [p for p in config_files if p.exists()]
+    if not config_files:
+        return Result(PENDING, "no configuration files found to compare against")
+    newest_config = max(p.stat().st_mtime for p in config_files)
+
+    # Only artefacts produced by RUNNING the pipeline. Derived documents are covered elsewhere.
+    measured = ["robustness.csv", "significance.csv", "failure_decomposition.csv",
+                "metrics_sponsor.csv", "metrics_bench.csv", "metrics_finfet.csv", "ablation.md"]
+    stale = []
+    for name in measured:
+        path = REPO_ROOT / "results" / name
+        if not path.exists():
+            continue
+        if path.stat().st_mtime < newest_config:
+            stale.append(f"{name} predates the current pipeline configuration")
+    if stale:
+        return Result(PENDING, f"{len(stale)} measured artefact(s) may predate the config", stale)
+    return Result(PASS, "every measured artefact post-dates the current configuration")
+
+
 def check_torch_optional() -> Result:
     """ADR-0006: the deterministic path must not import torch at module scope."""
     offenders = []
@@ -414,6 +451,7 @@ CHECKS = [
     ("Citations complete and verified (R1)", check_citations_complete),
     ("Deck numbers traceable to results (R2)", check_ppt_numbers_traceable),
     ("RESULTS.md generated and current (R2)", check_results_doc_is_current),
+    ("Measured artefacts post-date the config", check_results_newer_than_config),
     ("torch is optional, lazily imported", check_torch_optional),
     ("Tracking docs present", check_docs_present),
     ("Sponsor-generator facts verified (R3)", check_hypotheses_verified),

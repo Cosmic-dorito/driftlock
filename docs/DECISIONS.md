@@ -1037,6 +1037,28 @@ is accuracy bought, not found. It ships on the same precedent as the screened wi
 project has consistently chosen accuracy where no runtime limit is published — and the trade is
 stated in the README rather than buried.
 
+### Amendment, 16 Aug — the stress cost this ADR shipped without measuring
+
+This decision was validated on the 300 clean pairs (+4 fixed / −0 broken) and the robustness sweep
+was **never re-run for it**. Measured now, over the same 25 operating points with identical
+generator seeds and the ADR-0036 guard off on both sides:
+
+| | 750 stress pairs |
+|---|---|
+| fixed | 2 (±2°, ±5° rotation) |
+| broken | **3** (read noise σ=20, fixed 10:1, 0° rotation) |
+| net | **−1** |
+
+So the residual channel buys 4 pairs on clean data and gives back a net 1 across the stress sweep —
+essentially flat there, not the free win the original entry implies. **It stays**: the clean-data
+gain is paired, reproducible and targets the `absent` bucket nothing else reaches, and −1 of 750 is
+well inside this sweep's sampling floor. But the entry above claimed a benefit it had not measured
+in the regimes it had not run, and that is recorded here rather than left to be discovered.
+
+The mechanism is plausible and already documented in ADR-0034's own text: a wider candidate pool has
+more competition in it, so on pairs where the intensity channel was only just winning, three extra
+proposals can displace it. That is the same effect that pushed `finfet 25` from rank 29 to 32.
+
 ---
 
 ## ADR-0034 · 2026-08-15 · accepted · The screen widens to 30, because the selector that receives it changed
@@ -1207,3 +1229,92 @@ Measured on 40 sponsor pairs, `INTER_AREA` + `matchTemplate` argmax:
 Note the median (1.10 px) is *not* the story — a quarter of the pairs are catastrophically wrong.
 Any headline metric that averages over both regimes hides the failure mode the problem is about, so
 report the mis-lock rate separately (R9).
+
+---
+
+## ADR-0036 · 2026-08-16 · accepted · The drift correction is bounded, because it is the last thing that runs
+
+**Decision.** `drift_max_shear_px = 6.0` ships. `estimate_and_correct` abandons a shear estimate
+whose magnitude exceeds the bound and returns the coordinate unchanged — the same posture it
+already took when estimation failed outright and returned `None`.
+
+**What forced it.** The failure decomposition sorts every mis-lock into ABSENT / SCREENED /
+OUTSCORED — three ways of choosing the wrong candidate. It had no bucket for *choosing the right
+candidate and then moving off it*, because nothing had ever measured post-selection movement.
+
+`scripts/refine_forensics.py` measures it, recording the answer after each of the three stages that
+run once a candidate is committed to. Over 354 pairs:
+
+| stage | median move | p95 | max |
+|---|---|---|---|
+| `_refine_pose_local` | 0.000 px | 0.000 | 1.000 |
+| sub-pixel DFT | 0.250 px | 0.424 | 0.707 |
+| **drift correction** (clean 300) | **0.652 px** | **2.077** | **24.254** |
+| **drift correction** (all 354, incl. jitter stress) | **0.713 px** | **3.772** | **33.937** |
+
+The first two stages are bounded by construction and stay bounded under stress. The drift stage is
+neither. Two pairs in the 300 clean ones selected a candidate within 5 px of ground truth and were
+still reported as mis-locks. Both are this stage, and nothing else in 300 pairs is:
+
+| pair | selected at | reported at | \|shear\| |
+|---|---|---|---|
+| `dev2 100` | 0.789 px | 23.478 px | **50.386** |
+| `bench 21` | 0.923 px | 6.539 px | **14.751** |
+
+**Why a bound is the right instrument.** The correction is `x + shear·(y/(H-1))`, so `|shear|`
+bounds how far the answer can move, and an estimator blow-up shows up directly as an implausible
+shear. The generator's true shear is 1.50 px on every split, so 14.75 and 50.39 are not large
+corrections — they are wrong ones.
+
+**Why 6.0 is not a tuned number.** On the 283 clean pairs that are correct today, `|shear|` tops out
+at **4.564**; the two pathological pairs read 14.75 and 50.39. Every threshold in [6, 12] therefore
+clips exactly those two clean pairs and no others, and thresholds from 3 to 12 all give the same
+result on the reporting splits. 6 rather than 8 only because it is also best-or-tied under the two
+jitter stress splits, where a noisy estimate is likeliest. Below ~4 it begins clipping legitimate
+corrections (7 of 300 at 4 px, 12 at 3 px) and starts costing precision instead of buying accuracy.
+
+**Measured, paired, on every split.** Threshold derived from the tuning family and the shear
+distribution, then confirmed by a real pipeline run — not shipped on the simulation:
+
+| split | n | before | after |
+|---|---|---|---|
+| dev *(tuning)* | 40 | 2 | 2 |
+| dev2 *(tuning)* | 160 | 9 | 8 |
+| sponsor | 40 | 0.0% | **0.0%** |
+| bench | 30 | 16.7% | **13.3%** |
+| finfet | 30 | 3.3% | **3.3%** |
+| **aggregate** | 100 | 6.0% | **5.0%** |
+
+**Zero regressions, and no precision traded for it.** Median error is unchanged on all three
+reporting splits (0.179 / 0.300 / 0.214) and pass@0.5px is unchanged (92.5% / 66.7% / 76.7%),
+because the guard clips only the two pairs that were already wrong. pass@1px on bench rises
+80.0% → 83.3%.
+
+**And it is strictly dominant on the stress sweep too**, which is where a guard that rejects a
+*legitimately* large correction would show up as a cost. Run twice over the same 25 operating points
+with identical generator seeds, `--no-drift-guard` against the shipped default:
+
+| | 750 stress pairs |
+|---|---|
+| fixed | **12** |
+| broken | **0** |
+
+It improves 10 of the 25 points and worsens none. The largest single gain is ±5° rotation
+(30.0% → 23.3%) and the nominal read-noise point (20.0% → 13.3%); both are regimes where drift
+estimation is hardest, which is the direction the mechanism predicts.
+
+**Honest scope.** This buys one pair on the reporting splits. Its real significance is the bucket
+rather than the count: it is the first failure in this project that was never a selection error, and
+it was invisible for as long as the decomposition had only selection buckets in it.
+
+> **A correction to an earlier reading of this experiment.** The first comparison run put three
+> stress points *worse* and I very nearly attributed that to the guard. It was not the guard:
+> `results/robustness.csv` had last been regenerated at 68d1ef0 and had never been re-run for
+> ADR-0035, so the comparison spanned **two** config changes. Isolating them with `--no-drift-guard`
+> assigns all three regressions to ADR-0035 and none to ADR-0036. *A stale baseline makes a clean
+> experiment produce a confident wrong answer* — see the note appended to ADR-0035.
+
+**What would change our mind.** Evidence that a legitimate shear can exceed 6 px on data we care
+about. The estimator saturates rather than growing without bound, so if the evaluator's data has
+genuinely stronger raster drift than ours, the guard should be raised — or replaced by a bound
+derived per-pair from the measured lag search range rather than a constant.
