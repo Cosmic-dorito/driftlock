@@ -25,9 +25,14 @@ has the full experiment write-ups this summarises; `docs/DECISIONS.md` has the A
 
 | Split | mis-lock | median px | pass@1px | pass@0.5px | runtime p50 |
 |---|---|---|---|---|---|
-| sponsor `verify` (40) | **0.0%** | 0.179 | 97.5% | 92.5% | 664 ms (30.0×) |
-| bench (30, ours) | **16.7%** | 0.300 | 80.0% | 63.3% | 590 ms (26.7×) |
-| holdout FinFET (30) | **3.3%** | 0.214 | 90.0% | 73.3% | 586 ms (26.5×) |
+| sponsor `verify` (40) | **0.0%** | 0.179 | 97.5% | 92.5% | 632 ms (32.4×) |
+| bench (30, ours) | **16.7%** | 0.300 | 80.0% | 66.7% | 568 ms (29.1×) |
+| holdout FinFET (30) | **3.3%** | 0.214 | 90.0% | 76.7% | 564 ms (28.9×) |
+
+*Every cell above is `results/metrics_{sponsor,bench,finfet}.csv` and `results/runtime.csv`.
+Re-derived independently from `predictions_*.csv` + manifests on 16 Aug: all fifteen accuracy
+figures reproduce exactly. **Do not hand-edit this table** — an earlier version carried
+pass@0.5px 63.3/73.3 and runtimes 664/590/586 from a superseded benchmark pass.*
 
 **Aggregate 6/100 = 6.0%.** Baselines 25.0 / 76.7 / 90.0%. Three stages landed on 15 Aug, each one
 only working because of the one before it:
@@ -43,10 +48,11 @@ at **0.79× the full-resolution *residual configuration*** — not 0.79× baseli
 finds the exact location on the intensity image. L4 was also tested and loses 2 pairs — the
 aperiodic signal survives one halving, not two.
 
-**Runtime measured on a cool machine, and the gate does NOT pass.** Control **22 ms exact**, matching
-the quiet-machine reference, so the control axis is healthy. But dispersion read **1.19** across
-three consecutive passes against the benchmark's **1.18** threshold. That is a *marginal gate
-failure*, not a certification.
+**Runtime measured on a cool machine, and the gate does NOT pass.** The run held in
+`results/runtime.csv` has control **19.5 ms**, at or below the quiet-machine reference, so the
+control axis is healthy. But dispersion read **1.186** against the benchmark's **1.18** threshold,
+and the file's own footer therefore records
+`absolute_ms_representative, no`. That is a *marginal gate failure*, not a certification.
 
 Say **"stable measured runtime on a healthy machine, marginal dispersion gate failure at
 1.19 vs 1.18"** — never "runtime certified" or "strict certification passed" while the gate itself
