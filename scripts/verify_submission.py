@@ -360,6 +360,50 @@ def check_results_doc_is_current() -> Result:
     return Result(PASS, "RESULTS.md headline is generated and matches results/")
 
 
+def check_config_blocks_are_generated() -> Result:
+    """Every document that states the shipped configuration must state the same one.
+
+    Found by an external reviewer, not by us: after ADR-0037 moved the screen cut to 40,
+    `localize.py` and STATE.md agreed while HANDOFF.md still said 30. Three hand-copied duplicates
+    of a nine-line config drifted within hours of the change that created them. The blocks are now
+    generated from ``build_config`` by scripts/make_results_doc.py; this confirms they are present
+    and current, so the next drift fails the build instead of reaching a reviewer.
+    """
+    import argparse as _ap
+    from dataclasses import fields
+
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    try:
+        import localize as L
+        from src.driftlock.match import PipelineConfig
+    except ImportError as exc:                      # pragma: no cover - environment problem
+        return Result(PENDING, f"cannot import the pipeline to check config blocks ({exc})")
+
+    shipped = L.build_config(_ap.Namespace(config="driftlock"))
+    defaults = PipelineConfig()
+    expected = [f"{f.name}={getattr(shipped, f.name)!r}" for f in fields(shipped)
+                if getattr(shipped, f.name) != getattr(defaults, f.name)]
+
+    problems = []
+    for rel in ("docs/STATE.md", "docs/HANDOFF.md"):
+        path = REPO_ROOT / rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if "BEGIN GENERATED CONFIG" not in text:
+            problems.append(f"{rel}: config block is not generated")
+            continue
+        block = text.split("BEGIN GENERATED CONFIG")[1].split("END GENERATED CONFIG")[0]
+        missing = [item for item in expected if item not in block]
+        if missing:
+            problems.append(f"{rel}: stale, missing {', '.join(missing[:4])}")
+    if problems:
+        return Result(FAIL, "config blocks disagree with build_config - "
+                            "run scripts/make_results_doc.py", problems)
+    return Result(PASS, f"config blocks match build_config ({len(expected)} non-default fields)")
+
+
 def check_results_newer_than_config() -> Result:
     """Every measured artefact must post-date the configuration it claims to describe.
 
@@ -451,6 +495,7 @@ CHECKS = [
     ("Citations complete and verified (R1)", check_citations_complete),
     ("Deck numbers traceable to results (R2)", check_ppt_numbers_traceable),
     ("RESULTS.md generated and current (R2)", check_results_doc_is_current),
+    ("Config blocks match build_config", check_config_blocks_are_generated),
     ("Measured artefacts post-date the config", check_results_newer_than_config),
     ("torch is optional, lazily imported", check_torch_optional),
     ("Tracking docs present", check_docs_present),

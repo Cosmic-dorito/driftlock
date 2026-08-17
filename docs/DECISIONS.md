@@ -1385,11 +1385,30 @@ both sides:
 | **broken** | **2 — charging streaks 26.7% → 30.0%, heavy blur 6.7% → 10.0%** |
 | net | **+3** |
 
-ADR-0036 was 12/0 on the same sweep; this one costs two pairs to buy five. Both regressions are one
-pair of thirty on degradations well outside the spec envelope, and both are in the regimes where the
-candidate field is noisiest — which is the same mechanism as the gain, seen from the other side: a
-wider cut admits more candidates, and more candidates means more competition, not only more chances.
-That is ADR-0035's amendment repeating itself, and it is the honest counterweight to the +3.
+ADR-0036 was 12/0 on the same sweep; this one costs two pairs to buy five. The mechanism of the
+loss is the same as the mechanism of the gain, seen from the other side: a wider cut admits more
+candidates, and more candidates means more competition, not only more chances. That is ADR-0035's
+amendment repeating itself.
+
+**Split by the spec envelope, which is the split that decides it** — the sweep already records
+`in_spec_envelope` per operating point, and neither the original write-up nor an external review of
+it thought to use the column:
+
+| | fixed | broken |
+|---|---|---|
+| **inside the spec envelope** | **3** | **0** |
+| beyond the spec envelope | 2 | 2 |
+
+Every in-spec regime measured improves and none regresses: nominal dose 16.7% → 13.3%, 0° rotation
+13.3% → 10.0%, ±1° rotation 3.3% → 0.0%. Both regressions — charging streaks and 12 nm beam spot —
+are beyond-spec points, and beyond-spec is exactly break-even overall. An external review
+recommended reverting this change on the strength of the charging-streak regression alone; that
+reading does not survive the envelope split, because the point it rests on is outside the range the
+problem statement says will be tested and is paid for by beyond-spec gains elsewhere.
+
+This does not make the change strictly dominant, and it is still worth nothing on the reported 100
+pairs. It does mean the honest summary is *"strictly dominant inside the tested envelope, neutral
+outside it"* rather than *"net positive with two regressions"*.
 
 **Totals across everything measured:** +3/−0 on 200 tuning pairs, +0/−0 on 100 reporting pairs,
 +5/−2 on 750 stress pairs. Net +6 broken 2 over 1050 pairs.
