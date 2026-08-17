@@ -42,7 +42,13 @@ TEMPLATE = REPO_ROOT / "assets" / "i4c_idea_submission_template.pptx"
 OUTPUT = REPO_ROOT / "Silli-Con Artists_PS02.pptx"
 FIGURES = REPO_ROOT / "results" / "figures"
 
-FONT = "Poppins"
+# The template asks for Poppins, which is NOT embedded in it and is not an Office font. On any
+# machine without it - including the evaluator's - PowerPoint silently substitutes something else,
+# so the deck the judges open is not the deck we designed. Calibri and Cambria ship with every
+# Office install, so what we lay out is what renders. The template's colours, background, header
+# band and card styling are untouched, which is what "keep the core theme" asks for.
+FONT = "Calibri"
+FONT_HEAD = "Cambria"
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 ACCENT = RGBColor(0xAE, 0xFF, 0x82)
 LABEL = RGBColor(0x9C, 0xA3, 0xAF)
@@ -72,7 +78,7 @@ def set_text(shape, text: str, size: float | None = None) -> None:
 
 
 def add_text(slide, left, top, width, height, lines, size=12.0, bold=False,
-             color=WHITE, space_after=5) -> None:
+             color=WHITE, space_after=5, font=None):
     """A top-anchored text box in the template's type style."""
     box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
     frame = box.text_frame
@@ -84,7 +90,7 @@ def add_text(slide, left, top, width, height, lines, size=12.0, bold=False,
         para = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
         run = para.add_run()
         run.text = line
-        run.font.name = FONT
+        run.font.name = font or FONT
         run.font.size = Pt(size)
         run.font.bold = bold
         run.font.color.rgb = color
@@ -94,6 +100,31 @@ def add_text(slide, left, top, width, height, lines, size=12.0, bold=False,
 
 def drop(shape) -> None:
     shape._element.getparent().remove(shape._element)
+
+
+def restyle(shape, font: str = FONT, size: float | None = None,
+            bold: bool | None = None, color=None) -> None:
+    """Force a template shape onto our type stack, run by run."""
+    if not shape.has_text_frame:
+        return
+    for para in shape.text_frame.paragraphs:
+        for run in para.runs:
+            run.font.name = font
+            if size is not None:
+                run.font.size = Pt(size)
+            if bold is not None:
+                run.font.bold = bold
+            if color is not None:
+                run.font.color.rgb = color
+
+
+def stat(slide, left, top, width, value: str, label: str,
+         value_size=30.0, label_size=9.5) -> None:
+    """A big number with a small caption - the one layout that makes a figure land."""
+    add_text(slide, left, top, width, 0.55, [value], size=value_size, bold=True,
+             color=ACCENT, space_after=0, font=FONT_HEAD)
+    add_text(slide, left, top + 0.52, width, 0.4, [label], size=label_size, color=LABEL,
+             space_after=0)
 
 
 def find(slide, needle: str):
@@ -109,23 +140,44 @@ def drop_if(slide, *needles: str) -> None:
             drop(find(slide, needle))
 
 
-#: Which sub-card rectangles each slide has already spent. Re-querying the slide on every call
-#: returned the SAME shape twice, so a two-card layout moved one card into the right-hand slot and
-#: left the other where the template put it - visible as a missing card background.
-_CARDS_USED: dict[int, int] = {}
+#: Slides whose template sub-cards have already been removed.
+_CLEARED: set[int] = set()
 
 
 def card(slide, left, top, width, height):
-    """Reposition the template's rounded sub-card rectangles, which carry its fill and border."""
-    available = [s for s in slide.shapes if s.shape_id in (17, 21)]
-    index = _CARDS_USED.get(id(slide), 0)
-    if index >= len(available):
-        return None
-    shape = available[index]
-    _CARDS_USED[id(slide)] = index + 1
-    shape.left, shape.top, shape.width, shape.height = (
-        Inches(left), Inches(top), Inches(width), Inches(height))
-    return shape
+    """Draw a content panel, replacing the template's own sub-card rectangles.
+
+    The template ships two rounded rectangles per slide, but their geometry is inconsistent between
+    slides - on the innovation slide the second one rendered a third shorter than the first even
+    after being told the same height, so body text spilled out below it. Drawing our own gives
+    every panel on every slide identical geometry, which is most of what "looks organised" means.
+    The style is the template's: no fill, thin blue border, no shadow.
+    """
+    if id(slide) not in _CLEARED:
+        # Clear by GEOMETRY, not by shape id. The template's two sub-cards carry different ids on
+        # different slides - 17 and 21 on most, 17 and 20 on the innovation slide - so an id list
+        # silently missed one, which then drew on top of our panel as a box a third the height.
+        # Anything wide, untexted and inside the body area is a sub-card; the corner dots are
+        # 0.21 in wide and survive the width test.
+        for shape in list(slide.shapes):
+            if shape.has_text_frame and shape.text_frame.text.strip():
+                continue
+            if shape.top is None or shape.width is None:
+                continue
+            if shape.top >= Inches(3.9) and Inches(1.0) < shape.width < Inches(12.0):
+                drop(shape)
+        _CLEARED.add(id(slide))
+    panel = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(height))
+    panel.fill.background()
+    panel.line.color.rgb = RGBColor(0x3B, 0x5A, 0xA8)
+    panel.line.width = Pt(1.0)
+    panel.shadow.inherit = False
+    panel.adjustments[0] = 0.04           # a restrained corner radius, not a pill
+    # No z-order fiddling: card() is always called before the text that belongs in the panel, so
+    # appending puts the panel under that text and over the template's background. An earlier
+    # version moved it to index 2 and it disappeared behind the full-slide background picture.
+    return panel
 
 
 def drop_body_icons(slide) -> None:
@@ -198,6 +250,15 @@ def build() -> int:
     team, problem, idea, solution, innov, results, tech, links, refs = (
         prs.slides[i] for i in range(9))
 
+    # Titles in Cambria, everything else in Calibri. Done before the per-slide work so any text we
+    # add afterwards inherits the same stack rather than fighting the template's Poppins.
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if not shape.has_text_frame or not shape.text_frame.text.strip():
+                continue
+            is_title = shape.top is not None and shape.top < Inches(2.0) and                 shape.width > Inches(1.5)
+            restyle(shape, FONT_HEAD if is_title else FONT)
+
     # ------------------------------------------------------------------ 1. Team details
     set_text(find(team, "Enter Team Name Here"), "Silli-Con Artists")
     names = [s for s in team.shapes
@@ -241,7 +302,7 @@ def build() -> int:
     card(problem, BODY_LEFT, BODY_TOP, BODY_WIDTH, BODY_BOTTOM - BODY_TOP)
     add_text(problem, BODY_LEFT + 0.26, BODY_TOP + 0.22, BODY_WIDTH - 0.52, 0.25,
              ["WHY NAVIGATION-ERROR RECOVERY MATTERS"], size=10, bold=True, color=LABEL)
-    add_text(problem, BODY_LEFT + 0.26, BODY_TOP + 0.58, BODY_WIDTH - 0.52, 2.0, [
+    add_text(problem, BODY_LEFT + 0.26, BODY_TOP + 0.58, BODY_WIDTH - 0.52, 1.2, [
         "A wafer-inspection tool navigates to a defect by stage coordinates. Stage drift means the "
         "field it actually images is not the field it was sent to. Recovery means re-locating a "
         "known high-magnification reference pattern inside a wider, coarser, noisier search image.",
@@ -250,7 +311,13 @@ def build() -> int:
         "design, so a wrong repeat is not a blurry near-miss — it is a structurally valid match "
         "that looks correct. That ambiguity, not similarity, is the real problem.",
     ], size=12)
-    add_text(problem, BODY_LEFT + 0.26, BODY_TOP + 2.45, BODY_WIDTH - 0.52, 0.3,
+    for offset, (value, label) in enumerate((
+            ("10×", "magnification gap between reference and search"),
+            ("100×100", "pixels the reference occupies in the search field"),
+            ("~163", "lattice cells inside one reference — every one a candidate"))):
+        stat(problem, BODY_LEFT + 0.26 + offset * 3.6, BODY_TOP + 1.83, 3.4, value, label,
+             value_size=26)
+    add_text(problem, BODY_LEFT + 0.26, BODY_BOTTOM - 0.30, BODY_WIDTH - 0.52, 0.3,
              ["Getting it wrong is a data-integrity failure, not an accuracy one: the tool reports "
               "a confident measurement of the wrong cell."], size=11, color=ACCENT)
 
@@ -265,12 +332,17 @@ def build() -> int:
     card(idea, BODY_LEFT + HALF_WIDTH + 0.35, BODY_TOP, HALF_WIDTH, BODY_BOTTOM - BODY_TOP)
     add_text(idea, BODY_LEFT + 0.26, BODY_TOP + 0.22, HALF_WIDTH - 0.52, 0.25,
              ["KEY CONCEPT"], size=10, bold=True, color=LABEL)
-    add_text(idea, BODY_LEFT + 0.26, BODY_TOP + 0.56, HALF_WIDTH - 0.52, 2.2, [
-        "We do not match images. We invert the microscope.",
+    add_text(idea, BODY_LEFT + 0.26, BODY_TOP + 0.52, HALF_WIDTH - 0.52, 0.6,
+             ["We do not match images."], size=19, bold=True, color=ACCENT,
+             space_after=0, font=FONT_HEAD)
+    add_text(idea, BODY_LEFT + 0.26, BODY_TOP + 0.86, HALF_WIDTH - 0.52, 0.6,
+             ["We invert the microscope."], size=19, bold=True, color=ACCENT,
+             space_after=6, font=FONT_HEAD)
+    add_text(idea, BODY_LEFT + 0.26, BODY_TOP + 1.42, HALF_WIDTH - 0.52, 1.4, [
         "The forward model is known — beam PSF, area-average decimation, geometric warp, Poisson "
         "shot noise then Gaussian read noise. Localization is therefore a maximum-likelihood "
         "inverse problem with a few nuisance parameters, not a similarity search.",
-    ], size=11.5)
+    ], size=12)
     add_text(idea, BODY_LEFT + HALF_WIDTH + 0.61, BODY_TOP + 0.22, HALF_WIDTH - 0.52, 0.25,
              ["WHY IT BEATS TEMPLATE MATCHING"], size=10, bold=True, color=LABEL)
     add_text(idea, BODY_LEFT + HALF_WIDTH + 0.61, BODY_TOP + 0.56, HALF_WIDTH - 0.52, 2.2, [
@@ -329,15 +401,18 @@ def build() -> int:
     ], size=11)
     add_text(innov, BODY_LEFT + HALF_WIDTH + 0.61, BODY_TOP + 0.22, HALF_WIDTH - 0.52, 0.25,
              ["MEASURED ADVANTAGE"], size=10, bold=True, color=LABEL)
-    add_text(innov, BODY_LEFT + HALF_WIDTH + 0.61, BODY_TOP + 0.56, HALF_WIDTH - 0.52, 2.2, [
-        f"Against the sponsor's own baseline on the same {total} pairs: "
-        f"{pct(sponsor['mislock_rate'])} / {pct(bench['mislock_rate'])} / "
-        f"{pct(finfet['mislock_rate'])} mis-lock against {pct(0.25)} / {pct(0.767)} / {pct(0.9)}.",
-        "55 pairs fixed, 0 broken — strictly dominant, tested as a paired comparison on identical "
-        "pairs rather than two averages compared by eye.",
+    stat(innov, BODY_LEFT + HALF_WIDTH + 0.61, BODY_TOP + 0.52, 2.4,
+         pct(1 - bad / total), "located within 5 px", value_size=28)
+    stat(innov, BODY_LEFT + HALF_WIDTH + 3.05, BODY_TOP + 0.52, 2.4,
+         "55 / 0", "fixed / broken vs baseline", value_size=28)
+    add_text(innov, BODY_LEFT + HALF_WIDTH + 0.61, BODY_TOP + 1.5, HALF_WIDTH - 0.52, 1.5, [
+        f"Mis-lock on the same {total} pairs: {pct(sponsor['mislock_rate'])} / "
+        f"{pct(bench['mislock_rate'])} / {pct(finfet['mislock_rate'])} against the baseline's "
+        f"{pct(0.25)} / {pct(0.767)} / {pct(0.9)} — strictly dominant, tested as a paired "
+        "comparison on identical pairs rather than two averages compared by eye.",
         "The baseline's output is always integer + 50.0, so it carries a half-pixel quantisation "
         "floor and cannot score on the sub-pixel rung of the tolerance ladder at all.",
-    ], size=11)
+    ], size=11.5)
 
     # ------------------------------------------------------------------ 6. Results
     set_text(find(results, "Impact and Benefits"), "Results")
@@ -351,6 +426,10 @@ def build() -> int:
 
     add_text(results, BODY_LEFT + 0.26, BODY_TOP + 0.18, 4.2, 0.25,
              ["ACCURACY vs THE TOLERANCE LADDER"], size=10, bold=True, color=LABEL)
+    add_text(results, BODY_LEFT + 2.62, BODY_TOP + 2.32, 2.1, 0.6,
+             [pct(bad / total)], size=30, bold=True, color=ACCENT, space_after=0, font=FONT_HEAD)
+    add_text(results, BODY_LEFT + 2.62, BODY_TOP + 2.82, 2.1, 0.25,
+             ["aggregate mis-lock"], size=9.5, color=LABEL, space_after=0)
     ladder = [
         ("", "sponsor", "bench", "FinFET"),
         ("≤ 5 px", pct(sponsor["pass@5px"]), pct(bench["pass@5px"]), pct(finfet["pass@5px"])),
@@ -366,9 +445,9 @@ def build() -> int:
         add_text(results, x, BODY_TOP + 0.55, 1.15, 1.9, [row[column] for row in ladder],
                  size=10.5, bold=(column == 0),
                  color=LABEL if column == 0 else WHITE, space_after=3)
-    add_text(results, BODY_LEFT + 0.26, BODY_TOP + 2.48, 4.2, 0.45,
-             [f"Aggregate mis-lock {bad}/{total}. Runtime ~0.6 s/pair, CPU only.",
-              "Baseline at the sub-pixel rung: 17.5%."], size=10, color=ACCENT, space_after=2)
+    add_text(results, BODY_LEFT + 0.26, BODY_TOP + 2.4, 2.3, 0.7,
+             [f"{bad} of {total} pairs", "~0.6 s per pair, CPU only",
+              "baseline sub-pixel: 17.5%"], size=10, color=WHITE, space_after=3)
 
     add_text(results, BODY_LEFT + 5.31, BODY_TOP + 0.18, 5.66, 0.25,
              ["ONE SUCCESS, ONE HONEST FAILURE"], size=10, bold=True, color=LABEL)
