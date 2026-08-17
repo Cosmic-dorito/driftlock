@@ -195,6 +195,10 @@ the CSV destroys credibility for the whole submission.
   `pip uninstall torch` must leave everything working. Never import it at module top level.
 - Type hints on public functions. Docstrings say *why*, not *what*.
 - Conventional commits: `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `perf:`.
+- **No `Co-Authored-By` trailers on commits in this repo** — team preference, applied to the whole
+  history on 17 Aug. Nothing to work around: the problem statement's own FAQ says *"Please use
+  generative AI to migrate code to python"*, so tooling assistance is explicitly permitted and the
+  trailer is simply a formatting choice we are not making.
   Any commit that changes results also updates `results/`.
 
 ## Commands
