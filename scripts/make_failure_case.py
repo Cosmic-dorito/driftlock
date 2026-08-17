@@ -45,6 +45,11 @@ def main() -> int:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--out", default="results/failure_case")
     parser.add_argument("--top-k", type=int, default=20)
+    # The problem statement asks for a SUCCESS case and an honest FAILURE case, rendered the
+    # same way so a reader can compare them. Same renderer, same overlay language, one flag -
+    # rather than a second script that could drift from this one.
+    parser.add_argument("--select", choices=["worst", "best"], default="worst",
+                        help="worst = the honest failure case; best = a representative success")
     args = parser.parse_args()
 
     manifest = Path(args.manifest)
@@ -62,7 +67,11 @@ def main() -> int:
 
         match = localize(reference, search, shipped)
         error = euclidean_error((match.x, match.y), truth)
-        if worst is None or error > worst[0]:
+        if worst is None:
+            worst = (error, row, ref_path, search_path, match, truth)
+            continue
+        better = (error > worst[0]) if args.select == "worst" else (error < worst[0])
+        if better:
             worst = (error, row, ref_path, search_path, match, truth)
 
     if worst is None:
@@ -101,7 +110,8 @@ def main() -> int:
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    image_path = out_dir / f"failure_{row['id']}.png"
+    kind = "failure" if args.select == "worst" else "success"
+    image_path = out_dir / f"{kind}_{row['id']}.png"
     save_overlay(
         image_path, ref_path, search_path, match, truth=truth,
         rivals=[(c.x, c.y, c.score) for c in candidates[1:6]],
@@ -109,10 +119,11 @@ def main() -> int:
 
     winner = candidates[0]
     lines = [
-        "# Failure case — worst pair on this split", "",
+        f"# {kind.capitalize()} case — "
+        f"{'worst' if kind == 'failure' else 'best'} pair on this split", "",
         f"Pair `{row['id']}` from `{manifest.as_posix()}`. "
         f"Every number below is computed by `scripts/make_failure_case.py`.", "",
-        f"![failure]({image_path.name})", "",
+        f"![{kind}]({image_path.name})", "",
         "Green is the prediction, red the truth, orange the runners-up with their scores.", "",
         "## What happened", "",
         "| Quantity | Value |",
@@ -168,9 +179,9 @@ def main() -> int:
         "reveal at any resolution).",
     ]
 
-    report = out_dir / "README.md"
+    report = out_dir / ("README.md" if kind == "failure" else "README_success.md")
     report.write_text("\n".join(lines), encoding="utf-8")
-    print(f"  worst error {error:.2f} px on pair {row['id']}")
+    print(f"  {'worst' if kind == 'failure' else 'best'} error {error:.2f} px on pair {row['id']}")
     print(f"  wrote {image_path.as_posix()} and {report.as_posix()}")
     return 0
 

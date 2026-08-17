@@ -72,3 +72,5 @@ data/_stress/
 # Regenerable cache: scripts/pose_evidence.py --capture rebuilds it from the pipeline.
 # It is an input to an analysis, not a result, and it is ~0.8 MB of derived numbers.
 results/pose_grids.json
+
+dist/deckqa/

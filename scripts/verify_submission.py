@@ -318,7 +318,14 @@ def check_ppt_numbers_traceable() -> Result:
             for shape in slide.shapes:
                 if not shape.has_text_frame:
                     continue
-                for num in re.findall(r"\d+\.\d+", shape.text_frame.text):
+                # Strip citation identifiers before scanning. A DOI is an identifier, not a
+                # measurement, and this rule exists to catch a STALE measurement - flagging
+                # "10.1109/TIP.2012.2202675" as an untraceable number is a false positive that
+                # teaches people to ignore the check. Patent numbers are stripped for the same
+                # reason; both are verified by R1 against docs/REFERENCES.md instead.
+                text = re.sub(r"(?:doi:)?10\.\d{4,}/\S+", " ", shape.text_frame.text)
+                text = re.sub(r"US Patent [\d,]+", " ", text)
+                for num in re.findall(r"\d+\.\d+", text):
                     if num not in results_text:
                         unmatched.append(f"{deck.name} slide {slide_no}: {num}")
     if unmatched:
