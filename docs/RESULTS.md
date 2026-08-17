@@ -82,7 +82,7 @@ longer the limiting factor on this split — selection is.
 ## 2. Superseded — the 11 Aug headline, kept for the record
 
 > The table below predates the pose work and the two generator fixes of 12 Aug. It is retained
-> because it is what `win-2` measured and reported, and silently replacing it would hide the fact
+> because it is what `another machine` measured and reported, and silently replacing it would hide the fact
 > that the pipeline it describes fails completely once rotation and scale are present.
 
 ## 2. Headline result — validated on held-out data

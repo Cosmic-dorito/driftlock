@@ -29,7 +29,7 @@ centre coordinates of the matching region.
 
 **[our reading]** Both images are 1000×1000 but cover different physical fields of view, so the
 reference's content occupies roughly a **100×100 px** footprint inside the search image. Confirmed
-against the sponsor's published generator; tracked as hypothesis **H1** in `CLAUDE.md`.
+against the sponsor's published generator; tracked as hypothesis **H1** in `docs/SPEC.md`.
 
 ## 3. Synthetic dataset creation
 

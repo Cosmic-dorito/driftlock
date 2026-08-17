@@ -291,7 +291,7 @@ by accident.
 
 ---
 
-## ADR-0014 · 2026-08-12 · MacBook Air M2 · accepted · The template builder is a continuous affine, not a resize
+## ADR-0014 · 2026-08-12 · accepted · The template builder is a continuous affine, not a resize
 
 **Decision.** `build_template` box-integrates the reference over the detector footprint
 (`area_kernel`, an exact box of arbitrary **real** width) and then samples it with a single affine
@@ -310,14 +310,14 @@ microscope" is literal rather than decorative.
 
 **Evidence it did not disturb the calibrated convention.** On the sponsor `verify` split the baseline
 reproduces exactly (25.0% mis-lock, 1.102 px median, 40% pass@1px) and the shipped default gives
-0.243 px against win-2's committed 0.238 px.
+0.243 px against another machine's committed 0.238 px.
 
 **What would change our mind.** Nothing short of a measured regression on the sponsor split; the old
 path cannot represent the tested envelope, so it is not a fallback.
 
 ---
 
-## ADR-0015 · 2026-08-12 · MacBook Air M2 · accepted · Pose is searched on a pyramid, not read off the lattice
+## ADR-0015 · 2026-08-12 · accepted · Pose is searched on a pyramid, not read off the lattice
 
 **Decision.** The default pose method is `pyramid` — an exhaustive coarse search on a 4×-downsampled
 level, then a full-resolution bracket, then a local polish. The two spectral estimators stay in the
@@ -346,7 +346,7 @@ Re-measure before switching; do not assume.
 
 ---
 
-## ADR-0016 · 2026-08-12 · MacBook Air M2 · accepted · Our ground truth was half a pixel off; fixed at the source
+## ADR-0016 · 2026-08-12 · accepted · Our ground truth was half a pixel off; fixed at the source
 
 **Finding.** With the true pose supplied from the manifest, the residual on 40 dev pairs was
 `dy = +0.503 px, std 0.035` — far too consistent to be anything but a convention.
@@ -365,7 +365,7 @@ coordinates, this flips — and so does H2. The `+0.5` is in one place for exact
 
 ---
 
-## ADR-0017 · 2026-08-12 · MacBook Air M2 · accepted · The drift estimator must be told the rotation
+## ADR-0017 · 2026-08-12 · accepted · The drift estimator must be told the rotation
 
 **Finding.** `dx = −9.5 × rotation_deg`, a clean straight line through the failures, up to 19 px on a
 2° pair.
@@ -385,7 +385,7 @@ cannot test an axis their data does not contain.
 
 ---
 
-## ADR-0018 · 2026-08-12 · MacBook Air M2 · accepted · Mats share a pitch; only their roughness differs
+## ADR-0018 · 2026-08-12 · accepted · Mats share a pitch; only their roughness differs
 
 **Decision.** `build_canvas(vary_preset_per_mat=...)` defaults to **off**.
 
@@ -405,7 +405,7 @@ flag, not the default.
 
 ---
 
-## ADR-0026 · 2026-08-12 · MacBook Air M2 · accepted · Manifest paths are normalised across platforms
+## ADR-0026 · 2026-08-12 · accepted · Manifest paths are normalised across platforms
 
 *(Renumbered 14 Aug. This was written as a second ADR-0019, colliding with the per-candidate refit
 decision below. Kept in chronological position; this entry was renumbered rather than the refit one
@@ -799,9 +799,9 @@ this forced is FINDINGS §37.
 
 **What forced it.** §35 was the submission's headline argument — *at the generator's exact pose the
 true site correlates 0.065 worse than the impostor, and the refit recovers 89% of that*. It was
-measured once in a scratchpad file, printed to a terminal, and copied by hand into four documents.
+measured once in an untracked working file, printed to a terminal, and copied by hand into four documents.
 The commit message says it was "promoted to `scripts/oracle_ceiling.py`", but only §35a actually
-was; the scratchpad file was later overwritten. Writing the rest down properly re-measured it:
+was; the untracked working file was later overwritten. Writing the rest down properly re-measured it:
 
 | | published | reimplementation |
 |---|---|---|
@@ -1171,7 +1171,7 @@ mis-lock difference is +1/−0 on 30 pairs and is not significant on its own; th
 
 # Hypothesis verification log (rule R3)
 
-The facts in `CLAUDE.md` about the sponsor's generator were derived by **reading its source code**,
+The facts in `docs/SPEC.md` about the sponsor's generator were derived by **reading its source code**,
 not by running it. Each is a hypothesis until confirmed on real generated pairs. **B owns this, Day 1,
 before any algorithm work.** If one is refuted, say so immediately — the plan changes.
 

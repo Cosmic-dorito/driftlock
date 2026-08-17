@@ -585,7 +585,7 @@ Only `dram` versus `finfet` changes anything.
 
 ---
 
-## 14. Rotation and scale — the untested axis, opened up (12 Aug, MacBook Air M2)
+## 14. Rotation and scale — the untested axis, opened up (12 Aug)
 
 Full narrative in `docs/WORKLOG.md`; decisions in ADR-0014…0019. Summary of experiments, with the
 negatives kept in full per R9:
@@ -1394,7 +1394,7 @@ than the unscreened version of itself.)*
 
 ---
 
-## 23. The frontier dissolves: screening the refit ✅✅ (13 Aug, win-2)
+## 23. The frontier dissolves: screening the refit ✅✅ (13 Aug)
 
 §21d framed a two-point accuracy gain as costing 3× runtime, and shipped the cheaper point. That
 frontier turned out to be an artefact of **where the dense configuration's time was actually going**,
@@ -2635,7 +2635,7 @@ result stands.
 ## 37. §35 does not reproduce: a point value was compared against a maximum ❌
 
 **The rule that caught it was our own:** §35 was promoted to `scripts/oracle_ceiling.py` — but only
-§35a was. §35b, §35c and all of §36 stayed in a scratchpad file that was later overwritten, so the
+§35a was. §35b, §35c and all of §36 stayed in an untracked working file, so the
 project's headline finding was the one number a judge could not regenerate. Writing
 `scripts/pose_ceiling.py` to close that gap re-measured it, and it did not come back the same.
 
@@ -2736,10 +2736,10 @@ measured on all four splits — not quoted as a result.
 
 ### 37e. The process failure, stated plainly
 
-Two rules already in `CLAUDE.md` would each have caught this, and neither was applied:
+Two rules already in `docs/SPEC.md` would each have caught this, and neither was applied:
 
 * **R2, no number typed by hand.** These numbers never entered `results/`. They went from a
-  scratchpad print straight into `FINDINGS.md`, `STATE.md`, `HANDOFF.md` and `README.md`. The
+  working file print straight into `FINDINGS.md`, `STATE.md`, `HANDOFF.md` and `README.md`. The
   verifier that fails the build on an untraceable deck number never saw them, because they were
   never on a slide.
 * **R8, independent re-derivation.** The red-team pass covered the accuracy numbers, which are
