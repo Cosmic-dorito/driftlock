@@ -81,6 +81,31 @@ def build_params(args: argparse.Namespace) -> GenerationParams:
     )
 
 
+def _record_path(path: Path, manifest_dir: Path) -> str:
+    """The path to record in the manifest: forward-slashed, and never absolute.
+
+    CLAUDE.md fixes the contract as "relative to the repo root, always forward-slashed", and the
+    no-hard-coded-paths rule is a literal item on the sponsor's checklist. The previous version
+    recorded ``ref_path.as_posix()`` directly, which satisfies both only when ``--output-dir``
+    happens to sit inside the repo. Point it anywhere else and the manifest filled up with
+    ``C:/Users/...`` - found by tests/test_determinism.py, which generates into a temp directory
+    and so was the first thing here ever to run the generator from outside the tree.
+
+    Repo-relative is preferred, so manifests generated the normal way are byte-identical to the
+    ones already committed. Outside the repo, manifest-relative is both portable and resolvable:
+    :func:`src.driftlock.io.resolve_manifest_path` already tries the manifest's own directory.
+    """
+    resolved = path.resolve()
+    for base in (REPO_ROOT, manifest_dir.resolve()):
+        try:
+            return resolved.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    # Unreachable in practice: the images are always written under manifest_dir. Kept rather than
+    # raising, because a generator that aborts after painting the canvases would be worse.
+    return path.name
+
+
 def _for_png(img: np.ndarray) -> np.ndarray:
     """RGB -> BGR for OpenCV's writer; grayscale passes through untouched."""
     return cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if img.ndim == 3 else img
@@ -167,9 +192,9 @@ def main(argv: list[str] | None = None) -> int:
 
             row = {
                 "id": i,
-                # Repo-relative and forward-slashed, so manifests work on any machine.
-                "reference_path": ref_path.as_posix(),
-                "search_path": search_path.as_posix(),
+                # Forward-slashed and never absolute, so manifests work on any machine.
+                "reference_path": _record_path(ref_path, manifest_path.parent),
+                "search_path": _record_path(search_path, manifest_path.parent),
                 "gt_x": f"{sample.gt_x:.6f}",
                 "gt_y": f"{sample.gt_y:.6f}",
                 **sample.metadata,

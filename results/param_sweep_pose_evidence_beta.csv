@@ -1,0 +1,8 @@
+param,value,group,mislocks,fixed_vs_reference,broken_vs_reference
+pose_evidence_beta,5.0,dev,10,0,0
+pose_evidence_beta,10.0,dev,10,2,2
+pose_evidence_beta,15.0,dev,11,2,3
+
+# group 'dev' = the tuning family (dev + dev2); 'sponsor' = the reporting
+# splits. fixed/broken are paired against the FIRST value swept.
+# A value chosen on the reporting rows would kill the benchmark (R5).

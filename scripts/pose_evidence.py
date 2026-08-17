@@ -33,8 +33,22 @@ scored on the same grid size, so ``-lambda*sqrt(2 log N)`` is a constant and con
 reorder anything. What differs between candidates is the *effective* number of independent
 attempts, which is what the surface roughness stands in for.
 
-HELD-OUT DISCIPLINE (R5). Any free parameter is chosen on ``dev`` alone and then frozen before the
-reporting splits are looked at. The sweep prints both halves so that cannot be fudged.
+HELD-OUT DISCIPLINE (R5). Any free parameter is chosen on the tuning family (``dev`` + ``dev2``,
+200 pairs) and frozen before the reporting splits are looked at. The sweep prints both halves so
+that cannot be fudged.
+
+⚠️ **THE RATES PRINTED HERE ARE NOT THE PIPELINE'S RATES, and must never be quoted as them.**
+``_capturing_refit`` stores only ``out[:10]``, while the shipped pipeline re-orders every
+wide-refit survivor - up to ``refit_screen_top_n`` = 30 of them. So this sweep re-ranks a truncated
+field and will report a *worse* number than the pipeline achieves with the same selector: on
+16 Aug it put ``lse`` at 10.0% on sponsor where the pipeline measures 0.0%. If the truth sits at
+score-rank 15 and evidence-rank 0, the pipeline finds it and this proxy cannot see it at all.
+
+What the proxy IS good for is the *relative* ordering of selectors and of one selector's free
+parameter, because every variant is scored on the identical cached field, so those comparisons are
+exactly paired. Use it to shortlist; confirm any winner with ``scripts/param_sweep.py``, which runs
+the real pipeline. Working rule 13: an offline proxy and the pipeline can disagree for reasons that
+exist only in the pipeline.
 """
 
 from __future__ import annotations
@@ -60,14 +74,18 @@ from src.driftlock.io import (  # noqa: E402
 from src.driftlock.match import localize  # noqa: E402
 
 NEAR_PX = 5.0
-TUNING_SPLIT = "dev"
 REPORTING_SPLITS = ("sponsor", "bench", "finfet")
 SPLITS = {
     "dev": "data/dev",
+    # dev2 is the larger half of the tuning family (160 pairs against dev's 40) and was missing
+    # here, so beta was originally chosen on 40 pairs while every other decision of this size used
+    # 200. Added 16 Aug when beta came up for re-examination.
+    "dev2": "data/dev2",
     "sponsor": "data/_sponsor/verify",
     "bench": "data/bench",
     "finfet": "data/holdout_finfet",
 }
+TUNING_SPLITS = ("dev", "dev2")
 
 CAPTURED: dict = {}
 _refit_candidates = refit_mod.refit_candidates
@@ -335,20 +353,25 @@ def main() -> int:
     print(f"\n  {total} candidates cached, {have_grid} with a pose grid "
           f"({100 * have_grid / max(total, 1):.0f}%)")
 
-    # --- Stage 1: choose every free parameter on dev, and only dev (R5) ---
+    # --- Stage 1: choose every free parameter on the TUNING FAMILY, and only it (R5) ---
+    # beta was originally chosen on dev's 40 pairs alone - the smallest sample any decision of this
+    # size has rested on here, and two splits of 30 with identical parameters have measured several
+    # points apart on this project (ADR-0029). Pooling dev + dev2 puts the choice on 200 pairs.
+    # Neither split is ever reported.
     tuned: dict[str, dict] = {}
-    if TUNING_SPLIT in data:
-        print(f"\n  Stage 1 - tuning on {TUNING_SPLIT} ({len(data[TUNING_SPLIT])} pairs) only")
+    tuning = [pair for split in TUNING_SPLITS for pair in data.get(split, [])]
+    if tuning:
+        print(f"\n  Stage 1 - tuning on {' + '.join(TUNING_SPLITS)} ({len(tuning)} pairs) only")
         for name, (fn, grid) in SELECTORS.items():
             if not grid:
                 tuned[name] = {}
-                res = evaluate(data[TUNING_SPLIT], fn)
+                res = evaluate(tuning, fn)
                 print(f"    {name:<8} {'':<18} mis-lock {res['bad']}/{res['n']}")
                 continue
             key = next(iter(grid))
             best, best_bad = None, None
             for value in grid[key]:
-                res = evaluate(data[TUNING_SPLIT], fn, **{key: value})
+                res = evaluate(tuning, fn, **{key: value})
                 marker = ""
                 if best_bad is None or res["bad"] < best_bad:
                     best, best_bad, marker = value, res["bad"], "  <-"

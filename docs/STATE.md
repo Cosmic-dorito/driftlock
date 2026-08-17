@@ -43,6 +43,7 @@ working because of the one before it) and one on 16 Aug:
 | screen widened 10 → 30 (ADR-0034) | 11.0% → 8.0% | screened 4 → 0 |
 | lattice residual proposals (ADR-0035) | 8.0% → 6.0% | absent 3 → 1 |
 | drift correction bounded (ADR-0036) | 6.0% → **5.0%** | a bucket that did not exist |
+| screen cut widened 30 → 40 (ADR-0037) | 5.0% → 5.0% | **nothing reported** — +3/−0 tuning, +5/−2 stress |
 
 **ADR-0036 is a different kind of fix and worth reading as one.** The first three all improve
 *candidate selection*. The fourth is the first failure in the project that was **never a selection
@@ -112,7 +113,7 @@ PipelineConfig(label="driftlock", subpixel=True, drift_correction=True,
                pose_search=True, top_k=10, candidate_refit=True,
                median_filter=True,
                refit_steps=5, refit_scale_span=0.03, refit_rotation_span=1.5,
-               refit_screen_steps=2, refit_screen_top_n=30,   # 15 Aug, ADR-0034
+               refit_screen_steps=2, refit_screen_top_n=40,   # 16 Aug, ADR-0037
                pose_evidence_beta=5.0,                        # 15 Aug, ADR-0032
                proposal_channels="residual", proposal_top_k=3,
                proposal_level=2,                              # 15 Aug, ADR-0035
@@ -222,16 +223,21 @@ tried; that rests on the ablation, which is unaffected.
 
 `results/failure_decomposition.csv`, 100 pairs:
 
-| stage that lost it | **now** | start of 15 Aug | after §40 | after §40i | after §42 |
-|---|---|---|---|---|---|
-| never a candidate | **1** | 3 | 3 | 3 | 1 |
-| cut by the screen | **1** | 4 | 4 | 0 | 1 |
-| outscored at the final comparison | **3** | 9 | 4 | 5 | 4 |
-| *selected correctly, then moved off* | **0** | — | — | — | 1 |
+| stage that lost it | **now** | start of 15 Aug | after §40 | after §40i | after §42 | after §44 |
+|---|---|---|---|---|---|---|
+| never a candidate | **1** | 3 | 3 | 3 | 1 | 1 |
+| cut by the screen | **0** | 4 | 4 | 0 | 1 | 1 |
+| outscored at the final comparison | **4** | 9 | 4 | 5 | 4 | 3 |
+| *selected correctly, then moved off* | **0** | — | — | — | 1 | 0 |
 
-**5 failures total: 1 absent, 1 screened, 3 outscored.** The named ones are `bench 17` (absent, a
-pose-search interaction) and `finfet 25` (screened at rank 32). The fourth row did not exist as a
-category until §44; `bench 21` occupied it and ADR-0036 emptied it.
+**5 failures total: 1 absent, 0 screened, 4 outscored.** The only named one left is `bench 17`
+(absent, a pose-search interaction). The fourth row did not exist as a category until §44;
+`bench 21` occupied it and ADR-0036 emptied it.
+
+**`finfet 25` moved from `screened` to `outscored` and that is the clearest thing ADR-0037 did.**
+It sat at screen rank 31 against a cut of 30. Widening to 40 admitted it — the screen stopped being
+what lost it — and it then lost at the final comparison anyway. The bucket moved; the pair did not.
+*Reaching the wide refit is not the same as winning it.*
 
 **The three `outscored` failures lose on evidence, not on correlation.** With the forensics
 corrected (§44a), the ZNCC margin is **negative** on all three — the truth correlates *better* and
@@ -271,20 +277,20 @@ flat at 33.3%, so the peak is **erased, not demoted**.
 `results/robustness.csv`, 25 operating points, validation-only seeds (90,000,000+), disjoint from
 every reporting and tuning split.
 
-*Regenerated 16 Aug for ADR-0035 + ADR-0036. It had been stale since 68d1ef0 — it survived the
+*Regenerated 16 Aug for ADR-0035 + ADR-0036 + ADR-0037. It had been stale since 68d1ef0 — it survived the
 ADR-0035 config change untouched and four documents quoted it. Every figure below is
 `results/robustness.csv`; do not hand-edit them.*
 
 | axis | in-spec | beyond spec |
 |---|---|---|
-| dose (32× range) | 0.0–16.7% | 6.7–13.3% at 2–8× noisier |
+| dose (32× range) | 0.0–13.3% | 6.7–13.3% at 2–8× noisier |
 | read noise σ | 13.3% at nominal | 3.3% at 2×, 6.7% at 4× |
-| **scale** | 16.7% at 9–11:1, 10.0% at fixed 10:1 | **36.7%** at 8–12:1 |
-| rotation | **3.3%** at ±2° and ±1°, 13.3% at 0° | 10.0% at ±3°, **23.3%** at ±5° |
-| charging streaks | — | **26.7%** ← named by the spec |
+| **scale** | 16.7% at 9–11:1, 10.0% at fixed 10:1 | **33.3%** at 8–12:1 |
+| rotation | **3.3%** at ±2°, **0.0%** at ±1°, 10.0% at 0° | 10.0% at ±3°, **20.0%** at ±5° |
+| charging streaks | — | **30.0%** ← named by the spec |
 | barrel distortion | — | **33.3%** ← *not* named by the spec |
 | salt-and-pepper + speckle | — | 6.7% (with the median filter) |
-| beam spot 12 nm | — | 6.7% |
+| beam spot 12 nm | — | 10.0% |
 | gamma + vignette | — | 3.3% |
 | mixed (spec + 4× noise) | — | 13.3% |
 | mixed (everything, beyond spec) | — | **40.0%** |
@@ -300,7 +306,7 @@ an upper bound on the current pipeline, not its measured value. Re-run
 scan-field experiment needed a regime to be tested in (`results/global_jitter_edge.csv` and
 `results/global_jitter_stress.csv`, validation seeds 91,000,001–2). At the nominal 0.5 px it is
 invisible; by 3.0 px it took mis-lock to 63.3% on the pre-guard pipeline — worse than barrel
-distortion (33.3%) or charging streaks (26.7%). It is 6× beyond anything the spec names, so this is
+distortion (33.3%) or charging streaks (30.0%). It is 6× beyond anything the spec names, so this is
 an envelope boundary rather than a shipping risk, but no other single axis comes close.
 
 Degradations **compose roughly additively**; no new failure mode emerges. Target position: no
@@ -319,6 +325,8 @@ overlap, patterns non-monotone).
 | **pose grid read as evidence, not as its maximum** | ✅ **SHIPPED** — +8/−3 on the reporting splits (p = 0.227), +17/−3 pooled over 300 (§40, ADR-0032) |
 | pose-surface *shape*: entropy, effective-trials extreme value, peakiness, top-3 | all **worse** than the shipped LSE, 15–18% against 10.0% (§40g) |
 | **screen cut `top_n` 10 → 30** | ✅ **SHIPPED** — +4/−0 over 140 pairs at ×1.05 runtime; only pays off because of ADR-0032 (§40h–40i, ADR-0034) |
+| **screen cut `top_n` 30 → 40** | ✅ **SHIPPED** — +3/−0 on 200 tuning pairs, +0/−0 on the 100 reported, **+5/−2 on 750 stress pairs**, ×1.091 runtime. **Changes no reported number** and is *not* strictly dominant — it costs charging streaks 26.7→30.0% and heavy blur 6.7→10.0%. 60 measures identically, so it is a plateau (§45b, ADR-0037) |
+| pose-evidence `beta` 5 → 10 or 15 | ❌ **flat** — beta=10 is +2/−2 on 200 tuning pairs, same total; 15 is worse. The offline proxy preferred 10 by one pair and did not survive the real pipeline (§45a) |
 | six re-ranking criteria (PADM, coarse consensus, max-likelihood, refit-gain, lattice-phase, residual tie-break) | all failed — ADR-0024 |
 | centre tie-break as default | ADR-0021 |
 | centre tie-break **gated to statistical ties**, all thresholds | **0 fixes**, up to 57 breaks (§30) |

@@ -203,7 +203,16 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         # dominant on every split, and runtime x1.05 - the wide refit groups candidates by pose and
         # builds each template once, so extra candidates inside an existing group cost correlations
         # but not template construction.
-        refit_screen_top_n=30,
+        # Re-examined a third time on 16 Aug, after the proposals and the drift guard changed what
+        # the screen hands downstream again. 30 -> 40 is +3 fixed / -0 broken over the 200 tuning
+        # pairs and +0/-0 over the 100 reporting ones, at x1.09 runtime measured by interleaving
+        # both arms in one session. 60 measures IDENTICALLY to 40, so this is a plateau rather than
+        # a spike, and 40 is the cheap end of it. See ADR-0037.
+        #
+        # Read the three measurements of this one knob together - flat, then +4, then +3 - as the
+        # clearest evidence in the project for "a parameter measured as flat is flat against the
+        # pipeline it was measured in".
+        refit_screen_top_n=40,
         # Read the refit's pose grid as evidence rather than taking its maximum (15 Aug).
         # See ADR-0032 and FINDINGS section 40.
         #

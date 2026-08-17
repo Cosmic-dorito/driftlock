@@ -3632,6 +3632,75 @@ internally consistent — it is consistently describing a build that no longer e
 measured artefact's timestamp against the pipeline source. It warns rather than fails, because mtime
 is a weak signal, but it would have caught this a day earlier.
 
+
+## 45. Two parameters re-examined in the pipeline that now exists — one moved, one did not ✅❌
+
+ADR-0034's lesson was that *a parameter measured as flat is flat against the pipeline it was
+measured in*. Three stages landed after it, so the two free parameters of the selection path came
+due for re-measurement. They were run through `scripts/param_sweep.py`, which was written for this
+and kept: three shipped decisions here have been single-parameter changes, each measured with a
+script that was then thrown away.
+
+### 45a. Pose-evidence beta — flat across its working basin ❌
+
+The offline sweep over cached pose grids (200 tuning pairs, paired on identical grids) put beta=10
+one pair ahead of the shipped beta=5:
+
+| beta | mis-locks / 200 |
+|---|---|
+| max (beta -> inf) | 21 |
+| 100 – 800 | 21 |
+| 50 | 19 |
+| 25 | 18 |
+| **10** | **13** |
+| **5 (shipped)** | **14** |
+| mean (beta -> 0) | 17 |
+
+One pair in 200 is not evidence, and the proxy is not the pipeline, so it was re-run for real:
+
+| beta | dev | dev2 | total | fixed | broke |
+|---|---|---|---|---|---|
+| **5 (shipped)** | 2 | 8 | **10** | — | — |
+| 10 | 3 | 7 | **10** | 2 | 2 |
+| 15 | 3 | 8 | 11 | 2 | 3 |
+
+beta=10 is exactly break-even — it churns two pairs each way and lands on the same total. **No
+change.** What the ladder does establish is that the *stage* earns its place: the maximum costs 21
+of 200 against the log-sum-exp's 13–14. It is the choice of beta inside the basin that is
+unresolvable, not whether to read the grid as evidence.
+
+**And the proxy overstated its own authority.** `pose_evidence.py` caches only `out[:10]` while the
+pipeline re-orders every wide-refit survivor, so its absolute rates are systematically pessimistic —
+it reported `lse` at 10.0% on sponsor where the pipeline measures 0.0%. Its *relative* comparisons
+are sound because every variant scores the identical cached field. The docstring now says so with
+that example in it, because "lse 10 -> sponsor 10.0%" sitting in a results file is exactly the kind
+of number that ends up on a slide.
+
+### 45b. The screen cut — a third answer from the same knob ✅
+
+| when | pipeline it was measured in | verdict |
+|---|---|---|
+| FINDINGS §23d | before pose evidence | **flat**, closed |
+| ADR-0034 | after pose evidence | 10 -> 30, **+4** |
+| **here** | after proposals and the drift guard | 30 -> 40, **+3 / -0** |
+
+40 and 60 measure identically on the tuning family, so it is a plateau, not a spike. Runtime is
+**x1.091**, measured by interleaving both arms in one session.
+
+**It changes no reported number** — 0.0% / 13.3% / 3.3% and every median identical to the decimal.
+It ships anyway, on 300 pairs with zero regressions and because a 1.5% effect is below what 100
+reporting pairs can resolve; the reasoning and the case against are both in ADR-0037.
+
+**The prediction made before running it was wrong, and in the interesting direction.** The screen-rank
+distribution showed one truth at rank 31–39 and one at 40–60, so the ceiling looked like two pairs.
+It delivered three. Changing the cut does not merely readmit the candidates that sat past it — it
+changes which candidates enter the wide refit at all, and therefore the pose refits and the evidence
+ranking of the whole field. Second-order effects, not accounted for in the estimate.
+
+Pointing the other way: **`finfet 25` sits at screen rank 31 and a cut of 40 reaches it, and it was
+still not recovered.** Reaching the wide refit is not the same as winning it — which is ADR-0034's
+own finding, restated from the losing side.
+
 ## 41. The RGB optical extension: the pipeline transfers, and the colour is worth measuring ✅
 
 The problem statement lists an "RGB optical-image extension" as a bonus after the grayscale SEM

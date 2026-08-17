@@ -89,7 +89,7 @@ no first row and no improvement can be substantiated (R6).
 | 3.5 | **Fractional crop origins** → continuous GT, so sub-pixel claims are honest | ✅ (see 3.9) |
 | 3.6 | FinFET layout | ✅ `data/holdout_finfet` |
 | 3.7 | Full metadata + seeds; manifest per the frozen schema; `ambiguity_level` | ✅ |
-| 3.8 | Determinism test: same seed → byte-identical images | ⬜ |
+| 3.8 | Determinism test: same seed → byte-identical images | ✅ |
 | 3.9 | **GT half-pixel convention corrected** — ours sat 0.5 px from the sponsor's for the same physical case, which alone would have failed every sub-pixel claim on our own benchmark | ✅ 12 Aug |
 | 3.10 | **Per-mat pitch randomisation removed** — physically wrong (pitch is a design rule) and it destroyed magnification measurability | ✅ 12 Aug |
 
@@ -440,6 +440,39 @@ Also this day: a contradiction inside `STATE.md` retracted — "multi-scale cont
 one live hypothesis in §7 while §5 recorded it as closed. §31a closes it by arithmetic (the
 reference is 1000 nm across, which *is* the 100×100 footprint, so there is no reference-side context
 to correlate against). There is now no direction left with a live accuracy hypothesis.
+
+---
+
+## Stage 12 — Two parameters re-examined, one portability bug ✅ (16 Aug, win-2)
+
+> Current numbers live in the generated headline in `docs/RESULTS.md`.
+
+**Aggregate unchanged at 5.0%.** Both re-examinations were run through new standing tooling
+(`scripts/param_sweep.py`) rather than throwaway scripts, because this is the third time a single
+parameter has been re-measured here and the second time the answer changed.
+
+| parameter | verdict |
+|---|---|
+| `pose_evidence_beta` 5 → 10 / 15 | ❌ **flat** — beta=10 is +2/−2 on 200 tuning pairs, same total |
+| `refit_screen_top_n` 30 → 40 | ✅ **shipped** — +3/−0 tuning, +0/−0 reported, +5/−2 stress, ×1.091 |
+
+ADR-0037 ships a change that **moves no reported number**. The case for it, and the case against,
+are both in the ADR: 1050 pairs measured, net +6/−2, and a runtime cost that would make it the first
+thing to revert if a runtime limit were ever published.
+
+`finfet 25` moved from `screened` to `outscored` — the wider cut admitted it at rank 31 and it lost
+at the final comparison anyway. Buckets are now 1 absent / 0 screened / 4 outscored.
+
+**PROGRESS 3.8 (determinism) is done**, and writing it found a real bug: `generate_dataset.py`
+recorded **absolute paths** in the manifest whenever `--output-dir` pointed outside the repo, under
+a comment claiming the opposite. Nothing had caught it because every prior run wrote into `data/`
+and `verify_submission.py` only scans files inside the tree. Fixed so the recorded path is
+repo-relative inside the repo (committed manifests byte-identical), manifest-relative outside it,
+never absolute.
+
+The staleness gate added earlier the same day caught its author: after ADR-0037 changed the config,
+it flagged `robustness.csv` as predating the pipeline. The sweep was re-run rather than waved
+through.
 
 ---
 

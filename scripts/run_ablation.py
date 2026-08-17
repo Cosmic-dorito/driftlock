@@ -103,6 +103,11 @@ def ladder() -> list[PipelineConfig]:
         # unlike the pair above which are not.
         replace(build_config(argparse.Namespace(config="driftlock")),
                 proposal_channels="", label="   the DEFAULT minus residual proposals"),
+        # The screen cut has now been measured three times, in three different pipelines, with three
+        # different answers (flat / +4 / +3). Keeping the previous value as its own row is what makes
+        # that visible instead of it looking like a number that was always 40.
+        replace(build_config(argparse.Namespace(config="driftlock")),
+                refit_screen_top_n=30, label="   the DEFAULT with the previous top_n=30 screen"),
         # The drift guard (ADR-0036) targets a bucket none of the rows above can reach: pairs where
         # selection was CORRECT and the terminal drift correction moved the answer off it. It is the
         # only stage here that is not about choosing a candidate.

@@ -94,7 +94,7 @@ finfet,21,correct,0.728,60,0
 finfet,22,correct,0.198,67,0
 finfet,23,correct,0.047,66,0
 finfet,24,correct,0.164,67,0
-finfet,25,screened,878.289,65,31
+finfet,25,outscored,878.289,65,31
 finfet,26,correct,0.353,69,0
 finfet,27,correct,0.102,61,0
 finfet,28,correct,0.484,67,1

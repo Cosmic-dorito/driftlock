@@ -279,9 +279,9 @@ Stated plainly rather than left for a judge to find.
    [`results/robustness.csv`](results/robustness.csv) sweeps 25 operating points across dose, read
    noise, scale, rotation and five degradations, deliberately running *past* the envelope the
    problem statement promises. Accuracy is essentially flat across a 32× dose range (0.0–16.7%) and
-   across 0°/±1°/±2° of rotation. The two soft spots are **charging streaks (26.7%)** — which the
+   across 0°/±1°/±2° of rotation. The two soft spots are **charging streaks (30.0%)** — which the
    spec names explicitly as a possible degradation — and **barrel distortion (33.3%)**, which it
-   does not. Scale beyond the promised range is the envelope limit: 16.7% inside 9–11:1, 36.7% at
+   does not. Scale beyond the promised range is the envelope limit: 16.7% inside 9–11:1, 33.3% at
    8–12:1. This is validation only; nothing is tuned on those seeds.
 
    **Charging streaks are the dominant degradation-specific weakness, and we know why.** The failure

@@ -1,0 +1,7 @@
+param,value,group,mislocks,fixed_vs_reference,broken_vs_reference
+refit_screen_top_n,30,sponsor,5,0,0
+refit_screen_top_n,40,sponsor,5,0,0
+
+# group 'dev' = the tuning family (dev + dev2); 'sponsor' = the reporting
+# splits. fixed/broken are paired against the FIRST value swept.
+# A value chosen on the reporting rows would kill the benchmark (R5).

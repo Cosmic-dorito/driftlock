@@ -1318,3 +1318,87 @@ it was invisible for as long as the decomposition had only selection buckets in 
 about. The estimator saturates rather than growing without bound, so if the evaluator's data has
 genuinely stronger raster drift than ours, the guard should be raised — or replaced by a bound
 derived per-pair from the measured lag search range rather than a constant.
+
+---
+
+## ADR-0037 · 2026-08-16 · accepted · The screen cut widens again, 30 → 40 — and it changes no reported number
+
+**Decision.** `refit_screen_top_n = 40`. Chosen on the tuning family, confirmed harmless on the
+reporting splits, and shipped **in full knowledge that it does not move the headline**.
+
+**What forced the re-examination.** ADR-0034 widened this cut 10 → 30 and explained why FINDINGS
+§23d had measured the same knob as flat: the candidates a wider cut recovered were being handed to
+the plain maximum, which is the thing that loses ties. Three further stages have landed since
+(ADR-0035 proposals, ADR-0036 guard), each changing what the screen hands downstream. The knob was
+therefore due a third measurement, and this time by standing tooling rather than another throwaway
+script — `scripts/param_sweep.py`.
+
+**Measured, paired, real pipeline.** Tuning family first, and the value frozen before the reporting
+splits were scored (R5):
+
+| cut | dev | dev2 | tuning total | fixed | broke |
+|---|---|---|---|---|---|
+| 30 | 2 | 8 | 10 | — | — |
+| **40** | 2 | 5 | **7** | **3** | **0** |
+| 60 | 2 | 5 | 7 | 3 | 0 |
+
+40 and 60 measure **identically**, so this is a plateau rather than a spike — which is the main
+reason to believe it is not a selection artefact of picking the best of three values. 40 is the
+cheap end of the plateau.
+
+| cut | sponsor | bench | finfet | reporting total | fixed | broke |
+|---|---|---|---|---|---|---|
+| 30 | 0 | 4 | 1 | 5 | — | — |
+| **40** | 0 | 4 | 1 | **5** | **0** | **0** |
+
+**Every reported number is unchanged to the decimal** — 0.0% / 13.3% / 3.3%, medians 0.179 / 0.300 /
+0.214, aggregate 5.0%. This ADR buys nothing a judge can see.
+
+**Runtime ×1.091**, measured by interleaving both arms within one session, three rounds over eight
+pairs. The absolute milliseconds are not quotable (the machine is down-clocked, ADR-0036) but the
+ratio is: both arms saw the same clock, cache and thermal history. Much cheaper than the naive
+33%-more-candidates estimate, because the wide refit groups candidates by pose and builds each
+template once — extra candidates inside an existing group cost correlations, not templates.
+
+**Why ship a change worth nothing on the reported data.** The reporting set is 100 pairs and the
+effect is 1.5%; the expected number of visible fixes there is about 1.5, so observing 0 is entirely
+consistent with a real effect this size and is a statement about power, not about the change. The
+evidence base is 300 pairs with **zero regressions on any of five splits**, which is the same bar
+ADR-0034 and ADR-0036 cleared. And the tuning family exists precisely so that decisions can be made
+on data that is not reported — declining to act on +3/−0 there would make it ornamental.
+
+**Why it might still be wrong.** The gain rests entirely on splits used for tuning, and this
+parameter was selected on those splits. The plateau and the zero regressions are the argument
+against that reading, not a proof. **If a runtime limit is ever published, this is the first thing
+to revert** — it is 9% for an effect no reported metric can see.
+
+**`finfet 25` was not recovered**, though it sits at screen rank 31 and a cut of 40 reaches it. That
+is ADR-0034's lesson pointing the other way: reaching the wide refit is not the same as winning it.
+
+**On the stress sweep it is net positive but NOT strictly dominant**, which is the main thing this
+entry has to report that the tuning table does not. Same 25 operating points, same seeds, guard on
+both sides:
+
+| | 750 stress pairs |
+|---|---|
+| fixed | 5 — nominal dose, 8–12:1 scale, 0°, ±1°, ±5° rotation |
+| **broken** | **2 — charging streaks 26.7% → 30.0%, heavy blur 6.7% → 10.0%** |
+| net | **+3** |
+
+ADR-0036 was 12/0 on the same sweep; this one costs two pairs to buy five. Both regressions are one
+pair of thirty on degradations well outside the spec envelope, and both are in the regimes where the
+candidate field is noisiest — which is the same mechanism as the gain, seen from the other side: a
+wider cut admits more candidates, and more candidates means more competition, not only more chances.
+That is ADR-0035's amendment repeating itself, and it is the honest counterweight to the +3.
+
+**Totals across everything measured:** +3/−0 on 200 tuning pairs, +0/−0 on 100 reporting pairs,
++5/−2 on 750 stress pairs. Net +6 broken 2 over 1050 pairs.
+
+⚠️ `results/robustness_noguard.csv`, the ADR-0036 attribution run, was measured with `top_n = 30` on
+both arms. It remains a valid paired experiment **at that configuration** and its 12/0 result stands,
+but it must not be diffed against the current `robustness.csv`, which is a 40-cut run. Regenerate
+both arms if that comparison is ever needed again.
+
+**What would change our mind.** A fourth measurement showing it flat again after some later stage —
+which, given this knob's history, should be actively expected rather than treated as surprising.
+Or a published runtime limit, which would make 9% for an invisible gain the wrong trade outright.

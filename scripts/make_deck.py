@@ -877,7 +877,7 @@ def slide_ablation(prs, M, ABL):
         ("the DEFAULT with the old top_n=10 screen",
          "+ pose grid as evidence   ← shipped", "solves selection"),
         ("the DEFAULT minus residual proposals",
-         "+ wider screen (top 30)   ← shipped", "recovers candidates"),
+         "+ wider screen (top 40)   ← shipped", "recovers candidates"),
         ("the DEFAULT minus the drift guard",
          "+ residual proposals   ← shipped", "solves coverage"),
         ("** + screened wide refit + median  [DEFAULT] **",
