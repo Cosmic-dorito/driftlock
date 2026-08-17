@@ -7,7 +7,7 @@ Locate a 100× reference pattern inside a 10× search image and return the targe
 to sub-pixel accuracy, on CPU, in a fraction of a second.
 
 > Every metric in this README is **generated** from `results/` by `scripts/make_results_doc.py`,
-> never typed by hand (see [correctness rule R2](CLAUDE.md#correctness-rules--enforced-not-aspirational)),
+> never typed by hand (correctness rule R2, enforced by `scripts/verify_submission.py`),
 > and `scripts/verify_submission.py` fails the build if it goes stale. Nothing is claimed here that
 > has not been measured.
 
@@ -34,7 +34,7 @@ problem**. And the periodic lattice that defeats ordinary matching is used as a 
 scale and rotation in closed form. The *aperiodic* residual — sub-array boundaries, per-cell
 line-placement variation — then resolves *which* cell.
 
-The full method, with the reasoning behind each stage, is in [`docs/PLAN.md`](docs/PLAN.md) and
+The full method, with the reasoning behind each stage, is in [`docs/internal/PLAN.md`](docs/internal/PLAN.md) and
 [`docs/METHOD.md`](docs/METHOD.md).
 
 ---
@@ -183,7 +183,6 @@ with an asymmetric ground truth — a symmetric test case cannot detect an x/y s
 ## Repository layout
 
 ```
-CLAUDE.md              Shared project context (thesis, contracts, correctness rules)
 README.md              This file
 requirements*.txt      Pinned dependencies (core / dev / optional)
 generate_dataset.py    Synthetic SEM image-pair generator          [deliverable 2]
@@ -329,7 +328,7 @@ Stated plainly rather than left for a judge to find.
 9. **Phase congruency and ECC affine are broken, not evaluated.** Their ablation rows report an
    implementation failure — that is a different claim from "we tried it and it does not help".
 
-Working assumptions about the evaluation data are tracked as **H1–H10** in [`CLAUDE.md`](CLAUDE.md)
+Working assumptions about the evaluation data are tracked as **H1–H10** in [`docs/SPEC.md`](docs/SPEC.md)
 and verified against 40 real pairs in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ---
@@ -343,7 +342,7 @@ make bench       # localize + evaluate over the bench set
 make package     # dist/drift-lock-submission.zip in the sponsor's recommended layout
 ```
 
-New to the project, or on a new machine? Read [`docs/HANDOFF.md`](docs/HANDOFF.md) — zero to running
+New to the project, or on a new machine? Read [`docs/internal/HANDOFF.md`](docs/internal/HANDOFF.md) — zero to running
 in under ten minutes.
 
 ### Reproducibility, checked rather than asserted

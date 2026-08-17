@@ -6,7 +6,7 @@ them, so re-running it can only ever confirm itself. This module imports **nothi
 code cannot reproduce itself here. It reads `predictions_*.csv` and the manifests and
 recomputes mis-lock, median error, pass rates and the paired-vs-baseline counts from scratch.
 
-Rule 8 in docs/STATE.md: a result with no script is not a result. This is the script behind
+Rule 8 in docs/internal/STATE.md: a result with no script is not a result. This is the script behind
 the claim "the headline numbers were independently re-derived".
 
     python scripts/audit_results.py

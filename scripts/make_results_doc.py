@@ -5,7 +5,7 @@
 
 Why this exists. Rule R2 says no number is typed by hand, and it was enforced for the deck (which is
 generated) but not for the markdown (which was not). The markdown drifted exactly as you would
-expect: at one point docs/RESULTS.md, docs/PROGRESS.md and results/ carried three different
+expect: at one point docs/RESULTS.md, docs/internal/PROGRESS.md and results/ carried three different
 generations of the headline numbers simultaneously. A judge browsing the repository would have found
 the project contradicting itself.
 
@@ -268,7 +268,7 @@ def _splice(path: Path, begin: str, end: str, block: str) -> None:
 
 CONFIG_BEGIN = "<!-- BEGIN GENERATED CONFIG -->"
 CONFIG_END = "<!-- END GENERATED CONFIG -->"
-CONFIG_DOCS = ("docs/STATE.md", "docs/HANDOFF.md")
+CONFIG_DOCS = ("docs/internal/STATE.md", "docs/internal/HANDOFF.md")
 
 #: Fields whose value is identical to PipelineConfig's default carry no information in a summary
 #: of what we chose, so they are omitted. Anything set away from the default is shown.

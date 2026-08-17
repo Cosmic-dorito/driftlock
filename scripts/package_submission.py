@@ -42,7 +42,6 @@ ROOT_FILES = [
     ("generate_dataset.py", "generate_dataset.py"),
     ("localize.py", "localize.py"),
     ("evaluate.py", "evaluate.py"),
-    ("CLAUDE.md", "CLAUDE.md"),
 ]
 
 DIRECTORIES = ["configs", "src", "model", "results", "scripts", "tests"]
