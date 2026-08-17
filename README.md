@@ -103,6 +103,33 @@ python localize.py --input-dir data/test/            --out results/predictions.c
 | `--no-rerank` | Force the purely deterministic path |
 | `--verbose` | Per-stage timings to **stderr** |
 
+### `.npy` inputs, and converting them to PNG
+
+**The inference script reads `.npy` pairs directly — no conversion step is required before scoring.**
+
+```bash
+python localize.py --reference ref.npy --search search.npy
+```
+
+The same pair as `.npy` and as `.png` returns byte-identical coordinates
+([`tests/test_npy_io.py`](tests/test_npy_io.py) asserts this end to end), so it does not matter
+which form the evaluation data arrives in. That is deliberate: the problem statement says an
+inference script needing manual preparation cannot be scored, so conversion is never on the
+critical path.
+
+Conversion is provided separately, for **visual inspection**:
+
+```bash
+python scripts/npy_to_png.py --input ref.npy --output ref.png     # one file
+python scripts/npy_to_png.py --input data/test --output png/ --recursive   # a whole tree
+```
+
+`--recursive` mirrors the input directory structure under `--output`, so two arrays sharing a
+basename in different folders cannot collide. Float arrays are rescaled to 8-bit for display using
+**the identical rule the loader applies** — values in `[0, 1]` are scaled by 255, values already
+spanning `[0, 255]` are left alone — so the PNG shows exactly what the matcher received. Keep the
+`.npy` as the source of truth if your data has meaning outside `[0, 255]`.
+
 ### Generate data and evaluate
 
 ```bash

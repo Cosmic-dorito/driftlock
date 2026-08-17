@@ -113,6 +113,40 @@ def euclidean_error(pred: tuple[float, float], truth: tuple[float, float]) -> fl
 # Image loading
 # ---------------------------------------------------------------------------------------
 
+def _load_npy(path: Path) -> np.ndarray:
+    """Read a ``.npy`` array and put it on the same footing as a decoded image.
+
+    Why this exists: the organiser's instruction to keep ``.npy -> .png`` conversion as a separate
+    documented step implies the evaluation pairs may arrive as raw arrays. The problem statement is
+    blunt about the consequence — *"an unrunnable script cannot be scored"* — so the inference path
+    reads them directly rather than depending on a conversion having been run first. The standalone
+    converter (``scripts/npy_to_png.py``) still exists, because the same instruction says PNGs are
+    wanted for visual inspection.
+
+    Float arrays are the ambiguous case and the only judgement call here. A float image may be
+    stored in [0, 1] or in [0, 255], and guessing wrong changes every intensity by 255x. ZNCC is
+    invariant to an affine intensity map, so the *matcher* would not care — but the median filter,
+    the impulse-noise path and the drift estimator all assume 8-bit-like magnitudes. The rule is
+    therefore: rescale only when the data cannot already be 8-bit-like (max <= 1.0), and otherwise
+    leave the values alone. Constant images are passed through rather than divided by zero.
+    """
+    array = np.load(path, allow_pickle=False)
+    if array.ndim not in (2, 3):
+        raise ValueError(f"{path.name}: expected a 2-D or 3-D array, got shape {array.shape}")
+
+    if np.issubdtype(array.dtype, np.floating):
+        finite = array[np.isfinite(array)]
+        peak = float(finite.max()) if finite.size else 0.0
+        if peak <= 1.0 and peak > 0.0:
+            array = array * 255.0
+        array = np.clip(np.nan_to_num(array, nan=0.0), 0, 255).astype(np.uint8)
+    elif array.dtype == np.uint16:
+        array = (array.astype(np.float32) / 257.0).astype(np.uint8)
+    elif array.dtype != np.uint8:
+        array = np.clip(array, 0, 255).astype(np.uint8)
+    return array
+
+
 def load_grayscale(path: str | Path, as_float: bool = False) -> np.ndarray:
     """Load an image as single-channel grayscale.
 
@@ -121,7 +155,10 @@ def load_grayscale(path: str | Path, as_float: bool = False) -> np.ndarray:
     work without source edits.
     """
     path = Path(path)
-    img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    if path.suffix.lower() == ".npy":
+        img = _load_npy(path)
+    else:
+        img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
     if img is None:
         raise FileNotFoundError(f"could not read image: {path}")
 
