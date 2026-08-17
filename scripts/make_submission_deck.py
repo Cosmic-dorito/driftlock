@@ -416,9 +416,9 @@ def build() -> int:
 
     # ------------------------------------------------------------------ 8. GitHub and video
     set_text(find(links, "{Paste your GitHub / Source Code Link here}"),
-             "https://github.com/<REPLACE-BEFORE-SUBMITTING>")
+             "https://github.com/Cosmic-dorito/driftlock")
     set_text(find(links, "{Paste your Video Link here"),
-             "Optional — demo of localize.py on one image pair")
+             "Clone, generate a pair, and localize it — three commands in the README")
 
     # ------------------------------------------------------------------ 9. References
     # This slide's internals differ from the rest of the deck (two stacked sub-cards, its own
