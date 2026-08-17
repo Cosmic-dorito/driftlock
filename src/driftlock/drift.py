@@ -38,7 +38,7 @@ integrated, so no random walk accumulates.
 Validated against data generated at known shear values:
 
 ===========  ==========================
-true shear    estimated (gap=100)
+true shear    estimated (gap=40, the shipped default)
 ===========  ==========================
 0.0           0.009 +/- 0.202
 1.5           1.445 +/- 0.344
@@ -54,9 +54,6 @@ from __future__ import annotations
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 
-# Rows this far apart still sit within a single mat (~260 search px), so they share content.
-# Larger gaps give a bigger drift signal relative to measurement noise, hence better precision -
-# gap=100 measured best of {25, 50, 100}.
 # Row separation for the displacement measurement. It is NOT free: it is pinned between two hard
 # constraints, and the value it used to have (100) satisfied neither.
 #

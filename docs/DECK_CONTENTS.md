@@ -46,8 +46,6 @@ Pedada Venkata Abhiram
 
 2027
 
-A team can have up to 4 members including the team leader. Add rows if necessary.
-
 COLLEGE NAME
 
 Amrita Vishwa Vidyapeetham, Coimbatore
@@ -208,11 +206,11 @@ aggregate mis-lock
 
 Technology & Feasibility/Methodology Used
 
-CPU-only · four dependencies · no network access and no model download
+CPU-only · eight pinned dependencies · no network access, no model download
 
 STACK, HARDWARE AND FEASIBILITY
 
-Python 3.14 · numpy · opencv-python-headless · scipy · scikit-image. torch is optional and lazily imported — uninstalling it leaves everything working.
+Python 3.14 · numpy · scipy · opencv-python-headless · scikit-image · pillow · pandas · PyYAML · matplotlib, every version pinned. torch is optional and lazily imported — uninstalling it leaves everything working.
 Hardware: one laptop CPU. No GPU, no cloud, nothing downloaded at runtime. Deterministic: a single seeded numpy Generator is threaded through, and a test asserts the same seed gives byte-identical images and identical predictions.
 Inference accepts .png and .npy pairs identically; a separate documented converter exists for visual inspection but is never on the scoring path.
 Model size: none. Nothing is trained, so there are no weights to ship, load or version.

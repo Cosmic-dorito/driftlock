@@ -2,7 +2,7 @@
 
 Every stage measured on **every split**, including the ones that did not work (rule R9).
 
-Only one split was used for tuning. A stage that improves the tuned split while hurting the others is overfitting, and this table is arranged so that shows up immediately rather than being discovered by the evaluator.
+The tuning family is dev + dev2; neither is reported here. A stage that improves the tuned splits while hurting the others is overfitting, and this table is arranged so that shows up immediately rather than being discovered by the evaluator.
 
 Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladder cannot distinguish "this stage did nothing" from "this stage broke and an earlier one compensated".
 
@@ -138,33 +138,33 @@ Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladde
 
 | Stage | sponsor | bench | finfet |
 |---|---|---|---|
-| baseline (sponsor: INTER_AREA + ZNCC argmax) | 20 | 22 | 22 |
-| + sub-pixel DFT (A9) | 160 | 101 | 156 |
-| + blind drift correction | 59 | 61 | 59 |
-| + sub-pixel + drift | 354 | 464 | 422 |
-| + pose: spectral lattice  [LESS ACCURATE] | 910 | 905 | 330 |
-| + pose: pyramid | 488 | 403 | 185 |
-| + per-candidate pose refit, narrow | 528 | 554 | 265 |
-| ** + screened wide refit + median  [DEFAULT] ** | 822 | 793 | 624 |
-|    the DEFAULT minus the median filter | 794 | 760 | 638 |
-|    the DEFAULT minus pose evidence | 827 | 791 | 629 |
-|    the DEFAULT with the old top_n=10 screen | 660 | 663 | 438 |
-|    the DEFAULT with the old top_n=10 screen and no pose evidence | 717 | 664 | 444 |
-|    the DEFAULT minus residual proposals | 766 | 710 | 594 |
-|    the DEFAULT with the previous top_n=30 screen | 727 | 745 | 573 |
-|    the DEFAULT minus the drift guard | 830 | 807 | 636 |
-| + variance proposals instead  [NO GAIN] | 818 | 797 | 623 |
-| + edge proposals instead  [NO GAIN] | 784 | 767 | 617 |
-| + top-K=20 alone (no re-rank) | 25 | 25 | 22 |
-| + top-K + PADM + centre rule  [OVERFIT] | 238 | 232 | 209 |
-| + wide dense refit, unscreened  [slower AND worse] | 714 | 672 | 530 |
-| + centre rule on the default  [prior absent here] | 636 | 631 | 385 |
-| + coarse-level consensus re-rank  [HARMFUL] | 512 | 539 | 205 |
-| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 669 | 760 | 326 |
-| + row destripe  [HARMFUL] | 33 | 34 | 31 |
-| + median filter on baseline  [no effect WITHOUT impulse noise] | 27 | 26 | 24 |
-| + Anscombe A1  [no effect on argmax] | 59 | 60 | 53 |
-| + ECC affine  [never converges] | 27 | 26 | 27 |
+| baseline (sponsor: INTER_AREA + ZNCC argmax) | 19 | 19 | 23 |
+| + sub-pixel DFT (A9) | 28 | 28 | 35 |
+| + blind drift correction | 51 | 52 | 63 |
+| + sub-pixel + drift | 61 | 63 | 72 |
+| + pose: spectral lattice  [LESS ACCURATE] | 320 | 326 | 380 |
+| + pose: pyramid | 189 | 192 | 226 |
+| + per-candidate pose refit, narrow | 267 | 265 | 279 |
+| ** + screened wide refit + median  [DEFAULT] ** | 668 | 632 | 708 |
+|    the DEFAULT minus the median filter | 672 | 631 | 694 |
+|    the DEFAULT minus pose evidence | 678 | 694 | 727 |
+|    the DEFAULT with the old top_n=10 screen | 451 | 531 | 485 |
+|    the DEFAULT with the old top_n=10 screen and no pose evidence | 471 | 527 | 465 |
+|    the DEFAULT minus residual proposals | 612 | 685 | 607 |
+|    the DEFAULT with the previous top_n=30 screen | 591 | 619 | 632 |
+|    the DEFAULT minus the drift guard | 670 | 726 | 696 |
+| + variance proposals instead  [NO GAIN] | 662 | 674 | 662 |
+| + edge proposals instead  [NO GAIN] | 722 | 672 | 680 |
+| + top-K=20 alone (no re-rank) | 24 | 27 | 28 |
+| + top-K + PADM + centre rule  [OVERFIT] | 229 | 225 | 222 |
+| + wide dense refit, unscreened  [slower AND worse] | 528 | 553 | 559 |
+| + centre rule on the default  [prior absent here] | 387 | 411 | 400 |
+| + coarse-level consensus re-rank  [HARMFUL] | 208 | 210 | 208 |
+| + max-likelihood re-rank (Poisson-Gauss)  [NO GAIN] | 316 | 323 | 318 |
+| + row destripe  [HARMFUL] | 31 | 30 | 31 |
+| + median filter on baseline  [no effect WITHOUT impulse noise] | 24 | 24 | 24 |
+| + Anscombe A1  [no effect on argmax] | 54 | 59 | 54 |
+| + ECC affine  [never converges] | 24 | 25 | 29 |
 
 ## Reading this table
 

@@ -67,7 +67,7 @@ Dependencies are few and pinned by design: `numpy`, `scipy`, `opencv-python-head
 - **No GPU required.** The deterministic path that produces the submitted coordinates runs on CPU.
 - **`torch` is optional**, lazily imported, and used only by the flag-gated re-ranker
   (`requirements-optional.txt`). `pip uninstall torch` leaves every graded command working.
-- **No network access at runtime**, and no model downloads. Any weights are committed in `model/`.
+- **No network access at runtime, and no weights to download** — nothing is trained, so there is no model to ship or load.
 
 ---
 
@@ -100,8 +100,7 @@ python localize.py --input-dir data/test/            --out results/predictions.c
 | Flag | Effect |
 |---|---|
 | `--json` | `{"x":312.42,"y":489.07,"score":0.91,"ambiguity_index":1.31,"runtime_ms":78}` |
-| `--visualize OUT.png` | Overlay: crosshair on the search image plus the correlation surface |
-| `--no-rerank` | Force the purely deterministic path |
+| `--visualize OUT.png` | Side-by-side overlay: reference and search, with the prediction, the truth when known, and the runner-up candidates boxed |
 | `--verbose` | Per-stage timings to **stderr** |
 
 ### `.npy` inputs, and converting them to PNG
@@ -189,10 +188,8 @@ requirements*.txt      Pinned dependencies (core / dev / optional)
 generate_dataset.py    Synthetic SEM image-pair generator          [deliverable 2]
 localize.py            Localization / inference entry point        [deliverable 2]
 evaluate.py            Metrics, plots, robustness analysis         [deliverable 5]
-configs/               Generation and evaluation configuration
 src/synth/             Layout, SEM image formation, noise models
 src/driftlock/         Preprocessing, lattice, matching, sub-pixel, confidence
-model/                 Committed weights (small; no Git LFS, no downloads)
 data/bench/            The >=30 committed validation pairs + manifest   [deliverable 6]
 results/               Metrics, predictions, figures, failure case      [deliverable 5]
 tests/                 Unit tests, including API-contract and geometry tests

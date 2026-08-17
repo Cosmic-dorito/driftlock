@@ -286,6 +286,9 @@ def build() -> int:
     for shape in list(team.shapes):
         if shape.shape_id == 9:           # the table card, shortened to the three real rows
             shape.height = Inches(1.98)
+    # The template's own instruction to the submitter ("A team can have up to 4 members...").
+    # Guidance for filling the deck in, not content for a reviewer to read on the title slide.
+    drop_if(team, "A team can have up to 4 members")
     college = find(team, "{Enter Full College Name}")
     college.width = Inches(6.0)
     set_text(college, "Amrita Vishwa Vidyapeetham, Coimbatore")
@@ -474,14 +477,15 @@ def build() -> int:
 
     # ------------------------------------------------------------------ 7. Technology
     set_text(find(tech, "Describe the technologies"),
-             "CPU-only · four dependencies · no network access and no model download", size=16)
+             "CPU-only · eight pinned dependencies · no network access, no model download", size=16)
     drop_if(tech, "IMPLEMENTATION STRATEGY", "{Provide a detailed breakdown")
     drop_body_icons(tech)
     card(tech, BODY_LEFT, BODY_TOP, BODY_WIDTH, BODY_BOTTOM - BODY_TOP)
     add_text(tech, BODY_LEFT + 0.26, BODY_TOP + 0.2, BODY_WIDTH - 0.52, 0.25,
              ["STACK, HARDWARE AND FEASIBILITY"], size=10, bold=True, color=LABEL)
     add_text(tech, BODY_LEFT + 0.26, BODY_TOP + 0.56, BODY_WIDTH - 0.52, 2.2, [
-        "Python 3.14 · numpy · opencv-python-headless · scipy · scikit-image. torch is optional and "
+        "Python 3.14 · numpy · scipy · opencv-python-headless · scikit-image · pillow · pandas · "
+        "PyYAML · matplotlib, every version pinned. torch is optional and "
         "lazily imported — uninstalling it leaves everything working.",
         "Hardware: one laptop CPU. No GPU, no cloud, nothing downloaded at runtime. Deterministic: "
         "a single seeded numpy Generator is threaded through, and a test asserts the same seed "

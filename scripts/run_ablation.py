@@ -234,7 +234,8 @@ def main() -> int:
         "# Ablation", "",
         "Every stage measured on **every split**, including the ones that did not work (rule R9).",
         "",
-        "Only one split was used for tuning. A stage that improves the tuned split while hurting "
+        "The tuning family is dev + dev2; neither is reported here. A stage that improves the "
+        "tuned splits while hurting "
         "the others is overfitting, and this table is arranged so that shows up immediately "
         "rather than being discovered by the evaluator.", "",
         "Rows are baseline **plus the named stage**, not a cumulative chain: a pure ladder cannot "

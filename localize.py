@@ -379,8 +379,6 @@ def main(argv: list[str] | None = None) -> int:
                         help="'baseline' reproduces the sponsor's published matcher (ablation row 1)")
     parser.add_argument("--json", action="store_true", help="emit a JSON object instead of 'x,y'")
     parser.add_argument("--visualize", metavar="OUT.png", help="write a crosshair overlay")
-    parser.add_argument("--no-rerank", action="store_true",
-                        help="force the deterministic path (skip the optional learned re-ranker)")
     parser.add_argument("--verbose", action="store_true", help="stage timings to stderr")
     args = parser.parse_args(argv)
 
