@@ -174,7 +174,7 @@ def canvas_to_search_coords(x_nm: float, y_nm: float, out_size: int, nm_per_px: 
     render, rather than measured back off the image, so the ground truth is exact and continuous -
     which is what makes an honest sub-pixel accuracy claim possible.
 
-    The half-pixel term, and why it is not a fudge (fixed 12 Aug, MacBook Air M2)
+    The half-pixel term, and why it is not a fudge (fixed 12 Aug, another machine)
     ----------------------------------------------------------------------------
     Two different conventions meet here and they differ by exactly half a pixel:
 

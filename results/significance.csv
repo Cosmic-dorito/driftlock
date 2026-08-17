@@ -8,7 +8,7 @@ paired_vs_baseline,0,100,55,0.0000,strictly dominant (no regressions)
 # Wilson score intervals; normal-approximation intervals go negative at n=30.
 # For scope=paired_vs_baseline: mislock_k=b, mislock_rate=c, ci95_low=exact p.
 # Two parameter-identical stress splits differing only by seed measured
-# 13.3% and 16.7% at n=30 - the sampling floor for
+# 13.3% and 13.3% at n=30 - the sampling floor for
 # reading any single split. Derived from results/robustness.csv rather than
 # typed - the figure moves every time the sweep is regenerated, and the
 # hardcoded version of it went stale here for three days.

@@ -235,7 +235,7 @@ def build_canvas(size_px: int, architecture: str, preset, rng: np.random.Generat
     reference crop that includes one is far easier to localize.
 
     ``vary_preset_per_mat`` additionally perturbs the nominal PITCH between mats. It defaults to
-    **off**, and that default was changed on 12 Aug (MacBook Air M2) after it turned out to be both
+    **off**, and that default was changed on 12 Aug (another machine) after it turned out to be both
     physically wrong and measurably harmful:
 
     * **Wrong.** A cell array's pitch is a design rule fixed by lithography; every mat on a die is

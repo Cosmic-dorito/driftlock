@@ -291,7 +291,7 @@ def estimate_pose(
             implied_scale = search_radius[j] / ref_radius[i]
             if not (s_lo <= implied_scale <= s_hi):
                 continue  # e.g. a first harmonic paired against a second - rejected before voting
-            # SIGN, determined by measurement rather than derivation (12 Aug, MacBook Air M2):
+            # SIGN, determined by measurement rather than derivation (12 Aug, another machine):
             # correlating the estimate against the manifest's true rotation over 40 dev pairs gave
             # r = -0.899 with the naive difference, so the sense is inverted. It follows from the
             # generator: the field of view is sampled THROUGH a rotation of rho, so content in the

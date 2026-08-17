@@ -50,7 +50,12 @@ class Match:
     x: float
     y: float
     score: float = 0.0
-    confidence_radius_px: float | None = None
+    #: Peak ambiguity index: best score divided by the best score among candidates
+    #: that are NOT plausibly the same location. Unitless, and HIGHER IS SAFER -- a
+    #: value near 1 means a structurally different position scores just as well.
+    #: Previously named `confidence_radius_px`, which promised pixels and implied the
+    #: opposite polarity; nothing consumed it under that name.
+    ambiguity_index: float | None = None
     runtime_ms: float | None = None
 
     def as_stdout_line(self) -> str:
@@ -251,13 +256,13 @@ def write_predictions(path: str | Path, matches: list[tuple[str, Match]]) -> Non
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["id", "pred_x", "pred_y", "score", "confidence_radius_px", "runtime_ms"])
+        writer.writerow(["id", "pred_x", "pred_y", "score", "ambiguity_index", "runtime_ms"])
         for pair_id, m in matches:
             # A non-finite confidence is written as an empty cell rather than "inf". It means "no
             # rival candidate was close enough to compete", and an empty cell is what every CSV
             # reader already understands as missing - "inf" is a string that breaks strict numeric
             # parsers on the evaluator's side.
-            confidence = m.confidence_radius_px
+            confidence = m.ambiguity_index
             finite_confidence = (confidence is not None and np.isfinite(confidence))
             writer.writerow([
                 pair_id, f"{m.x:.4f}", f"{m.y:.4f}", f"{m.score:.6f}",

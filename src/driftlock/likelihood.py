@@ -26,7 +26,7 @@ which is deliberate: PADM had two tuned constants and overfit to one lattice geo
 
 MEASURED RESULT: it does not beat ZNCC. Off by default.
 -------------------------------------------------------
-40 dev pairs, 12 Aug, MacBook Air M2:
+40 dev pairs, 12 Aug, another machine:
 
 ======================  ==========  ================
 ranking                 truth at    mean rank of

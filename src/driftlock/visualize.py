@@ -78,8 +78,8 @@ def save_overlay(
     if truth is not None:
         error = float(np.hypot(match.x - truth[0], match.y - truth[1]))
         caption.append(f"truth ({truth[0]:.2f}, {truth[1]:.2f})   error {error:.2f} px")
-    if match.confidence_radius_px is not None:
-        caption.append(f"ambiguity index {match.confidence_radius_px:.3f}")
+    if match.ambiguity_index is not None:
+        caption.append(f"ambiguity index {match.ambiguity_index:.3f}")
 
     combined = np.hstack([ref_panel, panel])
     banner = np.zeros((26 * len(caption) + 10, combined.shape[1], 3), dtype=np.uint8)

@@ -34,8 +34,9 @@ problem**. And the periodic lattice that defeats ordinary matching is used as a 
 scale and rotation in closed form. The *aperiodic* residual — sub-array boundaries, per-cell
 line-placement variation — then resolves *which* cell.
 
-The full method, with the reasoning behind each stage, is in [`docs/internal/PLAN.md`](docs/internal/PLAN.md) and
-[`docs/METHOD.md`](docs/METHOD.md).
+The full method, with the reasoning behind each stage, is in
+[`docs/DECISIONS.md`](docs/DECISIONS.md) — one record per non-obvious choice, including the ones
+that were measured and rejected.
 
 ---
 
@@ -98,7 +99,7 @@ python localize.py --input-dir data/test/            --out results/predictions.c
 
 | Flag | Effect |
 |---|---|
-| `--json` | `{"x":312.42,"y":489.07,"score":0.91,"confidence_radius_px":0.8,"runtime_ms":78}` |
+| `--json` | `{"x":312.42,"y":489.07,"score":0.91,"ambiguity_index":1.31,"runtime_ms":78}` |
 | `--visualize OUT.png` | Overlay: crosshair on the search image plus the correlation surface |
 | `--no-rerank` | Force the purely deterministic path |
 | `--verbose` | Per-stage timings to **stderr** |

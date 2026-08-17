@@ -8,7 +8,7 @@ ablation table is a required deliverable: every stage is a flag, so "baseline vs
 argmax, no sub-pixel refinement. That is ablation row 1 and the floor we must beat. Measured on 40
 sponsor pairs it gives a 25% mis-lock rate and 1.10 px median error (results/hypotheses.md).
 
-Stage names (A1-A9) refer to docs/PLAN.md.
+Stage names (A1-A9) refer to docs/internal/PLAN.md.
 """
 
 from __future__ import annotations
@@ -279,7 +279,7 @@ def build_template(
     template is built with exactly that operator, in exactly that order. Verified as H4a: ZNCC at
     the true location averages 0.835 across 40 pairs.
 
-    Why this replaced ``cv2.resize(INTER_AREA)`` (12 Aug, MacBook Air M2)
+    Why this replaced ``cv2.resize(INTER_AREA)`` (12 Aug, another machine)
     --------------------------------------------------------------------
     ``INTER_AREA`` can only produce an INTEGER output size, so the achievable magnification was
     quantised to ``1000/n``: 9.0090, 9.0909, 9.1743, ... - steps of about **1%**. Our own
@@ -595,7 +595,7 @@ def localize(
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     return Match(
         x=final_x, y=final_y, score=chosen.score,
-        confidence_radius_px=None if pai is None else float(pai),
+        ambiguity_index=None if pai is None else float(pai),
         runtime_ms=elapsed_ms,
     )
 
@@ -683,7 +683,7 @@ class CoarseView:
     mat/strip landmarks (~260 search px) survive at ~65 px - so the coarse level would see
     *structure without lattice* and could vote on which mat a candidate sits in.
 
-    **Measured, and it is wrong** (12 Aug, MacBook Air M2): mis-lock on the dev split went
+    **Measured, and it is wrong** (12 Aug, another machine): mis-lock on the dev split went
     20.0% -> 55.0% and the median error 0.497 -> 32.9 px.
 
     The flaw is a units error in the reasoning, and it is worth keeping written down. Downsampling
@@ -713,7 +713,7 @@ def pyramid_pose(
 ) -> tuple[tuple[float, float], CoarseView | None] | None:
     """Measure (scale, rotation) by an exhaustive search on a DOWNSAMPLED pyramid level.
 
-    Why this replaced the spectral estimators (12 Aug, MacBook Air M2)
+    Why this replaced the spectral estimators (12 Aug, another machine)
     ------------------------------------------------------------------
     Reading the magnification off the lattice is elegant and it is what the project is named for,
     but on real presets it runs into an information limit that no amount of implementation care

@@ -70,7 +70,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         costs 185 ms of the runtime budget. Kept in the codebase and in the ablation as a measured
         negative result, off by default.
 
-    Also enabled - pose measurement (A5), added 12 Aug on the MacBook Air M2:
+    Also enabled - pose measurement (A5), added 12 Aug:
       * The problem statement says 9:1-11:1 magnification and 1-2 degrees of rotation will be
         tested. The sponsor's generator produces neither (H9), so this axis was completely untested
         until our own generator covered it - at which point the pipeline turned out to fail almost
@@ -82,7 +82,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         would have done without it. On the sponsor's fixed-10:1 data it costs runtime and nothing
         else.
 
-    Also enabled - per-candidate pose refit (A11), added 12 Aug on win-2:
+    Also enabled - per-candidate pose refit (A11), added 12 Aug:
       * The limiting noise on candidate RANKING is model mismatch, not photon noise. The measured
         margin between the true location and its best impostor is ~0.016, against a sampling noise
         of ~0.002 on a 100x100 correlation - a signal-to-noise ratio near 8, which should have
@@ -101,7 +101,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         best-sample 26.0%, parabola interpolation 27.0%, multi-basin retention 26.0%, against dense
         sampling's 20.0%. You cannot reconstruct an optimum from samples that do not resolve it.
 
-    Also enabled - screening the refit (13 Aug, win-2), which is what made the dense grid
+    Also enabled - screening the refit (13 Aug), which is what made the dense grid
     affordable enough to default:
       * A dense grid over every candidate costs steps^2 correlations EACH, and candidates arrive
         top_k-per-POSE, so 60 of them over a 5x5 grid is 1500 correlations - measured at 334 of the
@@ -186,7 +186,7 @@ def build_config(args: argparse.Namespace) -> PipelineConfig:
         # which is why it was wrongly rejected. See ADR-0027 and FINDINGS section 26.
         median_filter=True,
         candidate_refit=True,
-        # Screened wide refit (13 Aug, win-2). See ADR-0025 and FINDINGS section 23.
+        # Screened wide refit (13 Aug). See ADR-0025 and FINDINGS section 23.
         refit_steps=5,
         refit_scale_span=0.03,
         refit_rotation_span=1.5,
@@ -281,14 +281,14 @@ def run_single(args: argparse.Namespace, config: PipelineConfig) -> int:
         # evaluator's side rejects the whole document, and we would fail the batch on a field
         # nobody even asked for. `inf` here means "no rival candidate was far enough away to
         # compete", i.e. maximum confidence; null is the honest encoding of that.
-        confidence = match.confidence_radius_px
+        confidence = match.ambiguity_index
         if confidence is not None and not math.isfinite(confidence):
             confidence = None
         payload = {
             "x": round(match.x, 4),
             "y": round(match.y, 4),
             "score": round(match.score, 6),
-            "confidence_radius_px": confidence,
+            "ambiguity_index": confidence,
             "runtime_ms": round(wall_ms, 2),
         }
         print(json.dumps(payload, allow_nan=False))
@@ -346,7 +346,7 @@ def run_batch(args: argparse.Namespace, config: PipelineConfig) -> int:
         try:
             started = time.perf_counter()
             match = run_pair(ref_path, search_path, config)
-            match = Match(match.x, match.y, match.score, match.confidence_radius_px,
+            match = Match(match.x, match.y, match.score, match.ambiguity_index,
                           (time.perf_counter() - started) * 1000.0)
             results.append((pair_id, match))
         except Exception as exc:

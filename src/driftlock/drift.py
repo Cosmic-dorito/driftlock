@@ -118,7 +118,7 @@ def estimate_shear(
     displaces content by ``gap * tan(rho)`` over the same row separation, and the estimator
     happily reports that as drift and then "corrects" a distortion that was never there.
 
-    Measured on 40 rotated dev pairs (12 Aug, MacBook Air M2): with the true pose supplied but no
+    Measured on 40 rotated dev pairs (12 Aug, another machine): with the true pose supplied but no
     rotation compensation, the residual error was ``dx = -9.5 * rotation_deg`` - a clean straight
     line through the failures, up to 19 px on a 2 degree pair. It never appeared on the sponsor's
     data for the simple reason that their generator produces no rotation (H9), which is exactly the
