@@ -97,16 +97,17 @@ def stage(include_data: bool) -> list[str]:
         else:
             warnings.append("MISSING data/bench/ - the >=30-pair validation evidence the spec requires")
 
-    # By exact name, not by glob. make_deck.py writes solution_presentation.rebuilt.pptx as a
-    # fallback when the real deck is locked by an open PowerPoint/LibreOffice window, and that
-    # fallback is stale the moment the real one is rebuilt. `next(glob("*.pptx"))` returns whatever
-    # the filesystem lists first, so it could have shipped the stale deck - silently, since both
-    # files are named plausibly and the zip would look complete.
-    deck = REPO_ROOT / "solution_presentation.pptx"
-    if deck.is_file():
-        shutil.copy2(deck, STAGE / "solution_presentation.pptx")
-    else:
-        warnings.append("MISSING solution_presentation.pptx - deliverable 1 is MANDATORY")
+    # By exact name, not by glob. `next(glob("*.pptx"))` returns whatever the filesystem lists
+    # first, so a second deck in the tree could be shipped instead - silently, since both files
+    # would be named plausibly and the zip would look complete. That was a live risk until the
+    # superseded 12-slide deck was deleted on 18 Aug; naming it explicitly keeps it a non-risk.
+    # The PDF ships too: the portal asks for it alongside the GitHub link.
+    for name in ("Silli-Con Artists_PS02.pptx", "Silli-Con Artists_PS02.pdf"):
+        deck = REPO_ROOT / name
+        if deck.is_file():
+            shutil.copy2(deck, STAGE / name)
+        else:
+            warnings.append(f"MISSING {name} - deliverable 1 is MANDATORY")
 
     return warnings
 
