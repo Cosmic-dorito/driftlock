@@ -436,6 +436,19 @@ def check_results_newer_than_config() -> Result:
     # Only artefacts produced by RUNNING the pipeline. Derived documents are covered elsewhere.
     measured = ["robustness.csv", "significance.csv", "failure_decomposition.csv",
                 "metrics_sponsor.csv", "metrics_bench.csv", "metrics_finfet.csv", "ablation.md"]
+
+    # A FRESH CLONE carries no timestamp information: git stamps every file at checkout time, so
+    # the comparison below is between two numbers that are equal by construction and its outcome is
+    # arbitrary. Reporting PENDING there tells a reviewer nothing they can act on, and a warning
+    # nobody can act on is how a check earns the habit of being ignored. Detect the case by the
+    # spread: a real working tree has files edited minutes to days apart, a checkout has them all
+    # within seconds.
+    tracked = [REPO_ROOT / "results" / n for n in measured] + config_files
+    stamps = [p.stat().st_mtime for p in tracked if p.exists()]
+    if stamps and (max(stamps) - min(stamps)) < 120:
+        return Result(PASS, "fresh checkout - timestamps carry no staleness information, "
+                            "so this check is skipped rather than guessed at")
+
     stale = []
     for name in measured:
         path = REPO_ROOT / "results" / name

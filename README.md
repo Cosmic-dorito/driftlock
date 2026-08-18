@@ -13,6 +13,34 @@ to sub-pixel accuracy, on CPU, in a fraction of a second.
 
 ---
 
+## Quick start — for evaluators
+
+Four commands, from a clean clone to a coordinate. Nothing else is needed and no file has to be
+edited.
+
+```bash
+pip install -r requirements.txt
+
+# 1. Locate a pattern in a committed pair. Prints ONE line: "x,y" — nothing else on stdout.
+python localize.py --reference data/bench/reference/00000.png --search data/bench/search/00000.png
+
+# 2. Point it at your own pair. .png and .npy are both accepted directly.
+python localize.py --reference YOUR_REF.png --search YOUR_SEARCH.png
+
+# 3. Or a whole directory / manifest, with no source changes.
+python localize.py --input-dir YOUR_DIR/ --out predictions.csv
+
+# 4. Generate fresh synthetic pairs with ground truth.
+python generate_dataset.py --num-samples 30 --split demo --seed 1234 --output-dir data
+```
+
+Diagnostics go to **stderr**, so stdout is safe to pipe into a scoring harness. A bad input exits
+non-zero with a message and prints nothing to stdout.
+
+30 evaluation pairs are committed under `data/bench/`, so step 1 works immediately after cloning.
+
+---
+
 ## The problem
 
 A wafer inspection tool revisits the same relative site on another die. Stage drift, vibration and
