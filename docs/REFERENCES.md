@@ -30,11 +30,17 @@ opened — **must be upgraded to VERIFIED or dropped before it goes in the deck.
 | SE yield rises with local surface tilt — the physical basis for our **edge-brightening** term, which the sponsor's starter generator omits entirely (it paints flat grey levels per material) | Villarrubia, J. S., Ritchie, N. W. M. & Lowney, J. R. *Monte Carlo modeling of secondary electron imaging in three dimensions.* Proc. SPIE **6518**, Metrology, Inspection, and Process Control for Microlithography XXI, 65180K, 5 April 2007 | [10.1117/12.712353](https://doi.org/10.1117/12.712353) · [NIST copy](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=913838) | VERIFIED — full author list, venue, article number and year confirmed | SS | 2026-08-12 |
 | Phase congruency is an **illumination- and contrast-invariant** feature measure. Cited for the *idea*; our implementation is **broken** and reported as such, not as an evaluated alternative | Kovesi, P. *Phase congruency: A low-level image invariant.* Psychological Research **64**(2):136–148, 2000 | [10.1007/s004260000024](https://doi.org/10.1007/s004260000024) | VERIFIED — venue, volume, issue, pages and year confirmed | SS | 2026-08-12 |
 
-## Partial — upgrade or drop before the deck
+## Identified but not cited — deliberately
 
-## TODO — identified, not yet checked
+Every source below is plausible and relevant, and **none of it appears in the presentation or
+in any claim we make.** Rule R1 admits a citation only when someone has opened it and recorded
+the DOI, the verifier and the date; until then it is a reading suggestion, not evidence.
 
-Do not cite any of these until the row is complete.
+This list is published rather than deleted because it is the honest shape of the work: these
+are the papers a fuller treatment would engage with, and saying so is more useful to a reader
+than a bibliography that quietly implies we read them. Two are worth singling out — Lewis on
+normalized cross-correlation and Evangelidis & Psarakis on ECC describe algorithms we actually
+use, and they are still uncited here for exactly the same reason as the rest.
 
 | Claim it would support | Likely source |
 |---|---|
