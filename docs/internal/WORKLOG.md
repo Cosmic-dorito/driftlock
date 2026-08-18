@@ -1,5 +1,9 @@
 # WORKLOG — who changed what, on which machine, when
 
+> **Note.** `CLAUDE.md` referenced below was assistant-tooling configuration and was
+> removed from the repository on 18 August. Entries naming it are dated records of work
+> that was done; the contracts it held now live in `docs/SPEC.md`.
+
 We are three people running Claude Code **sequentially** on our own laptops. Git history says *what*
 changed; this file says *what was being attempted, on which machine, and what the measurement said*.
 When something breaks two days later, this is the file that tells you which session to blame.

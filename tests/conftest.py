@@ -1,6 +1,6 @@
 """Make the repo root importable so `import src.driftlock` works without installing the package.
 
-Uses pathlib and a path derived from this file's location — never an absolute path (see CLAUDE.md
+Uses pathlib and a path derived from this file's location — never an absolute path (see docs/SPEC.md
 portability rules; `scripts/verify_submission.py` fails the build on hard-coded paths).
 """
 

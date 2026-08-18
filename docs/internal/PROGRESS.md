@@ -1,5 +1,9 @@
 # PROGRESS — live tracker
 
+> **Note.** `CLAUDE.md` referenced below was assistant-tooling configuration and was
+> removed from the repository on 18 August. Entries naming it are dated records of work
+> that was done; the contracts it held now live in `docs/SPEC.md`.
+
 **Deadline 16 Aug 2026.** Update this when you clear a gate, not retroactively.
 If a gate slips, say so here rather than quietly carrying it.
 

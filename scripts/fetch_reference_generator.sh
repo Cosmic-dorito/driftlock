@@ -37,15 +37,26 @@ cat <<'NOTE'
 
 Done. The reference generator is in third_party/drift-sense-reference/.
 
-To produce a cross-validation split from it (run from inside that directory, with our venv
-active - it depends on numpy and opencv, which we already pin):
+YOU PROBABLY DO NOT NEED TO RUN THIS. The sponsor split we report on is COMMITTED at
+data/_sponsor/verify/ - 40 pairs with ground truth - so every reported figure can be
+recomputed with `python scripts/audit_results.py` and no fetch at all. This script is here
+for attribution, and for anyone who wants fresh sponsor-style data.
+
+To reproduce the EXACT split behind the reported sponsor figures (run from inside that
+directory, with our venv active - it depends on numpy and opencv, which we already pin):
 
     cd third_party/drift-sense-reference
-    python generate_dataset.py --num-samples 100 --split sponsor \
-        --architectures dram_1x dram_dense --output-dir ../../data/_sponsor --seed 20260811
+    python generate_dataset.py --num-samples 40 --split verify \
+        --architectures dram_1x --output-dir ../../data/_sponsor --seed 20260811
 
-Its manifest.csv is a subset of our schema, so our loader reads it unchanged
-(see the manifest contract in CLAUDE.md).
+Those arguments are read off the committed manifest, not remembered: 40 rows, every row
+seed 20260811 and architecture dram_1x, under the split name `verify`. An earlier version of
+this note said `--num-samples 100 --split sponsor --architectures dram_1x dram_dense`, which
+produces a differently named and differently sized dataset from the one the reported 0.0%
+mis-lock was measured on.
+
+Its manifest.csv is a subset of our schema, so our loader reads it unchanged; the manifest
+contract is documented in docs/SPEC.md and enforced by scripts/verify_submission.py.
 
 Reminder: this is third-party code used for validation and attribution only. Do not copy it
 into src/. See ADR-0004.

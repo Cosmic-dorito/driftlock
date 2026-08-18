@@ -84,7 +84,7 @@ def build_params(args: argparse.Namespace) -> GenerationParams:
 def _record_path(path: Path, manifest_dir: Path) -> str:
     """The path to record in the manifest: forward-slashed, and never absolute.
 
-    CLAUDE.md fixes the contract as "relative to the repo root, always forward-slashed", and the
+    The contract is "relative to the repo root, always forward-slashed" (docs/SPEC.md), and the
     no-hard-coded-paths rule is a literal item on the sponsor's checklist. The previous version
     recorded ``ref_path.as_posix()`` directly, which satisfies both only when ``--output-dir``
     happens to sit inside the repo. Point it anywhere else and the manifest filled up with

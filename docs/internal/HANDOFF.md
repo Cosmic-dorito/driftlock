@@ -99,14 +99,14 @@ fix it rather than skipping the check.
 
 | Read | For |
 |---|---|
-| `CLAUDE.md` | The thesis, the frozen contracts, the correctness rules. **Start here.** |
+| `docs/SPEC.md` | The requirements, the frozen contracts, the correctness rules. **Start here.** |
 | `docs/PROGRESS.md` | What is done, what is next, who owns it, what is blocked |
 | `docs/DECISIONS.md` | Why things are the way they are, and the H1–H9 verification log |
 | `docs/SPEC.md` | What the sponsor actually requires (extraction from the PDF) |
 | `docs/PLAN.md` | The full approved plan, including the day-by-day schedule |
 | `docs/METHOD.md` | The technical writeup the deck is generated from |
 
-If you are a Claude Code instance: `CLAUDE.md` loads automatically. Read `docs/PROGRESS.md` next to
+Read `docs/internal/PROGRESS.md` next to
 find the current gate before doing anything.
 
 ## 4. Get data
@@ -144,7 +144,7 @@ python evaluate.py --manifest data/bench/manifest.csv --predictions results/pred
 - Cleared a gate? Tick it in `docs/PROGRESS.md` with your initials and the date.
 - Changed results? Regenerate `results/` in the same commit. **Never a claim in the deck without a
   commit behind it** (R2).
-- Stay inside your directory (`CLAUDE.md` → ownership table). If you must touch someone else's,
+- Stay inside your directory (see the ownership table below). If you must touch someone else's,
   tell them first — that separation is what keeps three people from colliding.
 
 ## 7. Package the submission
