@@ -57,31 +57,27 @@ at **0.79× the full-resolution *residual configuration*** — not 0.79× baseli
 finds the exact location on the intensity image. L4 was also tested and loses 2 pairs — the
 aperiodic signal survives one halving, not two.
 
-**Runtime: the file is valid, but it predates ADR-0036 and the gate does NOT pass.**
-`results/runtime.csv` holds the measurement taken at commit 204ddfb — control **19.5 ms**, at or
-below the quiet-machine reference, so its control axis is healthy. But dispersion read **1.186**
-against the benchmark's **1.18** threshold, and the file's own footer records
-`absolute_ms_representative, no`. That is a *marginal gate failure*, not a certification.
+**Runtime: CERTIFIED on 18 Aug — both gates pass.** `results/runtime.csv` records
+`absolute_ms_representative, yes`. Baseline control **18.8 ms** against the 22 ms quiet-machine
+reference, dispersion **1.145** against the 1.18 threshold, measured on the shipped configuration.
 
-⚠️ **It describes the pre-guard configuration.** Two attempts on 16 Aug to re-measure with ADR-0036
-were both refused by the benchmark's own control gate (86–88 ms against the 22 ms reference), and
-the cause was measured rather than guessed: after an hour of robustness sweeps the CPU sat at
-**1400 MHz against a 3800 MHz maximum on an idle machine at 2% load**. A 2.7× clock deficit accounts
-for essentially the whole gap, and sustained down-clocking does not clear in the seven minutes the
-cooldown allowed.
+| split | p50 | p95 | × baseline |
+|---|---|---|---|
+| sponsor | 672 ms | 716 | 35.8× |
+| bench | 604 ms | 669 | 32.1× |
+| FinFET | 621 ms | 758 | 33.1× |
 
-What can be said: across both throttled runs the ratio was **25–28× the baseline control**, against
-**29–32×** in the unthrottled 204ddfb run, so the shipped figure is of that order. ADR-0036 replaces
-a multiply-add with a comparison and cannot plausibly move it — but that is reasoning, not a
-measurement, and it is written here as reasoning. **Re-run `scripts/benchmark_runtime.py` on a
-machine that has been idle long enough for the clock to return to its maximum, and take whatever it
-reports.**
+**The earlier failures were real, and so was the wrong diagnosis.** Two attempts on 16–17 Aug were
+refused by the control gate at 86–88 ms, and the cause was recorded as sustained down-clocking on
+the evidence that `Win32_Processor.CurrentClockSpeed` read 1400 MHz against a 3800 MHz maximum. That
+reading is worthless: on 18 Aug it still read 1400 MHz **while the CPU was under full load**, so WMI
+was reporting a static nominal value and never the live frequency. The genuine signal was always the
+benchmark's own control arm, which is why the gate is built on it. The machine was simply hot from
+an hour of robustness sweeps; once idle, the same command certified on the first attempt.
 
-Say **"stable measured runtime on a healthy machine, marginal dispersion gate failure at
-1.186 vs 1.18"** — never "runtime certified" or "strict certification passed" while the gate itself
-reports otherwise. The threshold was deliberately *not* widened to make the number pass; 1.186 looks
-like this machine's steady value rather than instability, but that is a hypothesis about the
-threshold's calibration, not a pass.
+*Working rule earned here: when a health gate and a system metric disagree, trust the one that
+measures the thing you care about. The control arm runs the same code on the same machine; a
+vendor-reported clock is an assertion about hardware that may not even be sampled.*
 
 **The trade, measured:** the 15 Aug morning configuration ran 394/377/382 ms at ~20× baseline at
 16.0% mis-lock. The four changes cost **≈×1.5 runtime for 16.0% → 5.0%**. There is no published

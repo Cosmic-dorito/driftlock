@@ -276,12 +276,12 @@ deterministic, so seeds reproduce the images exactly. See [ADR-0008](docs/DECISI
 
 | Split | Config | Mis-lock (>5px) | Median (px) | pass@1px | pass@0.5px | Screen recall | Runtime p50 |
 |---|---|---|---|---|---|---|---|
-| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 20 ms |
-| *their generator, fixed 10:1, no rotation* | **DriftLock** | **0.0%** | **0.179** | **97.5%** | **92.5%** | 90.0% | 632 ms (32x base) |
+| **sponsor `verify`** (40 pairs) | baseline | 25.0% | 1.102 | 40.0% | 17.5% | n/a | 19 ms |
+| *their generator, fixed 10:1, no rotation* | **DriftLock** | **0.0%** | **0.179** | **97.5%** | **92.5%** | 90.0% | 672 ms (36x base) |
 | **bench** (30 pairs) | baseline | 76.7% | 326.905 | 10.0% | 3.3% | n/a | 19 ms |
-| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **13.3%** | **0.300** | **83.3%** | **66.7%** | 86.7% | 568 ms (29x base) |
-| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 20 ms |
-| *held-out architecture, never tuned on* | **DriftLock** | **3.3%** | **0.214** | **90.0%** | **76.7%** | 90.0% | 564 ms (29x base) |
+| *ours: 9–11:1 magnification, ±2° rotation, DRAM* | **DriftLock** | **13.3%** | **0.300** | **83.3%** | **66.7%** | 86.7% | 604 ms (32x base) |
+| **holdout FinFET** (30 pairs) | baseline | 90.0% | 359.893 | 3.3% | 3.3% | n/a | 18 ms |
+| *held-out architecture, never tuned on* | **DriftLock** | **3.3%** | **0.214** | **90.0%** | **76.7%** | 90.0% | 621 ms (33x base) |
 
 **Mis-lock is the headline metric.** The error distribution is bimodal — a pair is either located to about a pixel or lost to a different repeat of the lattice, tens to hundreds of pixels away — so an averaged error describes neither case. Precision is therefore a *conditional* claim: once the correct repeat is selected, localization is sub-pixel.
 
@@ -292,8 +292,6 @@ Two different things are being measured and should not be averaged together. On 
 **Hardware:** Windows 11 (AMD64) · Intel64 Family 6 Model 170 Stepping 4, GenuineIn. **Python version:** 3.14.3, OpenCV 5.0.0, 22 thread(s).
 
 **Timing method:** runtimes come from `scripts/benchmark_runtime.py`, which interleaves the splits round-robin and discards a warm-up. The **x-baseline** figure is the one to compare across machines: this laptop throttles by up to 3x for identical code over a long session and does not recover on idling, and across three states in one day the absolute p50 moved 400 -> 630 -> 1262 ms while the ratio to the baseline held at 20.0, 18.5 and 18.8. The baseline is therefore run as a control in the same interleaved pass.
-
-> ⚠️ **The absolute milliseconds in this table were measured on a throttled machine** — the baseline control read far above its quiet-machine value — and are not representative. The x-baseline ratios are unaffected. Re-run `scripts/benchmark_runtime.py` on a rested machine before quoting the p50 figures.
 
 <!-- END GENERATED README RESULTS -->
 
