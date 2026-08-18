@@ -154,6 +154,8 @@ Results
 
 100 evaluated pairs across three splits — one a held-out architecture
 
+A mis-lock is a silent data-integrity failure — the tool measures the wrong cell and reports it confidently. The supplied baseline commits 60 of them here; DriftLock commits 5.
+
 ACCURACY vs THE TOLERANCE LADDER
 
 ONE SUCCESS, ONE HONEST FAILURE

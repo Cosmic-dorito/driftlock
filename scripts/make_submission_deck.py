@@ -419,11 +419,27 @@ def build() -> int:
 
     # ------------------------------------------------------------------ 6. Results
     set_text(find(results, "Impact and Benefits"), "Results")
-    set_text(find(results, "Explain how your solution will make an impact"),
-             f"{total} evaluated pairs across three splits — one a held-out architecture", size=16)
+    # The template's single-line subtitle placeholder is 0.34in tall and vertically centred, so a
+    # second line placed under it collides rather than stacking. Replaced with our own two-line
+    # block at explicit geometry, which is the same fix the body placeholders needed.
+    drop_if(results, "Explain how your solution will make an impact")
     drop_if(results, "Primary Impact", "Describe the most significant benefit",
             "Quantifiable Outcomes", "List potential metrics")
     drop_body_icons(results)
+
+    # The impact line the template's own slide title asks for, stated where it belongs - next to the
+    # evidence rather than on a slide of its own. The baseline figure is DERIVED from the committed
+    # baseline metrics, not typed, so it moves with the measurement like every other number here.
+    baseline_bad = sum(int(metrics(f"{k}_baseline")["n_mislocks"])
+                       for k in ("sponsor", "bench", "finfet"))
+    add_text(results, BODY_LEFT, 3.40, BODY_WIDTH, 0.32,
+             [f"{total} evaluated pairs across three splits — one a held-out architecture"],
+             size=15, color=ACCENT, space_after=3)
+    add_text(results, BODY_LEFT, 3.72, BODY_WIDTH, 0.3, [
+        f"A mis-lock is a silent data-integrity failure — the tool measures the wrong cell and "
+        f"reports it confidently. The supplied baseline commits {baseline_bad} of them here; "
+        f"DriftLock commits {bad}.",
+    ], size=11, color=WHITE)
     card(results, BODY_LEFT, BODY_TOP, 4.7, BODY_BOTTOM - BODY_TOP)
     card(results, BODY_LEFT + 5.05, BODY_TOP, 6.18, BODY_BOTTOM - BODY_TOP)
 
