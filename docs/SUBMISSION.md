@@ -117,6 +117,12 @@ diversity over volume. This submission reports 100 evaluated pairs across three 
 is a held-out architecture never used during development, supported by a further 750 pairs across 25
 stress operating points and 200 pairs reserved for parameter selection.
 
+**All 100 reported pairs and their ground truth are committed**, so every reported figure is
+recomputable from the repository alone by running `scripts/audit_results.py`. This is deliberate:
+a number that only its authors can check is not evidence. The tuning and stress splits are not
+committed — nothing reported depends on them, and they are regenerable from the seeds recorded in
+the README.
+
 Generated variation covers magnification ratio, rotation, dose, detector noise, beam spot size,
 raster shear and jitter, barrel distortion, gamma, vignetting, charging artefacts, speckle and
 impulse noise. The question-and-answer session confirmed that evaluation data will include rotation

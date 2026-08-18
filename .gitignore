@@ -39,6 +39,12 @@ data/*
 !data/bench/
 !data/bench/**
 data/_sponsor/
+# ...except the split we actually REPORT. Without its manifest, the sponsor numbers cannot be
+# recomputed by anyone but us, which makes them unverifiable rather than merely unreproduced.
+# The other _sponsor subtrees (shear ladders, alternate holdouts) stay ignored - they are
+# exploratory and nothing in the reported result depends on them.
+!data/_sponsor/verify/
+!data/_sponsor/verify/**
 
 # Third-party reference generator, fetched not vendored.
 # See scripts/fetch_reference_generator.sh and README attribution.

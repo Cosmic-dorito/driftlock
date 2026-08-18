@@ -175,8 +175,17 @@ python evaluate.py --manifest data/bench/manifest.csv --predictions results/pred
 
 #### Regenerating every reported split
 
-`data/bench` is committed, so it needs no regeneration. The other two reporting splits are
-regenerated from seed:
+**All three reporting splits are committed**, so every number in `docs/RESULTS.md` can be
+recomputed from the repository alone — no regeneration, no network, no seed required:
+
+```bash
+python scripts/audit_results.py     # re-derives every headline figure from the committed data
+```
+
+That script imports nothing from `src/` or `evaluate.py`, so a defect in our own metric code cannot
+reproduce itself in the check.
+
+The generator commands are kept for anyone who wants fresh data rather than ours:
 
 | Split | Command |
 |---|---|
