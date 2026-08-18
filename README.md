@@ -62,7 +62,15 @@ make setup          # Windows PowerShell: .\make.ps1 setup
 ```
 
 Dependencies are few and pinned by design: `numpy`, `scipy`, `opencv-python-headless`,
-`scikit-image`, `pillow`, `pandas`, `PyYAML`, `matplotlib`.
+`scikit-image`, `pillow`, `pandas`, `PyYAML`, `matplotlib` — eight direct, plus four transitive
+packages pinned for reproducibility.
+
+Two dependency files ship, and they answer different questions:
+
+| File | Use it for |
+|---|---|
+| `requirements.txt` | **Reproducing the results.** The curated runtime set — install this. |
+| `requirements-freeze.txt` | The complete `pip freeze` of the development environment, as the problem statement asks for. Exhaustive, and includes test and build tooling (`pytest`, `ruff`, `python-pptx`) that the localizer never imports. |
 
 - **No GPU required.** The deterministic path that produces the submitted coordinates runs on CPU.
 - **`torch` is optional**, lazily imported, and used only by the flag-gated re-ranker

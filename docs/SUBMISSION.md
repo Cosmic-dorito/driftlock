@@ -93,7 +93,7 @@ from `results/` at build time. A plain-text extract is maintained at `docs/DECK_
 | Localization inference script, standalone, accepting reference and search image paths and emitting a predicted centre | `localize.py` |
 | Deep-learning weights, loaded automatically | Not applicable — the method involves no training |
 | Training script or notebook | Not applicable |
-| Complete dependency specification | `requirements.txt` |
+| Complete dependency specification ("complete pip freeze output") | `requirements-freeze.txt` — the exhaustive freeze. `requirements.txt` is the curated runtime subset and is what README.md instructs a reviewer to install |
 | Citation documents corresponding to the presentation | `docs/REFERENCES.md` |
 
 The problem statement identifies the inference script as the most important file in the repository,
