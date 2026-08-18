@@ -56,3 +56,19 @@ deleting them would leave those claims unsupported.
 They describe **older configurations on older splits** and their numbers will not match the current
 headline. `metrics_verify.csv` in particular is an early sponsor-split run under a since-retired
 label; read `metrics_sponsor.csv` instead.
+
+## A note on the `ambiguity_index` column
+
+Prediction files carry a fifth column reporting how dangerous the periodic ambiguity was for that
+pair: the best score divided by the best score among candidates that are **not** plausibly the same
+location. It is unitless and **higher is safer** — a value near 1 means a structurally different
+position scored just as well.
+
+It was previously named `confidence_radius_px`, which was wrong twice over: it is not a radius and
+it is not in pixels, and the name implied the opposite polarity. It was renamed on 18 August.
+
+**The three current reporting files** — `predictions_{sponsor,bench,finfet}.csv` — carry the new
+name. **The historical files listed under "Historical files" above still carry the old one**, because
+regenerating them would mean re-running superseded configurations purely to relabel a column that
+nothing reads. `evaluate.py` keys off `pred_x`, `pred_y` and `runtime_ms` and never touches it, so
+the two schemas coexist without consequence. Recorded here rather than left for a reader to trip on.

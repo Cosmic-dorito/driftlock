@@ -145,6 +145,36 @@ python generate_dataset.py --num-samples 30 --split bench --seed 1234 --output-d
 python evaluate.py --manifest data/bench/manifest.csv --predictions results/predictions.csv --out results/
 ```
 
+#### Regenerating every reported split
+
+`data/bench` is committed, so it needs no regeneration. The other two reporting splits are
+regenerated from seed:
+
+| Split | Command |
+|---|---|
+| `bench` (committed) | `python generate_dataset.py --num-samples 30 --split bench --seed 1234 --output-dir data` |
+| `holdout_finfet` | `python generate_dataset.py --num-samples 30 --split holdout_finfet --seed 424242 --output-dir data --architectures finfet` |
+| `optical` (bonus) | `python generate_dataset.py --num-samples 30 --split optical --seed 77001 --modality optical` |
+
+The `sponsor` split comes from the organiser's own published generator, not ours; see
+`scripts/fetch_reference_generator.sh`.
+
+> ⚠️ **Scope of the determinism guarantee.** `tests/test_determinism.py` asserts that the same seed
+> produces byte-identical images **on the same platform and library versions** — it runs the
+> generator twice on one machine. It is *not* a cross-platform guarantee, and measurement says it
+> does not hold across platforms: regenerating `bench` with seed 1234 on macOS/arm64 against the
+> committed images generated on Windows/x86-64 reproduces the **ground-truth coordinates exactly**
+> but leaves 93–98% of pixels differing (mean Δ ≈ 15 grey levels on the search image).
+>
+> The likely mechanism is that OpenCV's filtering and warping differ slightly between SIMD
+> back-ends; that perturbs the input to `rng.poisson`, whose rejection sampler then draws a
+> different number of variates and desynchronises the stream for every subsequent pixel. Consistent
+> with the noisier search image diverging about three times as much as the reference.
+>
+> **Consequence for a reviewer:** regenerate on any platform and the *task* is identical — same
+> layout, same ground truth, same difficulty — but the pixels are not the same pixels. To check our
+> reported numbers against our exact images, use the committed `data/bench`.
+
 ### RGB optical extension (the problem statement's bonus)
 
 ```bash

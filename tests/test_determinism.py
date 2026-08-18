@@ -15,6 +15,18 @@ Two independent properties, tested separately because they fail for different re
 
 Deliberately compared as BYTES, not as "close enough". A tolerance here would pass a pipeline that
 is merely stable, which is a weaker claim than the README makes.
+
+⚠️ **SCOPE: this asserts SAME-PLATFORM determinism only.** Both runs happen on one machine with one
+set of library versions, so that is the whole of what it can establish. It is NOT a cross-platform
+guarantee, and measurement says the stronger claim is false: regenerating `bench` with seed 1234 on
+macOS/arm64 against images generated on Windows/x86-64 reproduces the ground-truth coordinates
+exactly while leaving 93-98% of PIXELS differing. OpenCV's filtering differs slightly between SIMD
+back-ends, which perturbs the input to `rng.poisson`, whose rejection sampler then consumes a
+different number of variates and desynchronises the stream for everything after it.
+
+The task is identical across platforms - same layout, same ground truth, same difficulty - but the
+pixels are not. Anyone checking our reported numbers against our exact images should use the
+committed `data/bench`. See README, "Regenerating every reported split".
 """
 
 import csv

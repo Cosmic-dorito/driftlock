@@ -82,7 +82,7 @@ longer the limiting factor on this split — selection is.
 ## 2a. Superseded — the 11 Aug headline, kept for the record
 
 > The table below predates the pose work and the two generator fixes of 12 Aug. It is retained
-> because it is what `another machine` measured and reported, and silently replacing it would hide the fact
+> because it is what the 11 Aug run measured and reported, and silently replacing it would hide the fact
 > that the pipeline it describes fails completely once rotation and scale are present.
 
 ## 2b. Headline result — validated on held-out data (CURRENT)
@@ -110,7 +110,7 @@ Runtimes come from `scripts/benchmark_runtime.py`, which interleaves the splits 
 
 <!-- END GENERATED HEADLINE -->
 
-## 2b. Generalisation test — PADM removed ⚠️
+## 2c. Generalisation test — PADM removed ⚠️
 
 **The most important negative result in the project**, and the reason the headline above looks
 different from earlier drafts.
@@ -142,7 +142,7 @@ evaluation set would have quietly disagreed.
 
 ---
 
-## 2c. A property of the sponsor's generator worth knowing
+## 2d. A property of the sponsor's generator worth knowing
 
 While building the held-out splits, `dram_dense`, `dram_loose` and `dram_legacy` produced
 **byte-identical images** (verified by md5).
@@ -157,7 +157,7 @@ which raises the value of P0 further.
 
 ---
 
-## 2d. Sub-pixel and drift correction are synergistic, not independent
+## 2e. Sub-pixel and drift correction are synergistic, not independent
 
 Median error (px), all three splits:
 
@@ -332,7 +332,7 @@ smaller than the score noise**. That is why ranking, not generation, is the bott
 | + sub-pixel DFT | +1 | 219 |
 | + drift estimation | +5 | 224 |
 
-224 ms p50, 235 ms p95, single-threaded CPU, no GPU. Inside the 300 ms target but with a much
+224 ms p50, 235 ms p95, CPU only, no GPU (the 11 Aug configuration). Inside the 300 ms target but with a much
 thinner margin than the baseline. PADM's FFTs dominate and are the obvious optimisation target if
 runtime becomes binding.
 

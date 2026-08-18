@@ -489,7 +489,7 @@ def build() -> int:
         "lazily imported — uninstalling it leaves everything working.",
         "Hardware: one laptop CPU. No GPU, no cloud, nothing downloaded at runtime. Deterministic: "
         "a single seeded numpy Generator is threaded through, and a test asserts the same seed "
-        "gives byte-identical images and identical predictions.",
+        "gives byte-identical images and identical predictions on the same platform.",
         "Inference accepts .png and .npy pairs identically; a separate documented converter exists "
         "for visual inspection but is never on the scoring path.",
         "Model size: none. Nothing is trained, so there are no weights to ship, load or version.",

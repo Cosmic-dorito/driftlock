@@ -150,7 +150,7 @@ nothing.
 
 - Single-pair mode prints exactly one line to stdout; all logs to stderr.
 - Batch mode runs an evaluator's manifest with **zero source edits**.
-- Four dependencies; `torch` optional and lazily imported; `pip uninstall torch` leaves everything working.
+- Eight direct dependencies; `torch` optional and lazily imported; `pip uninstall torch` leaves everything working.
 - No network at runtime, no model downloads, weights committed.
 - Deterministic: same seed → identical output, on any machine.
 - No absolute paths (`verify_submission.py` fails the build on them — a literal spec checklist item).
